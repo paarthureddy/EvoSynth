@@ -1,0 +1,11 @@
+# Ignore documentation folders
+docs/
+reports/
+presentations/
+
+# Ignore PDFs
+*.pdf
+
+# Python caches
+__pycache__/
+*.pyc
