@@ -1,0 +1,32 @@
+# Ignore the other project folder completely
+Final_Year Project/
+
+# Ignore all documentation formats
+*.pdf
+*.md
+*.html
+*.jpeg
+*.jpg
+*.png
+*.zip
+*.docx
+
+# Keep README if it exists
+!README.md
+!Final_year Implementation/README.md
+
+# Python caches and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env/
+.venv/
+
+# Ignore specific document folders we created
+Final_year Implementation/docs/
+Final_year Implementation/reports/
+Final_year Implementation/presentations/
