@@ -22,4 +22,18 @@ def get_dummy_search_space():
     
     cs.add_hyperparameters([lr, layers, optimizer, dropout])
     return cs
+
+def get_xgboost_search_space():
+    """
+    Returns a ConfigSpace defining the boundaries for a real XGBoost model.
+    """
+    cs = CS.ConfigurationSpace()
     
+    lr = CSH.UniformFloatHyperparameter("learning_rate", lower=0.01, upper=0.3, log=True)
+    n_est = CSH.UniformIntegerHyperparameter("n_estimators", lower=50, upper=500)
+    depth = CSH.UniformIntegerHyperparameter("max_depth", lower=3, upper=10)
+    sub = CSH.UniformFloatHyperparameter("subsample", lower=0.5, upper=1.0)
+    booster = CSH.CategoricalHyperparameter("booster", choices=["gbtree", "dart"])
+    
+    cs.add_hyperparameters([lr, n_est, depth, sub, booster])
+    return cs

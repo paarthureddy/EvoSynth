@@ -1,19 +1,20 @@
 import numpy as np
-from automl_engine.core.search_space import get_dummy_search_space
-from automl_engine.core.evaluator import DummyObjectiveFunction
+from automl_engine.core.search_space import get_xgboost_search_space
+from automl_engine.core.evaluator import XGBoostEvaluator
 from automl_engine.engine.controller import DynamicOptimizer
 from ConfigSpace import Configuration
 
 def main():
     print("="*60)
-    print(" DYNAMIC EVOLUTIONARY OPTIMIZER - DUMMY BENCHMARK")
+    print(" DYNAMIC EVOLUTIONARY OPTIMIZER - XGBOOST (BREAST CANCER)")
     print("="*60)
     
     # 1. Get the hyperparameter boundaries
-    space = get_dummy_search_space()
+    space = get_xgboost_search_space()
     
-    # 2. Initialize the Dummy Mathematical Function (Simulates our ML Model)
-    evaluator = DummyObjectiveFunction()
+    # 2. Initialize the Evaluator
+    print("Loading dataset and initializing XGBoost Evaluator...")
+    evaluator = XGBoostEvaluator()
     
     # 3. Run the AutoML Optimizer Engine
     # We give it a budget of 300 evaluations (the "outer loop")
@@ -48,12 +49,6 @@ def main():
             print(f" - {param.name}: {val:.4f}")
         else:
             print(f" - {param.name}: {val}")
-        
-    print("\n[Secret 'Perfect' Target Values] (For Comparison)")
-    print(f" - learning_rate: {evaluator.perfect_lr}")
-    print(f" - num_layers: {evaluator.perfect_layers}")
-    print(f" - optimizer: {evaluator.perfect_opt}")
-    print(f" - dropout: {evaluator.perfect_dropout}")
 
 if __name__ == "__main__":
     main()
