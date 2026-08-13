@@ -107,13 +107,10 @@ def api_run():
         "phase": "INITIALIZATION",
         "evals_used": 0,
         "budget": budget,
-        "best_fitness": 0,
-        "best_algo": "",
-        "best_params": {},
-        "composite": {},
+        "elapsed": 0,
         "t1_islands": {},
         "t2_islands": {},
-        "events": [{"type": "info", "msg": f"Generating initial population... Training models via {eval_type.upper()}."}]
+        "events": [{"t": 0, "kind": "INFO", "msg": f"Generating initial population... Training models via {eval_type.upper()}."}]
     }
     with open(STATE_FILE, "w") as f:
         json.dump(init_state, f)

@@ -257,7 +257,7 @@ class DynamicOptimizer:
     def run(self):
         # ── PHASE 1: INITIALIZATION ───────────────────────────────────────
         self._phase = "INIT"
-        self._event(f"Phase 1: Generating initial population ({self.N} individuals).")
+        self._event("Phase 1: Generating initial population (50 individuals).")
         print(_sep())
         print(_hdr("PHASE 1 — INITIALIZATION  (N = 50)"))
         print(_sep())
