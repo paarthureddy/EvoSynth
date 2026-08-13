@@ -17,38 +17,9 @@ def main():
     evaluator = XGBoostEvaluator()
     
     # 3. Run the AutoML Optimizer Engine
-    # We give it a budget of 300 evaluations (the "outer loop")
-    optimizer = DynamicOptimizer(space, evaluator, budget=300, k_iters=5)
-    best_ind = optimizer.run()
-    
-    # 4. Results
-    print("\n" + "="*40)
-    print("               FINAL RESULTS")
-    print("="*40)
-    print(f"Best Fitness Score: {best_ind.fitness:.2f}/100")
-    print(f"Found by Algorithm: {best_ind.source_algorithm}")
-    
-    # Decode the mathematical float vector back into real hyperparameter values
-    valid_vec = np.copy(best_ind.vector)
-    import ConfigSpace.hyperparameters as CSH
-    for i, hp_name in enumerate(list(space.keys())):
-        hp = space.get_hyperparameter(hp_name)
-        if isinstance(hp, CSH.CategoricalHyperparameter):
-            num_choices = len(hp.choices)
-            idx = int(np.floor(valid_vec[i] * num_choices))
-            idx = min(idx, num_choices - 1)
-            valid_vec[i] = float(idx)
-            
-    config = Configuration(space, vector=valid_vec)
-    
-    print("\n[Best Hyperparameters Discovered]")
-    for param in space.values():
-        val = config.get(param.name)
-        # Format floats nicely for display
-        if isinstance(val, float):
-            print(f" - {param.name}: {val:.4f}")
-        else:
-            print(f" - {param.name}: {val}")
+    # Budget: 300 evals | T1 Competition: 20 iters | Scoring interval: 5
+    optimizer = DynamicOptimizer(space, evaluator, budget=300, t1_iters=20, k_iters=5)
+    optimizer.run()
 
 if __name__ == "__main__":
     main()
