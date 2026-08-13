@@ -399,8 +399,7 @@ class DynamicOptimizer:
                 inds = self._eval_batch(opt.ask(5), f"T1_{alg}")
                 if inds: opt.tell(inds)
 
-            if self.evals_used >= self.budget:
-                break
+            # Removed early break so it can print the row and do a final checkpoint
 
             # ── Print per-iteration row ──────────────────────────────────
             glob  = self.best_individual.fitness if self.best_individual else 0.0
@@ -412,8 +411,8 @@ class DynamicOptimizer:
             print(f"  {iteration:>4}  {t2_str:>20}  {t1_str:>20}  "
                   f"{glob:>7.2f}%  {self.evals_used:>4}/{self.budget}{flag}")
 
-            # ── Every k iterations: switching strategies ─────────────────
-            if iteration % self.k == 0:
+            # ── Every k iterations (or at final budget): switching strategies
+            if iteration % self.k == 0 or self.evals_used >= self.budget:
                 print(f"\n  {_sep('-',60)}")
                 print(f"  {_hdr('SWITCHING STRATEGY CHECKPOINT', '-', 60)}")
 
@@ -594,6 +593,9 @@ class DynamicOptimizer:
             self._dump_state(
                 t1_optims, t2_optims,
                 all_t1_sc, all_t2_sc, all_raw)
+
+            if self.evals_used >= self.budget:
+                break
 
         # ── CONVERGENCE ───────────────────────────────────────────────────
         self._phase = "CONVERGED"
