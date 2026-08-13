@@ -2,15 +2,15 @@
 ================== PHASE 1 — INITIALIZATION  (N = 50) ==================
 ========================================================================
   Generated 50 individuals | T1 pool: 20 | T2 pool (unassigned): 30
-  Best: 96.66%  Avg: 95.72%
+  Best: 96.48%  Avg: 95.59%
 
 ========================================================================
 ========== PHASE 2 — TIER-1 WARM-UP  (5 iters × 4 algorithms) ==========
 ========================================================================
-  T1-GA   : seeded 5 inds | best 95.96%
+  T1-GA   : seeded 5 inds | best 96.48%
   T1-PSO  : seeded 5 inds | best 95.96%
   T1-DE   : seeded 5 inds | best 96.13%
-  T1-CMAES: seeded 5 inds | best 95.78%
+  T1-CMAES: seeded 5 inds | best 96.13%
 
   Running 5 warm-up iterations...
 
@@ -20,45 +20,61 @@
 
   Algorithm  Accuracy    Speed  Diversity  Composite
   ---------- -------- -------- ---------- ----------
-  T1_DE        96.84%   96.837      0.419      1.000
-  T1_GA        96.66%   96.661      0.000      0.638
-  T1_PSO       96.48%   96.485      0.399      0.568
-  T1_CMAES     96.13%   96.133      0.365      0.131
+  T1_CMAES     97.19%   97.188      0.358      0.850
+  T1_GA        96.66%   96.661      0.490      0.490
+  T1_PSO       96.31%   96.310      0.400      0.048
+  T1_DE        96.31%   96.310      0.365      0.008
 
-  PROMOTED to T2 : ['DE', 'GA']   (ranked #1, #2)
-  REMAIN in T1   : ['PSO', 'CMAES']  (ranked #3, #4)
-  T2-DE   : 15 inds | best 96.84%
+  PROMOTED to T2 : ['CMAES', 'GA']   (ranked #1, #2)
+  REMAIN in T1   : ['PSO', 'DE']  (ranked #3, #4)
+  T2-CMAES: 15 inds | best 97.19%
   T2-GA   : 15 inds | best 96.66%
 
 ========================================================================
- PHASE 5 — PARALLEL MAIN LOOP  [T2: ['DE', 'GA'] | T1: ['PSO', 'CMAES']] 
+ PHASE 5 — PARALLEL MAIN LOOP  [T2: ['CMAES', 'GA'] | T1: ['PSO', 'DE']] 
 ========================================================================
   k=5 | elite_pct=20% | inject=20% | threshold=0.05
 
   Iter               T2 Best               T1 Best    Global     Evals
   ----  --------------------  --------------------  --------  --------
-     6    DE:96.8%  GA:96.7%  PSO:96.5%  CMAES:96.3%    96.84%   190/300
-     7    DE:96.8%  GA:96.7%  PSO:96.5%  CMAES:96.1%    96.84%   230/300
-     8    DE:96.8%  GA:96.7%  PSO:96.5%  CMAES:96.5%    96.84%   270/300
+     6  CMAES:96.7%  GA:96.7%   PSO:96.3%  DE:96.3%    97.19%   190/300
+     7  CMAES:96.7%  GA:96.7%   PSO:96.3%  DE:96.3%    97.19%   230/300
+     8  CMAES:96.7%  GA:96.8%   PSO:96.3%  DE:96.8%    97.19%   270/300
+     9  CMAES:97.0%  GA:96.8%   PSO:96.3%  DE:96.8%    97.19%   300/300
+
+  ------------------------------------------------------------
+  -------------- SWITCHING STRATEGY CHECKPOINT --------------
+  Label        Accuracy  Diversity  Composite
+  ------------ -------- ---------- ----------
+  T1_DE          96.84%      0.339      0.831
+  T2_GA          96.84%      0.488      0.560
+  T2_CMAES       97.01%      0.253      0.300
+  T1_PSO         96.31%      0.374      0.078
+  [SHARE] ELITE SHARE: top 3 exchanged between T2-CMAES ↔ T2-GA
+  [PROMOTE] PROMOTION: T1-DE(0.831) > T2-CMAES(0.300) → SWAP!
+  ------------------------------------------------------------
+
+  Iter               T2 Best               T1 Best    Global     Evals
+  ----  --------------------  --------------------  --------  --------
 
 ========================================================================
 ================ PHASE 9 — CONVERGENCE / FINAL RESULTS ================
 ========================================================================
   Total Evaluations : 300
-  Elapsed           : 1097.2s
-  Winning Algorithm : T1_DE
-  Best Accuracy     : 96.8365%
+  Elapsed           : 860.6s
+  Winning Algorithm : T1_CMAES
+  Best Accuracy     : 97.1883%
 
   Best Hyperparameters:
     * booster             : dart
-    * learning_rate       : 0.241458
-    * max_depth           : 3
-    * n_estimators        : 403
-    * subsample           : 0.631519
+    * learning_rate       : 0.229164
+    * max_depth           : 6
+    * n_estimators        : 285
+    * subsample           : 0.635570
 
   Top-5 Ensemble:
-    1. T1_DE        96.8365%
-    2. T1_DE        96.8365%
-    3. T1_DE        96.8365%
+    1. T1_CMAES     97.1883%
+    2. T2_CMAES     97.0110%
+    3. T2_GA        96.8375%
     4. T1_DE        96.8365%
-    5. RandomInit   96.6611%
+    5. T2_GA        96.8365%

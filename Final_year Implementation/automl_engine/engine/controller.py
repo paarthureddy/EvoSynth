@@ -257,6 +257,7 @@ class DynamicOptimizer:
     def run(self):
         # ── PHASE 1: INITIALIZATION ───────────────────────────────────────
         self._phase = "INIT"
+        self._event(f"Phase 1: Generating initial population ({self.N} individuals).")
         print(_sep())
         print(_hdr("PHASE 1 — INITIALIZATION  (N = 50)"))
         print(_sep())
@@ -306,8 +307,11 @@ class DynamicOptimizer:
                     opt.tell(inds)
             self._dump_state(t1_optims, {}, {f"T1_{k}": 0.0 for k in t1_optims}, {}, {})
 
+        self._event("Phase 2: Tier-1 Warm-Up complete.")
+
         # ── PHASE 3: COMPOSITE SCORING + INITIAL PROMOTION ────────────────
         self._phase = "SCORING"
+        self._event("Phase 3: Calculating composite scores for initial T2 promotion.")
         print(f"\n{_sep()}")
         print(_hdr("PHASE 3 — COMPOSITE SCORING + INITIAL T2 PROMOTION"))
         print(_sep())
@@ -329,6 +333,7 @@ class DynamicOptimizer:
         t1_remain = [s.replace("T1_", "") for s in sorted_algos[2:]]
         print(f"\n  PROMOTED to T2 : {t2_names}   (ranked #1, #2)")
         print(f"  REMAIN in T1   : {t1_remain}  (ranked #3, #4)")
+        self._event(f"Promoted to T2: {t2_names}. Remaining in T1: {t1_remain}.")
 
         for alg in self.ALL_ALGOS:
             self.bandit.update(alg, t1_sc.get(f"T1_{alg}", 0.0))
@@ -353,11 +358,18 @@ class DynamicOptimizer:
         t1_stag   = {a: 0 for a in t1_optims}
         t2_stag   = {a: 0 for a in t2_optims}
 
-        # Running composite tables (empty until first scoring)
-        all_t1_sc, all_t2_sc, all_raw = {}, {}, {}
-        self._dump_state(t1_optims, t2_optims,
-                         {f"T1_{k}": 0.0 for k in t1_optims},
-                         {f"T2_{k}": 0.0 for k in t2_optims}, {})
+        # Running composite tables (initialized with Phase 3 scores)
+        all_t1_sc = {k: v for k, v in t1_sc.items() if k.replace("T1_", "") in t1_optims}
+        all_t2_sc = {k.replace("T1_", "T2_"): v for k, v in t1_sc.items() if k.replace("T1_", "") in t2_optims}
+        all_raw = {}
+        for k, v in t1_raw.items():
+            alg = k.replace("T1_", "")
+            if alg in t1_optims:
+                all_raw[f"T1_{alg}"] = v
+            elif alg in t2_optims:
+                all_raw[f"T2_{alg}"] = v
+
+        self._dump_state(t1_optims, t2_optims, all_t1_sc, all_t2_sc, all_raw)
 
         # ── PHASE 5: PARALLEL MAIN LOOP ───────────────────────────────────
         self._phase = "PARALLEL"
@@ -413,6 +425,7 @@ class DynamicOptimizer:
 
             # ── Every k iterations (or at final budget): switching strategies
             if iteration % self.k == 0 or self.evals_used >= self.budget:
+                self._event(f"Strategy switching checkpoint at iteration {iteration}.")
                 print(f"\n  {_sep('-',60)}")
                 print(f"  {_hdr('SWITCHING STRATEGY CHECKPOINT', '-', 60)}")
 
