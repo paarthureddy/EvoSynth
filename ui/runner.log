@@ -2,14 +2,63 @@
 ================== PHASE 1 — INITIALIZATION  (N = 50) ==================
 ========================================================================
   Generated 50 individuals | T1 pool: 20 | T2 pool (unassigned): 30
-  Best: 96.66%  Avg: 95.56%
+  Best: 74.75%  Avg: 71.81%
 
 ========================================================================
 ========== PHASE 2 — TIER-1 WARM-UP  (5 iters × 4 algorithms) ==========
 ========================================================================
-  T1-GA   : seeded 5 inds | best 95.96%
-  T1-PSO  : seeded 5 inds | best 95.78%
-  T1-DE   : seeded 5 inds | best 96.13%
-  T1-CMAES: seeded 5 inds | best 95.78%
+  T1-GA   : seeded 5 inds | best 72.54%
+  T1-PSO  : seeded 5 inds | best 72.12%
+  T1-DE   : seeded 5 inds | best 73.11%
+  T1-CMAES: seeded 5 inds | best 74.75%
 
   Running 5 warm-up iterations...
+
+========================================================================
+========== PHASE 3 — COMPOSITE SCORING + INITIAL T2 PROMOTION ==========
+========================================================================
+
+  Algorithm  Accuracy    Speed  Diversity  Composite
+  ---------- -------- -------- ---------- ----------
+  T1_CMAES     80.57%   80.569      0.371      0.950
+  T1_GA        75.34%   75.340      0.367      0.336
+  T1_PSO       75.33%   75.328      0.326      0.242
+  T1_DE        73.24%   73.244      0.393      0.150
+
+  PROMOTED to T2 : ['CMAES', 'GA']   (ranked #1, #2)
+  REMAIN in T1   : ['PSO', 'DE']  (ranked #3, #4)
+  T2-CMAES: 15 inds | best 80.57%
+  T2-GA   : 15 inds | best 75.34%
+
+========================================================================
+ PHASE 5 — PARALLEL MAIN LOOP  [T2: ['CMAES', 'GA'] | T1: ['PSO', 'DE']] 
+========================================================================
+  k=5 | elite_pct=20% | inject=20% | threshold=0.05
+
+  Iter               T2 Best               T1 Best    Global     Evals
+  ----  --------------------  --------------------  --------  --------
+     6  CMAES:76.8%  GA:76.3%   PSO:75.6%  DE:73.2%    80.77%   190/300
+     7   PSO:96.5%  DE:96.7%  GA:96.1%  CMAES:96.3%    96.66%   230/300
+     8  CMAES:80.9%  GA:76.3%   PSO:77.9%  DE:76.0%    80.87%   270/300 *** NEW BEST ***
+
+========================================================================
+================ PHASE 9 — CONVERGENCE / FINAL RESULTS ================
+========================================================================
+  Total Evaluations : 300
+  Elapsed           : 0.7s
+  Winning Algorithm : T2_CMAES
+  Best Accuracy     : 81.4434%
+
+  Best Hyperparameters:
+    * filters             : 164
+    * kernel              : 3
+    * learning_rate       : 0.000139
+    * num_layers          : 8
+    * optimizer           : SGD
+
+  Top-5 Ensemble:
+    1. T2_CMAES     81.4434%
+    2. T2_CMAES     80.8748%
+    3. T1_CMAES     80.7651%
+    4. T2_CMAES     80.5820%
+    5. T1_CMAES     80.5687%

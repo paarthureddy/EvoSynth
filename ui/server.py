@@ -95,7 +95,7 @@ def api_run():
     inject_pct = float(data.get("inject_pct", 0.20))
     swap_thr   = float(data.get("swap_thr",   0.05))
     step_delay = float(data.get("step_delay", 0.08))
-    eval_type  = data.get("evaluator_type", "cnn")
+    eval_type  = data.get("evaluator_type", "xgboost")
 
     with _lock:
         if _running:
