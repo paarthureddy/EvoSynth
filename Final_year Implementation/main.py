@@ -17,8 +17,9 @@ def main():
     evaluator = XGBoostEvaluator()
     
     # 3. Run the AutoML Optimizer Engine
-    # Budget: 300 evals | T1 Competition: 20 iters | Scoring interval: 5
-    optimizer = DynamicOptimizer(space, evaluator, budget=300, t1_iters=20, k_iters=5)
+    # Budget: 700 | Warm-up: 50 | T1: 20 iters | T2: remaining budget
+    optimizer = DynamicOptimizer(space, evaluator, budget=700, pop_size=50,
+                                t1_iters=20, k_iters=5)
     optimizer.run()
 
 if __name__ == "__main__":

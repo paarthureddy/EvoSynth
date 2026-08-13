@@ -66,14 +66,16 @@ class XGBoostEvaluator:
     def __init__(self):
         from .search_space import get_xgboost_search_space
         from sklearn.datasets import load_breast_cancer
-        
+        import warnings
+        warnings.filterwarnings("ignore", category=UserWarning)
+
         self.space = get_xgboost_search_space()
-        
+
         # Load Breast Cancer dataset once
         data = load_breast_cancer()
         self.X = data.data
         self.y = data.target
-        
+
     def evaluate(self, individual):
         """
         Receives an Individual (with a [0, 1] scaled vector),
@@ -81,7 +83,7 @@ class XGBoostEvaluator:
         """
         import xgboost as xgb
         from sklearn.model_selection import cross_val_score
-        
+
         valid_vec = np.copy(individual.vector)
         for i, hp_name in enumerate(list(self.space.keys())):
             hp = self.space.get_hyperparameter(hp_name)
@@ -90,16 +92,18 @@ class XGBoostEvaluator:
                 idx = int(np.floor(valid_vec[i] * num_choices))
                 idx = min(idx, num_choices - 1)
                 valid_vec[i] = float(idx)
-                
+
         config = Configuration(self.space, vector=valid_vec)
-        
+
         # Extract parameters
         lr = config["learning_rate"]
         n_est = config["n_estimators"]
         depth = config["max_depth"]
         sub = config["subsample"]
         booster = config["booster"]
-        
+        colsample = config["colsample_bytree"]
+        reg_alpha = config["reg_alpha"]
+
         # Initialize model
         model = xgb.XGBClassifier(
             learning_rate=lr,
@@ -107,14 +111,16 @@ class XGBoostEvaluator:
             max_depth=depth,
             subsample=sub,
             booster=booster,
+            colsample_bytree=colsample,
+            reg_alpha=reg_alpha,
             eval_metric="logloss",
             random_state=42,
-            n_jobs=1 # Limit threads so the swarms can run fast
+            n_jobs=1
         )
-        
+
         # Perform 3-fold cross validation
         scores = cross_val_score(model, self.X, self.y, cv=3, scoring="accuracy")
-        
+
         # Return accuracy as percentage (0-100)
-        mean_accuracy = scores.mean() * 100.0
-        return mean_accuracy
+        return scores.mean() * 100.0
+
