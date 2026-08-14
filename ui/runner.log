@@ -3,15 +3,15 @@
 ================== PHASE 1 — INITIALIZATION  (N = 50) ==================
 ========================================================================
   Generated 50 individuals | T1 pool: 20 | T2 pool (unassigned): 30
-  Best: 96.66%  Avg: 95.54%
+  Best: 96.84%  Avg: 95.55%
 
 ========================================================================
 ========== PHASE 2 — TIER-1 WARM-UP  (5 iters × 4 algorithms) ==========
 ========================================================================
-  T1-GA   : seeded 5 inds | best 96.48%
-  T1-PSO  : seeded 5 inds | best 96.13%
-  T1-DE   : seeded 5 inds | best 95.96%
-  T1-CMAES: seeded 5 inds | best 95.78%
+  T1-GA   : seeded 5 inds | best 95.96%
+  T1-PSO  : seeded 5 inds | best 96.31%
+  T1-DE   : seeded 5 inds | best 96.84%
+  T1-CMAES: seeded 5 inds | best 96.13%
 
   Running 5 warm-up iterations...
   [INFO] Phase 2: Tier-1 Warm-Up complete.
@@ -23,40 +23,41 @@
 
   Algorithm  Accuracy    Speed  Diversity  Composite
   ---------- -------- -------- ---------- ----------
-  T1_GA        97.01%   97.013      0.400      1.000
-  T1_PSO       96.31%   96.308      0.399      0.319
-  T1_CMAES     96.13%   96.133      0.379      0.113
-  T1_DE        96.13%   96.134      0.316      0.001
+  T1_DE        96.84%   96.837      0.399      1.000
+  T1_PSO       96.84%   96.836      0.374      0.848
+  T1_CMAES     96.66%   96.660      0.399      0.575
+  T1_GA        96.48%   96.484      0.374      0.002
 
-  PROMOTED to T2 : ['GA', 'PSO']   (ranked #1, #2)
-  REMAIN in T1   : ['CMAES', 'DE']  (ranked #3, #4)
-  [INFO] Promoted to T2: ['GA', 'PSO']. Remaining in T1: ['CMAES', 'DE'].
-  T2-GA   : 15 inds | best 97.01%
-  T2-PSO  : 15 inds | best 96.66%
+  PROMOTED to T2 : ['DE', 'PSO']   (ranked #1, #2)
+  REMAIN in T1   : ['CMAES', 'GA']  (ranked #3, #4)
+  [INFO] Promoted to T2: ['DE', 'PSO']. Remaining in T1: ['CMAES', 'GA'].
+  T2-DE   : 15 inds | best 96.84%
+  T2-PSO  : 15 inds | best 96.84%
 
 ========================================================================
- PHASE 5 — PARALLEL MAIN LOOP  [T2: ['GA', 'PSO'] | T1: ['CMAES', 'DE']] 
+ PHASE 5 — PARALLEL MAIN LOOP  [T2: ['DE', 'PSO'] | T1: ['CMAES', 'GA']] 
 ========================================================================
-  k=5 | elite_pct=20% | inject=20% | threshold=0.05
+  k=5 | elite_pct=20% | inject=15% | threshold=0.05
 
   Iter               T2 Best               T1 Best    Global     Evals
   ----  --------------------  --------------------  --------  --------
-     6   GA:97.0%  PSO:96.7%  CMAES:96.0%  DE:96.1%    97.01%   190/300
-     7   GA:97.0%  PSO:96.7%  CMAES:96.3%  DE:96.1%    97.01%   230/300
-     8   GA:97.0%  PSO:96.7%  CMAES:95.8%  DE:96.1%    97.01%   270/300
-     9   GA:97.0%  PSO:96.7%  CMAES:95.8%  DE:96.1%    97.01%   300/300
+     6   DE:96.8%  PSO:96.8%  CMAES:96.7%  GA:96.5%    96.84%   190/300
+     7   DE:96.8%  PSO:96.8%  CMAES:96.7%  GA:96.5%    96.84%   230/300
+     8   DE:96.8%  PSO:96.8%  CMAES:96.7%  GA:96.5%    96.84%   270/300
+     9   DE:96.8%  PSO:96.8%  CMAES:96.7%  GA:96.5%    96.84%   300/300
   [INFO] Strategy switching checkpoint at iteration 9.
 
   ------------------------------------------------------------
   -------------- SWITCHING STRATEGY CHECKPOINT --------------
   Label        Accuracy  Diversity  Composite
   ------------ -------- ---------- ----------
-  T2_PSO         96.66%      0.372      0.878
-  T2_GA          97.01%      0.000      0.300
-  T1_DE          96.13%      0.490      0.236
-  T1_CMAES       95.78%      0.400      0.122
-  [SHARE] ELITE SHARE: top 3 exchanged between T2-GA ↔ T2-PSO
-  [STAG] STAGNATION T2-GA: 1/2 checks
+  T2_PSO         96.84%      0.374      0.719
+  T2_DE          96.84%      0.300      0.691
+  T1_CMAES       96.66%      0.388      0.575
+  T1_GA          96.48%      0.000      0.275
+  [SHARE] ELITE SHARE: top 3 exchanged between T2-DE ↔ T2-PSO
+  [STAG] STAGNATION T2-DE: 1/2 checks
+  [STAG] STAGNATION T2-PSO: 1/2 checks
   ------------------------------------------------------------
 
   Iter               T2 Best               T1 Best    Global     Evals
@@ -66,20 +67,20 @@
 ================ PHASE 9 — CONVERGENCE / FINAL RESULTS ================
 ========================================================================
   Total Evaluations : 300
-  Elapsed           : 712.3s
-  Winning Algorithm : T1_GA
-  Best Accuracy     : 97.0129%
+  Elapsed           : 668.4s
+  Winning Algorithm : T2_DE
+  Best Accuracy     : 96.8365%
 
   Best Hyperparameters:
     * booster             : gbtree
-    * learning_rate       : 0.152986
+    * learning_rate       : 0.235986
     * max_depth           : 6
-    * n_estimators        : 248
-    * subsample           : 0.508243
+    * n_estimators        : 469
+    * subsample           : 0.811565
 
   Top-5 Ensemble:
-    1. T1_GA        97.0129%
-    2. T1_GA        97.0129%
-    3. T1_GA        97.0129%
-    4. T1_GA        97.0129%
-    5. T2_GA        97.0129%
+    1. T2_DE        96.8365%
+    2. T2_DE        96.8365%
+    3. T2_DE        96.8356%
+    4. T1_PSO       96.8356%
+    5. T1_PSO       96.8356%

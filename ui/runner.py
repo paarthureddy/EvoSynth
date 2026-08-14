@@ -17,6 +17,6 @@ optimizer = DynamicOptimizer(
     swap_threshold=0.05,
     stagnation_limit=2,
     elite_pct=0.2,
-    inject_pct=0.2,
+    inject_pct=0.15,
 )
 optimizer.run()
