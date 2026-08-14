@@ -166,7 +166,8 @@ function renderTierRow(id, islands) {
     const cls   = alg.toLowerCase();
     const dots  = pop.slice(0,15).map(p => {
       const a = Math.min(1, Math.max(0.15, 0.15 + 0.85*((p.fitness-70)/25)));
-      return `<div class="idot" style="background:${color};opacity:${a.toFixed(2)}"></div>`;
+      const tooltip = `Fitness: ${p.fitness.toFixed(2)}%\nSource: ${p.src}\nParams: ${p.params || ''}`;
+      return `<div class="idot" style="background:${color};opacity:${a.toFixed(2)}" title="${tooltip}"></div>`;
     }).join('');
     return `<div class="island-card">
       <div class="island-name ${cls}">${alg}</div>

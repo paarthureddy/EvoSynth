@@ -1,6 +1,85 @@
-Traceback (most recent call last):
-  File "/Users/shivam_kharat/Desktop/RECKON/EvoSynth/ui/runner.py", line 22, in <module>
-    optimizer.run()
-  File "/Users/shivam_kharat/Desktop/RECKON/EvoSynth/Final_year Implementation/automl_engine/engine/controller.py", line 260, in run
-    self._event(f"Phase 1: Generating initial population ({self.N} individuals).")
-AttributeError: 'DynamicOptimizer' object has no attribute 'N'
+  [INFO] Phase 1: Generating initial population (50 individuals).
+========================================================================
+================== PHASE 1 — INITIALIZATION  (N = 50) ==================
+========================================================================
+  Generated 50 individuals | T1 pool: 20 | T2 pool (unassigned): 30
+  Best: 96.66%  Avg: 95.54%
+
+========================================================================
+========== PHASE 2 — TIER-1 WARM-UP  (5 iters × 4 algorithms) ==========
+========================================================================
+  T1-GA   : seeded 5 inds | best 96.48%
+  T1-PSO  : seeded 5 inds | best 96.13%
+  T1-DE   : seeded 5 inds | best 95.96%
+  T1-CMAES: seeded 5 inds | best 95.78%
+
+  Running 5 warm-up iterations...
+  [INFO] Phase 2: Tier-1 Warm-Up complete.
+  [INFO] Phase 3: Calculating composite scores for initial T2 promotion.
+
+========================================================================
+========== PHASE 3 — COMPOSITE SCORING + INITIAL T2 PROMOTION ==========
+========================================================================
+
+  Algorithm  Accuracy    Speed  Diversity  Composite
+  ---------- -------- -------- ---------- ----------
+  T1_GA        97.01%   97.013      0.400      1.000
+  T1_PSO       96.31%   96.308      0.399      0.319
+  T1_CMAES     96.13%   96.133      0.379      0.113
+  T1_DE        96.13%   96.134      0.316      0.001
+
+  PROMOTED to T2 : ['GA', 'PSO']   (ranked #1, #2)
+  REMAIN in T1   : ['CMAES', 'DE']  (ranked #3, #4)
+  [INFO] Promoted to T2: ['GA', 'PSO']. Remaining in T1: ['CMAES', 'DE'].
+  T2-GA   : 15 inds | best 97.01%
+  T2-PSO  : 15 inds | best 96.66%
+
+========================================================================
+ PHASE 5 — PARALLEL MAIN LOOP  [T2: ['GA', 'PSO'] | T1: ['CMAES', 'DE']] 
+========================================================================
+  k=5 | elite_pct=20% | inject=20% | threshold=0.05
+
+  Iter               T2 Best               T1 Best    Global     Evals
+  ----  --------------------  --------------------  --------  --------
+     6   GA:97.0%  PSO:96.7%  CMAES:96.0%  DE:96.1%    97.01%   190/300
+     7   GA:97.0%  PSO:96.7%  CMAES:96.3%  DE:96.1%    97.01%   230/300
+     8   GA:97.0%  PSO:96.7%  CMAES:95.8%  DE:96.1%    97.01%   270/300
+     9   GA:97.0%  PSO:96.7%  CMAES:95.8%  DE:96.1%    97.01%   300/300
+  [INFO] Strategy switching checkpoint at iteration 9.
+
+  ------------------------------------------------------------
+  -------------- SWITCHING STRATEGY CHECKPOINT --------------
+  Label        Accuracy  Diversity  Composite
+  ------------ -------- ---------- ----------
+  T2_PSO         96.66%      0.372      0.878
+  T2_GA          97.01%      0.000      0.300
+  T1_DE          96.13%      0.490      0.236
+  T1_CMAES       95.78%      0.400      0.122
+  [SHARE] ELITE SHARE: top 3 exchanged between T2-GA ↔ T2-PSO
+  [STAG] STAGNATION T2-GA: 1/2 checks
+  ------------------------------------------------------------
+
+  Iter               T2 Best               T1 Best    Global     Evals
+  ----  --------------------  --------------------  --------  --------
+
+========================================================================
+================ PHASE 9 — CONVERGENCE / FINAL RESULTS ================
+========================================================================
+  Total Evaluations : 300
+  Elapsed           : 712.3s
+  Winning Algorithm : T1_GA
+  Best Accuracy     : 97.0129%
+
+  Best Hyperparameters:
+    * booster             : gbtree
+    * learning_rate       : 0.152986
+    * max_depth           : 6
+    * n_estimators        : 248
+    * subsample           : 0.508243
+
+  Top-5 Ensemble:
+    1. T1_GA        97.0129%
+    2. T1_GA        97.0129%
+    3. T1_GA        97.0129%
+    4. T1_GA        97.0129%
+    5. T2_GA        97.0129%

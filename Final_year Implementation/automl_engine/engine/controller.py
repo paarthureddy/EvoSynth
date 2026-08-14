@@ -79,12 +79,18 @@ def _decode(individual, space):
 
 
 # ── Serialise an optimizer's population for JSON ──────────────────────────────
-def _pop_json(opt, tag):
+def _pop_json(opt, tag, space):
     out = []
     for ind in getattr(opt, "population", []):
         if ind.fitness is not None:
+            try:
+                params = _decode(ind, space)
+                params_str = ", ".join(f"{k}: {round(v,4) if isinstance(v, float) else v}" for k, v in params.items())
+            except Exception:
+                params_str = ""
             out.append({"fitness": round(float(ind.fitness), 4),
-                        "src": ind.source_algorithm or tag})
+                        "src": ind.source_algorithm or tag,
+                        "params": params_str})
     out.sort(key=lambda x: x["fitness"], reverse=True)
     return out
 
@@ -216,8 +222,8 @@ class DynamicOptimizer:
             }
 
         # T1 / T2 island populations
-        t1_islands = {k: _pop_json(v, f"T1_{k}") for k, v in t1_optims.items()}
-        t2_islands = {k: _pop_json(v, f"T2_{k}") for k, v in t2_optims.items()}
+        t1_islands = {k: _pop_json(v, f"T1_{k}", self.space) for k, v in t1_optims.items()}
+        t2_islands = {k: _pop_json(v, f"T2_{k}", self.space) for k, v in t2_optims.items()}
 
         state = {
             "phase":       self._phase,
