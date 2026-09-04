@@ -1,2 +1,7 @@
 ConfigSpace
 numpy
+fastapi
+uvicorn
+xgboost
+scikit-learn
+requests
