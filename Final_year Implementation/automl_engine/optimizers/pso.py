@@ -24,7 +24,8 @@ class ParticleSwarm(BaseOptimizer):
         for ind in self.population:
             pos = np.copy(ind.vector)
             vel = np.random.uniform(-0.1, 0.1, self.dimensions)
-            pbest_score = ind.fitness if ind.fitness is not None else -float('inf')
+            pbest_score = ind.fitness if ind.fitness is not None else - \
+                float('inf')
             self.particles.append({
                 'pos': pos,
                 'vel': vel,

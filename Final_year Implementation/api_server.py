@@ -16,12 +16,14 @@ app.add_middleware(
 
 clients = set()
 
+
 @app.post("/event")
 async def receive_event(request: Request):
     data = await request.json()
     for client in list(clients):
         await client.put(data)
     return {"status": "ok"}
+
 
 async def event_generator(queue: asyncio.Queue):
     try:
@@ -31,18 +33,19 @@ async def event_generator(queue: asyncio.Queue):
     except asyncio.CancelledError:
         pass
 
+
 @app.get("/stream")
 async def stream():
     queue = asyncio.Queue()
     clients.add(queue)
-    
+
     async def cleanup():
         try:
             async for chunk in event_generator(queue):
                 yield chunk
         finally:
             clients.discard(queue)
-            
+
     return StreamingResponse(cleanup(), media_type="text/event-stream")
 
 if __name__ == "__main__":
