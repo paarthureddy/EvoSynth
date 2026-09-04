@@ -5,3 +5,4 @@ uvicorn
 xgboost
 scikit-learn
 requests
+cma
