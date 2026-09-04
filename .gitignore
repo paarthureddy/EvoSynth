@@ -26,6 +26,5 @@ venv/
 .venv/
 
 # Ignore specific document folders we created
-docs/
 reports/
 presentations/
