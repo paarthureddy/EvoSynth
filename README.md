@@ -13,7 +13,7 @@ EvoSynth is an advanced Automated Machine Learning (AutoML) framework designed t
 
 ## Architecture
 
-![System Architecture](./assets/Architecture.png)
+[System Architecture](./architecture.excalidraw)
 
 The system is highly modularized into three core layers:
 
