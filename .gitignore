@@ -10,6 +10,9 @@ Final_Year Project/
 *.png
 *.zip
 *.docx
+*.tex
+*.csv
+run_output.txt
 
 # Keep README if it exists
 !README.md
