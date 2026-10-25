@@ -129,7 +129,9 @@ class DynamicOptimizer:
                  budget=2000, pop_size=100,
                  t1_iters=30, k_iters=10,
                  swap_threshold=0.10, stagnation_limit=3,
-                 elite_pct=0.20, inject_pct=0.20):
+                 elite_pct=0.20, inject_pct=0.20,
+                 max_workers=None):
+        import os
         self.space = search_space
         self.eval = evaluator
         self.budget = budget
@@ -140,6 +142,7 @@ class DynamicOptimizer:
         self.stagnation_limit = stagnation_limit
         self.elite_pct = elite_pct
         self.inject_pct = inject_pct
+        self.max_workers = max_workers if max_workers is not None else min(8, os.cpu_count() or 4)
 
         self.composite_engine = CompositeScoringEngine()
         self.bandit = UCB1Bandit()
@@ -162,19 +165,38 @@ class DynamicOptimizer:
     def _evaluate_batch(self, vectors, algo_name):
         algo_key = algo_name.replace("T2_", "").replace("T1_", "")
         inds = []
-        for vec in vectors:
-            if self.evals_used >= self.budget: break
+        rem = self.budget - self.evals_used
+        if rem <= 0:
+            return inds
+        eval_vectors = vectors[:rem]
+        if not eval_vectors:
+            return inds
+
+        def _eval_single(vec):
             ind = Individual(vec)
             fitness = self.eval.evaluate(ind)
             ind.set_fitness(fitness)
             ind.source_algorithm = algo_name
+            return ind
+
+        n_workers = min(self.max_workers, len(eval_vectors))
+        if n_workers > 1:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
+                evaluated_inds = list(executor.map(_eval_single, eval_vectors))
+        else:
+            evaluated_inds = [_eval_single(v) for v in eval_vectors]
+
+        for ind in evaluated_inds:
             inds.append(ind)
             self.evals_used += 1
-            if algo_key in self.algo_evals: self.algo_evals[algo_key] += 1
+            if algo_key in self.algo_evals:
+                self.algo_evals[algo_key] += 1
             
             # Log individual to CSV
             self.pop_logger.log(self.evals_used, algo_name, ind)
             
+            fitness = ind.fitness
             if algo_key in self._algo_stats:
                 if fitness > self._algo_stats[algo_key]['best']:
                     self._algo_stats[algo_key]['best'] = fitness
@@ -262,12 +284,15 @@ class DynamicOptimizer:
         print(_header(f"STEP 1: INITIAL POPULATION (N={self.pop_size})"))
         print(_sep())
         full_pop = []
-        for i in range(self.pop_size):
+        chunk_size = max(1, self.max_workers * 2)
+        for batch_start in range(0, self.pop_size, chunk_size):
             if self.evals_used >= self.budget: break
-            full_pop.extend(self._evaluate_batch([np.random.rand(dims)], 'Init'))
-            if (i + 1) % 20 == 0:
-                print(f"    Evaluated {i+1}/{self.pop_size} (best so far: {max(ind.fitness for ind in full_pop):.2f}%)")
-                reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
+            curr_len = min(chunk_size, self.pop_size - batch_start)
+            batch_vecs = [np.random.rand(dims) for _ in range(curr_len)]
+            batch_inds = self._evaluate_batch(batch_vecs, 'Init')
+            full_pop.extend(batch_inds)
+            print(f"    Evaluated {len(full_pop)}/{self.pop_size} (best so far: {max(ind.fitness for ind in full_pop):.2f}%)")
+            reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
         
         full_pop.sort(key=lambda x: x.fitness, reverse=True)
         print(f"  [OK] Full population evaluated. Best: {full_pop[0].fitness:.2f}% | Budget: {self.evals_used}/{self.budget}")
@@ -560,8 +585,10 @@ class DynamicOptimizer:
         
         print(f"  Winning Algorithm  : {self.best_individual.source_algorithm}")
         print(f"  Best Accuracy      : {self.best_individual.fitness:.4f}%")
-        print(f"\n  Best Hyperparameters:")
         params = _decode_individual(self.best_individual, self.space)
+        if "model_type" in params:
+            print(f"  Optimal Model Type : {params['model_type']}")
+        print(f"\n  Best Hyperparameters:")
         for k, v in params.items():
             print(f"    * {k:<20}: {v:.4f}" if isinstance(v, float) else f"    * {k:<20}: {v}")
         print(_sep())

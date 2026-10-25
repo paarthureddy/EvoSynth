@@ -1,21 +1,23 @@
 # Ignore the other project folder completely
 Final_Year Project/
 
-# Ignore all documentation formats
+# Document formats
 *.pdf
-*.md
 *.html
-*.jpeg
-*.jpg
-*.png
-*.zip
 *.docx
 *.tex
 *.csv
 run_output.txt
 
-# Keep README if it exists
-!README.md
+# Keep all markdown files for documentation
+!*.md
+!**/*.md
+
+# Whitelist college deliverables
+!G002_Paper.tex
+!G002_*.url
+!G002_*.pdf
+!G002_*.tex
 
 # Python caches and compiled files
 __pycache__/
