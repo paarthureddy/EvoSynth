@@ -6,7 +6,7 @@ from ConfigSpace import Configuration
 
 def main():
     print("="*60)
-    print(" DYNAMIC EVOLUTIONARY OPTIMIZER - XGBOOST (BREAST CANCER)")
+    print(" EVOSYNTH: DYNAMIC MULTI-MODEL AUTOML (XGBOOST/LIGHTGBM/RF)")
     print("="*60)
     
     # 1. Get the hyperparameter boundaries
