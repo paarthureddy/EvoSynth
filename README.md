@@ -39,7 +39,24 @@ When defending this project before an evaluation panel, every keyword in the tit
 
 ---
 
-## 🔄 End-to-End System Workflow
+## 🔄 End-to-End System Workflow & Architecture
+
+<p align="center">
+  <img src="./arch.png" alt="EvoSynth End-to-End System Architecture" width="100%" />
+</p>
+
+The EvoSynth workflow operates in **7 discrete, automated stages**:
+
+1. **Step 0 — Problem Definition & Universal Latent Mapping**: Maps mixed discrete, categorical, and continuous hyperparameter spaces and neural architectures into a unified continuous hypercube $[0, 1]^d$.
+2. **Step 1 — Parallel Population Initialization**: Generates and evaluates the initial population asynchronously across CPU worker threads with early stopping.
+3. **Step 2 — Two-Tier Co-evolutionary Split**: Separates candidate individuals into **Tier 1 (40% seed tournament pool)** for rapid heuristic discovery and **Tier 2 (60% reserve pool)** for exploitation.
+4. **Step 3 — Tier 1 Tournament**: Simultaneous execution of 4 competing metaheuristic algorithms (Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES) over candidate vectors.
+5. **Step 4 — Meta-Control & Dynamic Promotion**: Evaluates candidate fitness, velocity, diversity, and trend via a Composite Scoring Engine and routes computational resources via a **UCB1 Multi-Armed Bandit** with exploration bonuses to promote top strategies.
+6. **Step 5 — Tier 2 Exploitation & Safeguards**: Dual-island cooperative co-evolution with top-20% elite migration and automated random latent injections when stagnation is detected.
+7. **Step 6 — Production Output & Glass-Box Observability**: Delivers a **single standalone, production-ready model** with zero inference penalty, while streaming live telemetry via Server-Sent Events (SSE) to the interactive React dashboard.
+
+<details>
+<summary><b>Click to expand Text Flowchart (Mermaid)</b></summary>
 
 ```mermaid
 flowchart TD
@@ -85,6 +102,8 @@ flowchart TD
         G & H & J1 -. Live Telemetry SSE .-> Q[React Glass-Box Dashboard]
     end
 ```
+
+</details>
 
 ---
 
