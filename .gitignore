@@ -33,3 +33,4 @@ venv/
 # Ignore specific document folders we created
 reports/
 presentations/
+dataset_release/
