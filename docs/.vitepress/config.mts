@@ -1,21 +1,24 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
+  base: "/EvoSynth/",
   title: "EvoSynth",
   description:
-    "A Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Machine Learning",
+    "Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Model Selection and Hyperparameter Tuning",
 
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+    ["link", { rel: "icon", type: "image/png", href: "/logo.png" }],
   ],
 
   themeConfig: {
     siteTitle: "EvoSynth",
+    logo: "/logo.png",
 
     nav: [
       { text: "Guide", link: "/guide/introduction" },
       { text: "Algorithms", link: "/algorithms/genetic-algorithm" },
       { text: "API Reference", link: "/reference/controller" },
+      { text: "Comparative Analysis", link: "/comparative_analysis" },
     ],
 
     sidebar: {
@@ -130,8 +133,8 @@ export default defineConfig({
     ],
 
     footer: {
-      message: "Dynamic Multi-Armed Bandit Meta-Optimizer for AutoML",
-      copyright: "Final Year Project",
+      message: "Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Model Selection and Hyperparameter Tuning",
+      copyright: "EvoSynth Research / Capstone Project",
     },
 
     search: {

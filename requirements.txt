@@ -3,6 +3,9 @@ numpy
 fastapi
 uvicorn
 xgboost
+lightgbm
 scikit-learn
 requests
 cma
+torch
+torchvision
