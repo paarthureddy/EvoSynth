@@ -1,0 +1,45 @@
+================================================================================
+ EVOSYNTH ABLATION: ISOLATED STANDALONE OPTIMIZER RUN
+================================================================================
+ Setup Identifier    : UPGS-120
+ Algorithm Name      : Differential Evolution (DE)
+ Operational Mode    : STRICT ISOLATION (No Co-evolution / No Migration)
+ Budget Allotted     : 120 evaluations
+ Population Size     : 50 individuals
+ Passive Telemetry   : Composite Score & UCB1 (Monitored but strictly UNUSED)
+================================================================================
+
+[STEP 1: ITERATION PROGRESSION LOG]
+  Iter      Evals   Best Acc   Diversity    Trend   Composite   UCB Score   Time  Notes             
+  ----  ---------  ---------  ----------  -------  ----------  ----------  -----  ------------------
+     0     50/120     79.55%       0.208   79.55%       0.447       0.602  83.2s  Warmup Complete   
+     1     60/120     79.55%       0.232    0.00%       0.313       0.455  19.3s                    
+     2     70/120     79.55%       0.244    0.00%       0.317       0.448  16.6s                    
+     3     80/120     79.55%       0.238    0.00%       0.317       0.439  15.4s                    
+     4     90/120     79.55%       0.254    0.00%       0.321       0.437  13.7s                    
+     5    100/120     79.55%       0.249    0.00%       0.320       0.429  14.1s                    
+     6    110/120     79.55%       0.246    0.00%       0.319       0.424  14.3s                    
+     7    120/120     79.55%       0.245    0.00%       0.321       0.421  13.0s                    
+
+[STEP 2: CHECKPOINT AUDIT @ 30 EVALS (25% Budget Share)]
+  * Best Accuracy at 25% Share  : 79.55%
+  * Diversity at 25% Share      : 0.224
+  * Passive UCB Score           : 0.963
+
+[STEP 3: FINAL RESULTS AUDIT @ 120 EVALS (100% Full Capacity)]
+  * Peak Accuracy Achieved      : 79.55%
+  * Final Population Diversity  : 0.245
+  * Final Passive UCB Score     : 0.716
+  * Total Search Runtime        : 189.6 seconds
+
+  Discovered Hyperparameters:
+    * booster             : dart
+    * colsample_bytree    : 0.6923
+    * fe_strategy         : stats
+    * learning_rate       : 0.0229
+    * max_depth           : 8
+    * model_type          : XGBoost
+    * n_estimators        : 173
+    * reg_alpha           : 0.3298
+    * subsample           : 0.7319
+================================================================================

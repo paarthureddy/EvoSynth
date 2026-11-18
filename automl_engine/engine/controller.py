@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import time
 import sys
@@ -11,6 +12,16 @@ from automl_engine.optimizers.pso import ParticleSwarm
 from automl_engine.optimizers.de import DifferentialEvolution
 from automl_engine.optimizers.cmaes import CMAESOptimizer
 from automl_engine.core.individual import Individual
+
+# ------------------------------------------------------------------
+# Global Results Directory Resolution
+# ------------------------------------------------------------------
+_ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT_DIR = os.path.abspath(os.path.join(_ENGINE_DIR, "..", ".."))
+_RESULTS_DIR = os.path.join(_ROOT_DIR, "results")
+_CSV_DIR = os.path.join(_RESULTS_DIR, "csv")
+os.makedirs(_RESULTS_DIR, exist_ok=True)
+os.makedirs(_CSV_DIR, exist_ok=True)
 
 # ------------------------------------------------------------------
 # UI / Dashboard Reporter
@@ -41,8 +52,8 @@ class LoggerWriter:
     def __init__(self, original_stdout):
         self.original_stdout = original_stdout
         self.buffer = ""
-        # Open a file to mirror all terminal output live
-        self.log_file = open("run_output.txt", "w", encoding="utf-8")
+        # Open a file to mirror all terminal output live in results/
+        self.log_file = open(os.path.join(_RESULTS_DIR, "run_output.txt"), "w", encoding="utf-8")
 
     def write(self, message):
         self.original_stdout.write(message)
@@ -67,9 +78,9 @@ class PopulationLogger:
     def __init__(self, space):
         self.space = space
         self.files = {
-            'Init': open('warmup_population.csv', 'w', encoding='utf-8'),
-            'T1': open('tier1_population.csv', 'w', encoding='utf-8'),
-            'T2': open('tier2_population.csv', 'w', encoding='utf-8')
+            'Init': open(os.path.join(_CSV_DIR, 'warmup_population.csv'), 'w', encoding='utf-8'),
+            'T1': open(os.path.join(_CSV_DIR, 'tier1_population.csv'), 'w', encoding='utf-8'),
+            'T2': open(os.path.join(_CSV_DIR, 'tier2_population.csv'), 'w', encoding='utf-8')
         }
         
         # Write headers based on search space
@@ -152,6 +163,7 @@ class DynamicOptimizer:
 
         self.evals_used = 0
         self.best_individual = None
+        self.history = []
         self.cooldowns = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
         self.active_grace_period = None
         self.pop_logger = PopulationLogger(self.space)
@@ -204,6 +216,13 @@ class DynamicOptimizer:
             
             if self.best_individual is None or fitness > self.best_individual.fitness:
                 self.best_individual = ind
+
+            self.history.append({
+                'eval_id': self.evals_used,
+                'fitness': fitness,
+                'best_so_far': self.best_individual.fitness if self.best_individual else fitness,
+                'algo': algo_name
+            })
         return inds
 
     def _compute_composite(self, algo_pops):
