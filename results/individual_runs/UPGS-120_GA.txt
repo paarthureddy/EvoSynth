@@ -1,0 +1,45 @@
+================================================================================
+ EVOSYNTH ABLATION: ISOLATED STANDALONE OPTIMIZER RUN
+================================================================================
+ Setup Identifier    : UPGS-120
+ Algorithm Name      : Genetic Algorithm (GA)
+ Operational Mode    : STRICT ISOLATION (No Co-evolution / No Migration)
+ Budget Allotted     : 120 evaluations
+ Population Size     : 50 individuals
+ Passive Telemetry   : Composite Score & UCB1 (Monitored but strictly UNUSED)
+================================================================================
+
+[STEP 1: ITERATION PROGRESSION LOG]
+  Iter      Evals   Best Acc   Diversity    Trend   Composite   UCB Score   Time  Notes             
+  ----  ---------  ---------  ----------  -------  ----------  ----------  -----  ------------------
+     0     50/120     79.15%       0.202   79.15%       0.447       0.601  61.6s  Warmup Complete   
+     1     60/120     79.15%       0.268    0.00%       0.325       0.466  11.1s                    
+     2     70/120     79.35%       0.238    0.20%       0.328       0.459   9.1s  NEW BEST          
+     3     80/120     79.35%       0.269    0.00%       0.325       0.447  11.7s                    
+     4     90/120     79.35%       0.275    0.00%       0.328       0.443  10.6s                    
+     5    100/120     79.35%       0.283    0.00%       0.329       0.438  10.6s  NEW BEST          
+     6    110/120     79.35%       0.298    0.00%       0.328       0.432  13.1s                    
+     7    120/120     79.35%       0.302    0.00%       0.331       0.431  10.9s                    
+
+[STEP 2: CHECKPOINT AUDIT @ 30 EVALS (25% Budget Share)]
+  * Best Accuracy at 25% Share  : 79.00%
+  * Diversity at 25% Share      : 0.228
+  * Passive UCB Score           : 0.961
+
+[STEP 3: FINAL RESULTS AUDIT @ 120 EVALS (100% Full Capacity)]
+  * Peak Accuracy Achieved      : 79.35%
+  * Final Population Diversity  : 0.302
+  * Final Passive UCB Score     : 0.724
+  * Total Search Runtime        : 138.7 seconds
+
+  Discovered Hyperparameters:
+    * booster             : dart
+    * colsample_bytree    : 0.4934
+    * fe_strategy         : none
+    * learning_rate       : 0.0424
+    * max_depth           : 5
+    * model_type          : ExtraTrees
+    * n_estimators        : 192
+    * reg_alpha           : 5.8220
+    * subsample           : 0.9030
+================================================================================

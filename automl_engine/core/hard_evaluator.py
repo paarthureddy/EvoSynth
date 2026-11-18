@@ -12,11 +12,13 @@ class PathologicalXGBoostEvaluator:
     pathological synthetic dataset designed to force optimization 
     algorithms to stagnate and trigger advanced switching safeguards.
     """
-    def __init__(self):
+    def __init__(self, fast_mode=False):
         from .search_space import get_xgboost_search_space
+        from sklearn.model_selection import train_test_split
         warnings.filterwarnings("ignore", category=UserWarning)
 
         self.space = get_xgboost_search_space()
+        self.fast_mode = fast_mode
 
         # Create a highly noisy dataset
         # flip_y=0.3 adds 30% random label noise, making it incredibly 
@@ -30,6 +32,11 @@ class PathologicalXGBoostEvaluator:
             flip_y=0.3,
             random_state=42
         )
+
+        if self.fast_mode:
+            self.X_tr, self.X_va, self.y_tr, self.y_va = train_test_split(
+                self.X, self.y, test_size=0.25, stratify=self.y, random_state=42
+            )
 
     def evaluate(self, individual):
         valid_vec = np.copy(individual.vector)
@@ -52,9 +59,56 @@ class PathologicalXGBoostEvaluator:
         colsample = config.get("colsample_bytree", 0.8)
         reg_alpha = config.get("reg_alpha", 0.0)
 
-        from sklearn.model_selection import StratifiedKFold
         from sklearn.ensemble import RandomForestClassifier
 
+        # fast_mode: single 75/25 pre-split (set in __init__) — ~15x faster than 3-fold CV
+        # Used for UPGS-2500 to keep total runtime manageable (~90 min vs ~13 hrs)
+        if self.fast_mode:
+            X_tr, X_va = self.X_tr, self.X_va
+            y_tr, y_va = self.y_tr, self.y_va
+
+            if model_type == "XGBoost":
+                model = xgb.XGBClassifier(
+                    learning_rate=lr, n_estimators=n_est, max_depth=depth,
+                    subsample=sub, booster=booster, colsample_bytree=colsample,
+                    reg_alpha=reg_alpha, early_stopping_rounds=10,
+                    eval_metric="logloss", random_state=42, n_jobs=1
+                )
+                model.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                return float(np.mean(model.predict(X_va) == y_va)) * 100.0
+
+            elif model_type == "LightGBM":
+                try:
+                    import lightgbm as lgb
+                    import warnings
+                    model = lgb.LGBMClassifier(
+                        learning_rate=lr, n_estimators=n_est, max_depth=depth,
+                        subsample=sub, colsample_bytree=colsample, reg_alpha=reg_alpha,
+                        random_state=42, n_jobs=1, verbose=-1
+                    )
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        model.fit(X_tr, y_tr, eval_set=[(X_va, y_va)],
+                                  callbacks=[lgb.early_stopping(10, verbose=False)])
+                    return float(np.mean(model.predict(X_va) == y_va)) * 100.0
+                except Exception:
+                    model = xgb.XGBClassifier(
+                        learning_rate=lr, n_estimators=n_est, max_depth=depth,
+                        early_stopping_rounds=10, eval_metric="logloss", random_state=42, n_jobs=1
+                    )
+                    model.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                    return float(np.mean(model.predict(X_va) == y_va)) * 100.0
+
+            else:  # RandomForest
+                model = RandomForestClassifier(
+                    n_estimators=min(n_est, 150), max_depth=depth,
+                    max_features=colsample, random_state=42, n_jobs=1
+                )
+                model.fit(X_tr, y_tr)
+                return float(np.mean(model.predict(X_va) == y_va)) * 100.0
+
+        # Standard mode: 3-fold stratified CV (used for UPGS-120)
+        from sklearn.model_selection import StratifiedKFold
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
         fold_scores = []
 
