@@ -27,11 +27,12 @@ def get_dummy_search_space():
     return cs
 
 
-def get_xgboost_search_space(include_model_type=True):
+def get_xgboost_search_space(include_model_type=True, include_fe_strategy=True):
     """
     Returns a ConfigSpace defining the boundaries for model optimization.
     Includes an architecture-level categorical hyperparameter `model_type`
-    (['XGBoost', 'RandomForest', 'LightGBM']) along with continuous and discrete
+    (['XGBoost', 'RandomForest', 'LightGBM', 'ExtraTrees']) and `fe_strategy`
+    (['none', 'stats', 'interactions']) along with continuous and discrete
     hyperparameters mapped across the Universal Latent Space.
     """
     cs = CS.ConfigurationSpace()
@@ -39,9 +40,15 @@ def get_xgboost_search_space(include_model_type=True):
     hps = []
     if include_model_type:
         model_type = CSH.CategoricalHyperparameter(
-            "model_type", choices=["XGBoost", "RandomForest", "LightGBM"]
+            "model_type", choices=["XGBoost", "RandomForest", "LightGBM", "ExtraTrees"]
         )
         hps.append(model_type)
+
+    if include_fe_strategy:
+        fe_strategy = CSH.CategoricalHyperparameter(
+            "fe_strategy", choices=["none", "stats", "interactions"]
+        )
+        hps.append(fe_strategy)
 
     lr = CSH.UniformFloatHyperparameter(
         "learning_rate", lower=0.01, upper=0.3, log=True)
