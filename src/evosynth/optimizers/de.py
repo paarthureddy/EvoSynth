@@ -1,12 +1,14 @@
 import numpy as np
 from .base import BaseOptimizer
+from evosynth.config import get_settings
 
 
 class DifferentialEvolution(BaseOptimizer):
     def __init__(self, search_space, pop_size):
         super().__init__(search_space, pop_size)
-        self.F = 0.8  # Mutation factor
-        self.CR = 0.7  # Crossover probability
+        d = get_settings().optimizers.de  # [optimizers.de] in configs/evosynth.toml
+        self.F = d.F    # Mutation factor
+        self.CR = d.CR  # Crossover probability
         self.population_vectors = []
         self.best_score = -float('inf')
 

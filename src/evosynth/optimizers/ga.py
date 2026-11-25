@@ -1,12 +1,16 @@
 import numpy as np
 import random
 from .base import BaseOptimizer
+from evosynth.config import get_settings
 
 
 class GeneticAlgorithm(BaseOptimizer):
-    def __init__(self, search_space, pop_size, mutation_rate=0.1):
+    def __init__(self, search_space, pop_size, mutation_rate=None):
         super().__init__(search_space, pop_size)
-        self.mutation_rate = mutation_rate
+        g = get_settings().optimizers.ga  # [optimizers.ga] in configs/evosynth.toml
+        self.mutation_rate = g.mutation_rate if mutation_rate is None else mutation_rate
+        self.mutation_sigma = g.mutation_sigma
+        self.tournament_size = g.tournament_size
 
     def ask(self, num_samples):
         # If population is empty or too small, return random vectors
@@ -15,11 +19,11 @@ class GeneticAlgorithm(BaseOptimizer):
 
         new_vectors = []
         for _ in range(num_samples):
-            # Tournament selection (size 2)
+            # Tournament selection (size = tournament_size)
             candidates1 = random.sample(
-                self.population, min(2, len(self.population)))
+                self.population, min(self.tournament_size, len(self.population)))
             candidates2 = random.sample(
-                self.population, min(2, len(self.population)))
+                self.population, min(self.tournament_size, len(self.population)))
 
             p1 = max(candidates1, key=lambda ind: ind.fitness).vector
             p2 = max(candidates2, key=lambda ind: ind.fitness).vector
@@ -31,7 +35,7 @@ class GeneticAlgorithm(BaseOptimizer):
             # Mutation (Gaussian noise)
             for i in range(self.dimensions):
                 if random.random() < self.mutation_rate:
-                    child[i] += np.random.normal(0, 0.1)
+                    child[i] += np.random.normal(0, self.mutation_sigma)
 
             # Ensure boundaries
             child = np.clip(child, 0.0, 1.0)

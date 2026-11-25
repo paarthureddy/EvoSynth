@@ -143,6 +143,29 @@ def load_config(
 
 
 # ---------------------------------------------------------------------------------
+# Active settings (what library code reads its defaults from)
+# ---------------------------------------------------------------------------------
+_ACTIVE: Settings | None = None
+
+
+def get_settings() -> Settings:
+    """Settings currently in force. Loads configs/evosynth.toml on first use."""
+    global _ACTIVE
+    if _ACTIVE is None:
+        _ACTIVE = load_config()
+    return _ACTIVE
+
+
+def set_settings(settings: Settings) -> None:
+    """Make `settings` (e.g. load_config(preset=..., overrides=...)) the active settings.
+    Call this before constructing optimizers/evaluators for a run."""
+    global _ACTIVE
+    if not isinstance(settings, Settings):
+        raise TypeError("set_settings() expects the result of load_config()")
+    _ACTIVE = settings
+
+
+# ---------------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------------
 def _require(cond: bool, msg: str, errors: list[str]) -> None:

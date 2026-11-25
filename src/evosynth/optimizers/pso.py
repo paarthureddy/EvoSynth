@@ -1,13 +1,16 @@
 import numpy as np
 from .base import BaseOptimizer
+from evosynth.config import get_settings
 
 
 class ParticleSwarm(BaseOptimizer):
     def __init__(self, search_space, pop_size):
         super().__init__(search_space, pop_size)
-        self.w = 0.5   # Inertia weight
-        self.c1 = 1.5  # Cognitive coefficient (Personal best)
-        self.c2 = 1.5  # Social coefficient (Global best)
+        p = get_settings().optimizers.pso  # [optimizers.pso] in configs/evosynth.toml
+        self.w = p.w    # Inertia weight
+        self.c1 = p.c1  # Cognitive coefficient (Personal best)
+        self.c2 = p.c2  # Social coefficient (Global best)
+        self.init_velocity = p.init_velocity
 
         self.particles = []
         self.gbest_pos = None
@@ -23,7 +26,7 @@ class ParticleSwarm(BaseOptimizer):
         self.particles = []
         for ind in self.population:
             pos = np.copy(ind.vector)
-            vel = np.random.uniform(-0.1, 0.1, self.dimensions)
+            vel = np.random.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
             pbest_score = ind.fitness if ind.fitness is not None else - \
                 float('inf')
             self.particles.append({
@@ -40,7 +43,7 @@ class ParticleSwarm(BaseOptimizer):
         # Pad to pop_size with random particles if needed
         while len(self.particles) < self.pop_size:
             pos = np.random.rand(self.dimensions)
-            vel = np.random.uniform(-0.1, 0.1, self.dimensions)
+            vel = np.random.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
             self.particles.append({
                 'pos': pos, 'vel': vel,
                 'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')
@@ -55,7 +58,7 @@ class ParticleSwarm(BaseOptimizer):
                 # Pure random initialization (no seed population)
                 for _ in range(self.pop_size):
                     pos = np.random.rand(self.dimensions)
-                    vel = np.random.uniform(-0.1, 0.1, self.dimensions)
+                    vel = np.random.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
                     self.particles.append({
                         'pos': pos, 'vel': vel,
                         'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')

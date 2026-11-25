@@ -1,5 +1,7 @@
 import numpy as np
 
+from evosynth.config import get_settings
+
 
 class CompositeScoringEngine:
     """
@@ -7,15 +9,17 @@ class CompositeScoringEngine:
     Metrics: Best Fitness, Population Diversity, Performance Trend, Convergence Speed, Computational Efficiency.
     """
 
-    def __init__(self):
-        # Weights for the 5 metrics as defined in the system architecture
-        self.weights = {
-            'fitness': 0.30,
-            'speed': 0.25,
-            'efficiency': 0.15,
-            'diversity': 0.15,
-            'trend': 0.15
+    def __init__(self, weights=None):
+        # Weights for the 5 metrics: [composite] in configs/evosynth.toml
+        c = get_settings().composite
+        self.weights = dict(weights) if weights is not None else {
+            'fitness': c.fitness,
+            'speed': c.speed,
+            'efficiency': c.efficiency,
+            'diversity': c.diversity,
+            'trend': c.trend,
         }
+        self.tie_value = c.tie_value
 
     def calculate_scores(self, algo_stats):
         """
@@ -50,7 +54,7 @@ class CompositeScoringEngine:
                 # Avoid division by zero if all algorithms perform identically
                 denom = max_vals[m] - min_vals[m]
                 norm_val = (stats[m] - min_vals[m]) / \
-                    denom if denom > 1e-9 else 0.5
+                    denom if denom > 1e-9 else self.tie_value
                 score += self.weights[m] * norm_val
             final_scores[algo_name] = score
 

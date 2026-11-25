@@ -1,11 +1,16 @@
 import numpy as np
 import cma
 from .base import BaseOptimizer
+from evosynth.config import get_settings
 
 
 class CMAESOptimizer(BaseOptimizer):
     def __init__(self, search_space, pop_size):
         super().__init__(search_space, pop_size)
+        c = get_settings().optimizers.cmaes  # [optimizers.cmaes] in configs/evosynth.toml
+        self.sigma0 = c.sigma0
+        self.min_popsize = c.min_popsize
+        self.default_mean = c.default_mean
         self.es = None
         self.pending_solutions = []
         self._eval_buffer_x = []
@@ -17,14 +22,14 @@ class CMAESOptimizer(BaseOptimizer):
             if len(self.population) > 0:
                 mean = np.mean([ind.vector for ind in self.population], axis=0)
             else:
-                mean = 0.5 * np.ones(self.dimensions)
+                mean = self.default_mean * np.ones(self.dimensions)
 
             # Initialize CMA-ES (bounded to [0, 1])
             self.es = cma.CMAEvolutionStrategy(
                 mean,
-                0.25,  # Initial step size
+                self.sigma0,  # Initial step size
                 {'bounds': [0, 1], 'popsize': max(
-                    4, self.pop_size), 'verbose': -9}
+                    self.min_popsize, self.pop_size), 'verbose': -9}
             )
 
         # Draw samples from the CMA-ES distribution

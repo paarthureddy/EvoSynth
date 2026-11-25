@@ -30,8 +30,8 @@ from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
 
-from evosynth.core.search_space import get_xgboost_search_space
-from evosynth.evaluators.covtype import CovertypeEvaluator
+from evosynth.search_spaces.tabular import get_xgboost_search_space
+from evosynth.evaluators.tabular import TabularEvaluator
 from evosynth.core.individual import Individual
 from evosynth.engine.controller import DynamicOptimizer
 from evosynth.optimizers.ga import GeneticAlgorithm
@@ -43,39 +43,13 @@ from evosynth.optimizers.cmaes import CMAESOptimizer
 # -----------------------------------------------------------------------------
 # Atomic Checkpointing & Helper Functions
 # -----------------------------------------------------------------------------
-def _atomic_json_dump(file_path, data):
-    tmp_path = file_path + ".tmp"
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    if os.path.exists(file_path):
-        os.replace(tmp_path, file_path)
-    else:
-        os.rename(tmp_path, file_path)
-
-
-def _atomic_pickle_dump(file_path, data):
-    tmp_path = file_path + ".tmp"
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(tmp_path, "wb") as f:
-        pickle.dump(data, f)
-    if os.path.exists(file_path):
-        os.replace(tmp_path, file_path)
-    else:
-        os.rename(tmp_path, file_path)
+from evosynth.core.decoding import decode_vector_to_dict
+from evosynth.experiments.checkpointing import (atomic_json_dump as _atomic_json_dump,
+                                                atomic_pickle_dump as _atomic_pickle_dump)
 
 
 def _decode_individual(individual, space):
-    valid_vec = np.copy(individual.vector)
-    for i, hp_name in enumerate(list(space.keys())):
-        hp = space.get_hyperparameter(hp_name)
-        if isinstance(hp, CSH.CategoricalHyperparameter):
-            num_choices = len(hp.choices)
-            idx = int(np.floor(valid_vec[i] * num_choices))
-            idx = min(idx, num_choices - 1)
-            valid_vec[i] = float(idx)
-    config = Configuration(space, vector=valid_vec)
-    return {p: config[p] for p in list(space.keys())}
+    return decode_vector_to_dict(individual.vector, space)
 
 
 def _make_optimizer(algo_key, space, pop_size):
@@ -562,7 +536,7 @@ def main():
     checkpoint_eval = int(budget * 0.25)
 
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = CovertypeEvaluator(subsample_size=20000)
+    evaluator = TabularEvaluator("covertype", subsample_size=20000)
 
     run_benchmark_setup(
         setup_name=args.setup,

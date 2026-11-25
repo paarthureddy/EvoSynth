@@ -16,8 +16,8 @@ from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
 
-from evosynth.core.search_space import get_xgboost_search_space
-from evosynth.evaluators.covtype import CovertypeEvaluator
+from evosynth.search_spaces.tabular import get_xgboost_search_space
+from evosynth.evaluators.tabular import TabularEvaluator
 from evosynth.engine.controller import DynamicOptimizer
 
 
@@ -52,7 +52,7 @@ def main():
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
 
     # 2. Real-world evaluator on Forest Covertype
-    evaluator = CovertypeEvaluator(subsample_size=args.subsample)
+    evaluator = TabularEvaluator("covertype", subsample_size=args.subsample)
 
     # 3. Dynamic Multi-Armed Bandit Meta-Optimizer
     optimizer = DynamicOptimizer(
@@ -72,97 +72,11 @@ def main():
     print("=" * 80)
     print("  Evaluating winning architecture & hyperparameters at full capacity...")
     try:
-        from sklearn.datasets import fetch_covtype
-        from sklearn.model_selection import train_test_split
-        from ConfigSpace import Configuration
-        import ConfigSpace.hyperparameters as CSH
-        import numpy as np
+        from evosynth.core.decoding import decode_vector_to_dict
+        from evosynth.models.refit import refit_and_score
 
-        _data_home = os.path.join(_ROOT_DIR, ".data")
-        data = fetch_covtype(data_home=_data_home)
-        X_full = data.data.astype(np.float32)
-        y_full = data.target.astype(int) - 1
-
-        # Train on 60k, evaluate on 20k unseen test samples
-        X_tr, X_te, y_tr, y_te = train_test_split(
-            X_full, y_full, train_size=60000, test_size=20000, stratify=y_full, random_state=42
-        )
-
-        valid_vec = np.copy(best.vector)
-        for i, hp_name in enumerate(list(space.keys())):
-            hp = space.get_hyperparameter(hp_name)
-            if isinstance(hp, CSH.CategoricalHyperparameter):
-                num_choices = len(hp.choices)
-                idx = int(np.floor(valid_vec[i] * num_choices))
-                idx = min(idx, num_choices - 1)
-                valid_vec[i] = float(idx)
-
-        cfg = Configuration(space, vector=valid_vec)
-        m_type = cfg.get("model_type", "XGBoost")
-        fe_strat = cfg.get("fe_strategy", "none")
-        lr = cfg.get("learning_rate", 0.1)
-        n_est = cfg.get("n_estimators", 150)
-        depth = cfg.get("max_depth", 8)
-        sub = cfg.get("subsample", 0.8)
-        colsample = cfg.get("colsample_bytree", 0.8)
-        reg_alpha = cfg.get("reg_alpha", 0.0)
-
-        from evosynth.features.generic import GenericFeatureEngineer
-        fe = GenericFeatureEngineer(strategy=fe_strat)
-        if fe_strat != "none":
-            print(f"  [FE] Applying winning feature engineering strategy: '{fe_strat}'")
-            X_tr = fe.fit_transform(X_tr)
-            X_te = fe.transform(X_te)
-        print(f"  [MODEL] Training winning architecture: '{m_type}' on 60,000 samples...")
-
-        if m_type == "ExtraTrees":
-            from sklearn.ensemble import ExtraTreesClassifier
-            model = ExtraTreesClassifier(
-                n_estimators=max(n_est, 150),
-                max_depth=depth * 3 if depth < 10 else None,
-                max_features=colsample,
-                random_state=42,
-                n_jobs=-1
-            )
-        elif m_type == "RandomForest":
-            from sklearn.ensemble import RandomForestClassifier
-            model = RandomForestClassifier(
-                n_estimators=max(n_est, 150),
-                max_depth=depth * 3 if depth < 10 else None,
-                max_features=colsample,
-                random_state=42,
-                n_jobs=-1
-            )
-        elif m_type == "LightGBM":
-            import lightgbm as lgb
-            model = lgb.LGBMClassifier(
-                learning_rate=lr,
-                n_estimators=max(n_est, 250),
-                max_depth=depth,
-                subsample=sub,
-                colsample_bytree=colsample,
-                reg_alpha=reg_alpha,
-                random_state=42,
-                n_jobs=-1,
-                verbose=-1
-            )
-        else:
-            import xgboost as xgb
-            model = xgb.XGBClassifier(
-                learning_rate=lr,
-                n_estimators=max(n_est, 200),
-                max_depth=depth,
-                subsample=sub,
-                colsample_bytree=colsample,
-                reg_alpha=reg_alpha,
-                random_state=42,
-                n_jobs=-1,
-                eval_metric="mlogloss"
-            )
-
-        model.fit(X_tr, y_tr)
-        test_preds = model.predict(X_te)
-        test_acc = float(np.mean(test_preds == y_te)) * 100.0
+        refit = refit_and_score(decode_vector_to_dict(best.vector, space), dataset="covertype", phase="refit")
+        test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
 
         print(f"\n  +----------------------------------------------------------------+")
         print(f"  | EVO-SYNTH FINAL BENCHMARK SUMMARY                             |")

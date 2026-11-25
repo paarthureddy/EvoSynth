@@ -14,11 +14,22 @@ Transforms:
 """
 import numpy as np
 
+from evosynth.config import get_settings
+
 
 class GenericFeatureEngineer:
-    def __init__(self, strategy="none", max_interaction_features=6):
+    """Settings defaults come from [features] in configs/evosynth.toml."""
+
+    def __init__(self, strategy="none", max_interaction_features=None,
+                 continuous_unique_threshold=None, detection_sample_rows=None):
+        f = get_settings().features
         self.strategy = strategy
-        self.max_interaction_features = max_interaction_features
+        self.max_interaction_features = (f.max_interaction_features if max_interaction_features is None
+                                         else max_interaction_features)
+        self.continuous_unique_threshold = (f.continuous_unique_threshold if continuous_unique_threshold is None
+                                            else continuous_unique_threshold)
+        self.detection_sample_rows = (f.detection_sample_rows if detection_sample_rows is None
+                                      else detection_sample_rows)
         self.continuous_idx = []
         self.top_cols = []
 
@@ -27,12 +38,12 @@ class GenericFeatureEngineer:
             return self
 
         # Automatically detect continuous features based on sample cardinality
-        n_samples = min(2000, X.shape[0])
+        n_samples = min(self.detection_sample_rows, X.shape[0])
         sample_slice = X[:n_samples]
         
         self.continuous_idx = [
             i for i in range(X.shape[1])
-            if len(np.unique(sample_slice[:, i])) > 15
+            if len(np.unique(sample_slice[:, i])) > self.continuous_unique_threshold
         ]
 
         if not self.continuous_idx:

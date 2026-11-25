@@ -1,131 +1,54 @@
+"""
+DynamicOptimizer: the EvoSynth meta-optimization loop (Steps 0-6).
+
+Every default comes from configs/evosynth.toml: [engine], [bandit], [safeguards], [run].
+Telemetry (EventReporter) and run logging (stdout mirror, population CSVs) live in
+evosynth.telemetry; they are set up when this module is imported (Phase 1.10 moves
+that into run()).
+"""
 import os
-import numpy as np
 import time
-import sys
-import threading
-import requests
-from evosynth.engine.tiers import TierManager
-from evosynth.engine.scoring import CompositeScoringEngine
+
+import numpy as np
+
+from evosynth.config import get_settings
+from evosynth.core.decoding import decode_vector_to_dict
+from evosynth.core.individual import Individual
 from evosynth.engine.bandit import UCB1Bandit
+from evosynth.engine.scoring import CompositeScoringEngine
+from evosynth.engine.tiers import TierManager  # noqa: F401  (wired in Phase 1.6/1.9)
+from evosynth.optimizers.cmaes import CMAESOptimizer
+from evosynth.optimizers.de import DifferentialEvolution
 from evosynth.optimizers.ga import GeneticAlgorithm
 from evosynth.optimizers.pso import ParticleSwarm
-from evosynth.optimizers.de import DifferentialEvolution
-from evosynth.optimizers.cmaes import CMAESOptimizer
-from evosynth.core.individual import Individual
+from evosynth.paths import RESULTS_DIR as _RESULTS_PATH
+from evosynth.telemetry.reporter import EventReporter
+from evosynth.telemetry.run_logger import PopulationLogger, install_stdout_mirror
 
 # ------------------------------------------------------------------
-# Global Results Directory Resolution
+# Results directory, live reporter and stdout mirror (set up at import time)
 # ------------------------------------------------------------------
-from evosynth.paths import RESULTS_DIR as _RESULTS_PATH
 _RESULTS_DIR = str(_RESULTS_PATH)
 _CSV_DIR = os.path.join(_RESULTS_DIR, "csv")
 os.makedirs(_RESULTS_DIR, exist_ok=True)
 os.makedirs(_CSV_DIR, exist_ok=True)
 
-# ------------------------------------------------------------------
-# UI / Dashboard Reporter
-# ------------------------------------------------------------------
-class EventReporter:
-    def __init__(self):
-        self.url = "http://localhost:8000/event"
-        self.enabled = False
-        try:
-            # Check if API server is running
-            requests.get("http://localhost:8000/docs", timeout=0.5)
-            self.enabled = True
-        except:
-            pass
-
-    def emit(self, event_type, payload):
-        if not self.enabled: return
-        def _send():
-            try:
-                requests.post(self.url, json={"type": event_type, "data": payload}, timeout=1)
-            except:
-                pass
-        threading.Thread(target=_send, daemon=True).start()
-
 reporter = EventReporter()
+install_stdout_mirror(_RESULTS_DIR, reporter)
 
-class LoggerWriter:
-    def __init__(self, original_stdout):
-        self.original_stdout = original_stdout
-        self.buffer = ""
-        # Open a file to mirror all terminal output live in results/
-        self.log_file = open(os.path.join(_RESULTS_DIR, "run_output.txt"), "w", encoding="utf-8")
-
-    def write(self, message):
-        self.original_stdout.write(message)
-        self.original_stdout.flush()
-        
-        # Write to file and flush immediately to ensure it's saved on crash/cancel
-        self.log_file.write(message)
-        self.log_file.flush()
-        
-        # Only emit non-empty lines to reduce network spam
-        if message and message != '\n':
-            reporter.emit("log", {"text": message})
-
-    def flush(self):
-        self.original_stdout.flush()
-        self.log_file.flush()
-
-# Intercept prints to stream them live
-sys.stdout = LoggerWriter(sys.stdout)
-
-class PopulationLogger:
-    def __init__(self, space):
-        self.space = space
-        self.files = {
-            'Init': open(os.path.join(_CSV_DIR, 'warmup_population.csv'), 'w', encoding='utf-8'),
-            'T1': open(os.path.join(_CSV_DIR, 'tier1_population.csv'), 'w', encoding='utf-8'),
-            'T2': open(os.path.join(_CSV_DIR, 'tier2_population.csv'), 'w', encoding='utf-8')
-        }
-        
-        # Write headers based on search space
-        hp_names = list(space.keys())
-        header = "Eval_ID,Algorithm,Fitness," + ",".join(hp_names) + "\n"
-        for f in self.files.values():
-            f.write(header)
-            f.flush()
-
-    def log(self, eval_id, algo_name, ind):
-        if algo_name == 'Init':
-            f = self.files['Init']
-        elif algo_name.startswith('T1'):
-            f = self.files['T1']
-        elif algo_name.startswith('T2'):
-            f = self.files['T2']
-        else:
-            return
-            
-        params = _decode_individual(ind, self.space)
-        row = f"{eval_id},{algo_name},{ind.fitness:.4f}," + ",".join(str(params[k]) for k in self.space.keys()) + "\n"
-        f.write(row)
-        f.flush()
-
-# ------------------------------------------------------------------
 
 def _sep(char="=", width=80):
     return char * width
+
 
 def _header(title, char="=", width=80):
     side = (width - len(title) - 2) // 2
     return f"{char * side} {title} {char * side}"
 
+
 def _decode_individual(individual, space):
-    import ConfigSpace.hyperparameters as CSH
-    from ConfigSpace import Configuration
-    valid_vec = np.copy(individual.vector)
-    for i, hp_name in enumerate(list(space.keys())):
-        hp = space[hp_name]
-        if isinstance(hp, CSH.CategoricalHyperparameter):
-            num_choices = len(hp.choices)
-            idx = int(np.floor(valid_vec[i] * num_choices))
-            idx = min(idx, num_choices - 1)
-            valid_vec[i] = float(idx)
-    config = Configuration(space, vector=valid_vec)
-    return {p: config[p] for p in list(space.keys())}
+    return decode_vector_to_dict(individual.vector, space)
+
 
 def _make_optimizer(algo_key, space, pop_size):
     if algo_key == 'GA': return GeneticAlgorithm(space, pop_size)
@@ -134,30 +57,46 @@ def _make_optimizer(algo_key, space, pop_size):
     if algo_key == 'CMAES': return CMAESOptimizer(space, pop_size)
     raise ValueError(f"Unknown algo: {algo_key}")
 
+
+def _pick(value, default):
+    return default if value is None else value
+
+
 class DynamicOptimizer:
+    """Arguments left as None take their value from the active settings (configs/evosynth.toml)."""
+
     def __init__(self, search_space, evaluator,
-                 budget=2000, pop_size=100,
-                 t1_iters=30, k_iters=10,
-                 swap_threshold=0.10, stagnation_limit=3,
-                 elite_pct=0.20, inject_pct=0.20,
+                 budget=None, pop_size=None,
+                 t1_iters=None, k_iters=None,
+                 swap_threshold=None, stagnation_limit=None,
+                 elite_pct=None, inject_pct=None,
                  max_workers=None):
-        import os
+        cfg = get_settings()
+        eng, sg = cfg.engine, cfg.safeguards
         self.space = search_space
         self.eval = evaluator
-        self.budget = budget
-        self.pop_size = pop_size
-        self.t1_iters = t1_iters
-        self.k = k_iters
-        self.swap_threshold = swap_threshold
-        self.stagnation_limit = stagnation_limit
-        self.elite_pct = elite_pct
-        self.inject_pct = inject_pct
-        self.max_workers = max_workers if max_workers is not None else min(8, os.cpu_count() or 4)
+        self.budget = _pick(budget, eng.budget)
+        self.pop_size = _pick(pop_size, eng.pop_size)
+        self.t1_iters = _pick(t1_iters, eng.t1_iters)
+        self.k = _pick(k_iters, eng.k_iters)
+        self.swap_threshold = _pick(swap_threshold, sg.swap_margin)
+        self.stagnation_limit = _pick(stagnation_limit, sg.stagnation_limit)
+        self.elite_pct = _pick(elite_pct, sg.elite_pct)
+        self.inject_pct = _pick(inject_pct, sg.t2_inject_pct)
+        workers = _pick(max_workers, cfg.run.max_workers)
+        self.max_workers = workers if workers else min(8, os.cpu_count() or 4)
+
+        # Constants previously hard-coded in run()
+        self.t1_fraction = eng.t1_fraction
+        self.n_promoted = eng.n_promoted
+        self.t1_inject_pct = sg.t1_inject_pct
+        self.grace_iters = sg.grace_iters
+        self.cooldown_multiplier = sg.cooldown_multiplier
 
         self.composite_engine = CompositeScoringEngine()
         self.bandit = UCB1Bandit()
 
-        self.c = 0.1
+        self.c = cfg.bandit.c
         self.algo_evals = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
 
         self.evals_used = 0
@@ -165,7 +104,7 @@ class DynamicOptimizer:
         self.history = []
         self.cooldowns = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
         self.active_grace_period = None
-        self.pop_logger = PopulationLogger(self.space)
+        self.pop_logger = PopulationLogger(self.space, _CSV_DIR)
         self._algo_stats = {
             'GA': {'best': 0.0, 'prev_best': 0.0},
             'PSO': {'best': 0.0, 'prev_best': 0.0},
@@ -319,7 +258,7 @@ class DynamicOptimizer:
         # STEP 2: TIER SPLIT (40% T1 / 60% T2 Reserved)
         # ==============================================================
         reporter.emit("step", {"num": 2, "name": "Tier Split (4-Way)"})
-        t1_count = int(self.pop_size * 0.4)
+        t1_count = int(self.pop_size * self.t1_fraction)
         t2_reserved = full_pop[t1_count:]
         t1_island_size = t1_count // 4
 
@@ -375,7 +314,7 @@ class DynamicOptimizer:
                 _, rw = self._compute_composite(t1_pops)
                 for k, opt in t1_optims.items():
                     if rw.get(f"T1_{k}", {}).get('trend', 1.0) == 0.0:
-                        t1_optims[k] = self._random_inject(opt, 0.50, dims, f"T1_{k}")
+                        t1_optims[k] = self._random_inject(opt, self.t1_inject_pct, dims, f"T1_{k}")
 
         # ==============================================================
         # STEP 4: PROMOTION (TOP 2 to T2)
@@ -390,8 +329,8 @@ class DynamicOptimizer:
         self._print_scoring_table(t1_pops, scores, raw)
 
         sorted_algos = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
-        top2 = sorted_algos[:2]
-        bot2 = sorted_algos[2:]
+        top2 = sorted_algos[:self.n_promoted]
+        bot2 = sorted_algos[self.n_promoted:]
 
         for k in scores:
             algo_key = k.replace("T1_", "")
@@ -497,7 +436,7 @@ class DynamicOptimizer:
                     if d_algo in active_t1_optims: del active_t1_optims[d_algo]
                     
                     self.active_grace_period = None
-                    self.cooldowns[p_algo] = 2 * self.k # Penalty
+                    self.cooldowns[p_algo] = self.cooldown_multiplier * self.k # Penalty
                     reporter.emit("tier_state", {"T1": list(active_t1_optims.keys()), "T2": list(t2_optims.keys())})
                     
                     curr_layout = _print_t2_header()
@@ -529,12 +468,12 @@ class DynamicOptimizer:
                     import copy
                     self.active_grace_period = {
                         'algo': best_t1_key,
-                        'iters_left': 5,
+                        'iters_left': self.grace_iters,
                         'baseline': glob,
                         'snapshot': copy.deepcopy(t2_optims[worst_t2_key]),
                         'target_t1': worst_t2_key
                     }
-                    self.cooldowns[worst_t2_key] = 2 * self.k
+                    self.cooldowns[worst_t2_key] = self.cooldown_multiplier * self.k
                     
                     old_t2 = list(t2_optims[worst_t2_key].population)
                     old_t1 = list(active_t1_optims[best_t1_key].population)

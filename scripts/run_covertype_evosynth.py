@@ -21,46 +21,13 @@ from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
 
-from evosynth.core.search_space import get_xgboost_search_space
-from evosynth.evaluators.covtype import CovertypeEvaluator
+from evosynth.search_spaces.tabular import get_xgboost_search_space
+from evosynth.evaluators.tabular import TabularEvaluator
 from evosynth.engine.controller import DynamicOptimizer
 from evosynth.core.decoding import decode_vector_to_dict
+from evosynth.experiments.checkpointing import TeeLogger, atomic_json_dump as save_atomic_checkpoint
 from ConfigSpace import Configuration
 import ConfigSpace.hyperparameters as CSH
-
-
-class TeeLogger:
-    """Mirrors console output live to a log file."""
-    def __init__(self, log_path, stream):
-        self.stream = stream
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        self.log_file = open(log_path, "w", encoding="utf-8")
-
-    def write(self, message):
-        self.stream.write(message)
-        self.stream.flush()
-        self.log_file.write(message)
-        self.log_file.flush()
-
-    def flush(self):
-        self.stream.flush()
-        self.log_file.flush()
-
-    def close(self):
-        self.log_file.close()
-
-
-def save_atomic_checkpoint(checkpoint_path, data):
-    tmp_path = checkpoint_path + ".tmp"
-    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    if os.path.exists(checkpoint_path):
-        os.replace(tmp_path, checkpoint_path)
-    else:
-        os.rename(tmp_path, checkpoint_path)
-
-
 
 
 def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=10, run_name=None, output_dir=None):
@@ -89,7 +56,7 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         print("=" * 80)
 
         space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-        evaluator = CovertypeEvaluator(subsample_size=subsample)
+        evaluator = TabularEvaluator("covertype", subsample_size=subsample)
 
         # Wrap evaluator to trigger atomic checkpoints every N evals
         original_evaluate = evaluator.evaluate
@@ -141,83 +108,11 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         print("=" * 80)
         print("  Evaluating winning architecture & hyperparameters at full capacity...")
 
-        from sklearn.datasets import fetch_covtype
-        from sklearn.model_selection import train_test_split
-        from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
-        import xgboost as xgb
-        import lightgbm as lgb
-        from evosynth.features.generic import GenericFeatureEngineer
-
-        _data_home = os.path.join(_ROOT_DIR, ".data")
-        data = fetch_covtype(data_home=_data_home)
-        X_full = data.data.astype(np.float32)
-        y_full = data.target.astype(int) - 1
-
-        X_tr, X_te, y_tr, y_te = train_test_split(
-            X_full, y_full, train_size=60000, test_size=20000, stratify=y_full, random_state=42
-        )
+        from evosynth.models.refit import refit_and_score
 
         winning_cfg = decode_vector_to_dict(best.vector, space)
-        m_type = winning_cfg.get("model_type", "ExtraTrees")
-        fe_strat = winning_cfg.get("fe_strategy", "none")
-        lr = winning_cfg.get("learning_rate", 0.1)
-        n_est = winning_cfg.get("n_estimators", 150)
-        depth = winning_cfg.get("max_depth", 8)
-        sub = winning_cfg.get("subsample", 0.8)
-        colsample = winning_cfg.get("colsample_bytree", 0.8)
-        reg_alpha = winning_cfg.get("reg_alpha", 0.0)
-
-        fe = GenericFeatureEngineer(strategy=fe_strat)
-        if fe_strat != "none":
-            print(f"  [FE] Applying winning feature engineering strategy: '{fe_strat}'")
-            X_tr = fe.fit_transform(X_tr)
-            X_te = fe.transform(X_te)
-
-        print(f"  [MODEL] Training winning architecture: '{m_type}' on 60,000 samples...")
-        if m_type == "ExtraTrees":
-            model = ExtraTreesClassifier(
-                n_estimators=max(n_est, 150),
-                max_depth=depth * 3 if depth < 10 else None,
-                max_features=colsample,
-                random_state=42,
-                n_jobs=-1
-            )
-        elif m_type == "RandomForest":
-            model = RandomForestClassifier(
-                n_estimators=max(n_est, 150),
-                max_depth=depth * 3 if depth < 10 else None,
-                max_features=colsample,
-                random_state=42,
-                n_jobs=-1
-            )
-        elif m_type == "LightGBM":
-            model = lgb.LGBMClassifier(
-                learning_rate=lr,
-                n_estimators=max(n_est, 250),
-                max_depth=depth,
-                subsample=sub,
-                colsample_bytree=colsample,
-                reg_alpha=reg_alpha,
-                random_state=42,
-                n_jobs=-1,
-                verbose=-1
-            )
-        else:
-            model = xgb.XGBClassifier(
-                learning_rate=lr,
-                n_estimators=max(n_est, 200),
-                max_depth=depth,
-                subsample=sub,
-                colsample_bytree=colsample,
-                reg_alpha=reg_alpha,
-                random_state=42,
-                n_jobs=-1,
-                eval_metric="mlogloss"
-            )
-
-        model.fit(X_tr, y_tr)
-        test_preds = model.predict(X_te)
-        test_acc = float(np.mean(test_preds == y_te)) * 100.0
+        refit = refit_and_score(winning_cfg, dataset="covertype", phase="refit")
+        test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
 
         elapsed = time.time() - start_time
         print("\n  +----------------------------------------------------------------+")

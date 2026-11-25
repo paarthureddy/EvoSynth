@@ -10,7 +10,7 @@ from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
 
-from evosynth.core.search_space import get_image_nas_search_space
+from evosynth.search_spaces.nas import get_image_nas_search_space
 from evosynth.evaluators.image import ImageCNNEvaluator
 from evosynth.engine.controller import DynamicOptimizer
 

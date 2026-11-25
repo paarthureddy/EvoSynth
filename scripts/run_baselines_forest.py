@@ -21,21 +21,18 @@ from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
 
-from sklearn.datasets import fetch_covtype
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier
+
+from evosynth.config import get_settings
+from evosynth.core.decoding import decode_vector_to_dict
+from evosynth.models.refit import refit_and_score, refit_split
 
 
 def load_covertype_splits():
-    print("  [DATA] Loading Covertype dataset (60,000 train / 20,000 test)...")
-    _data_home = os.path.join(_ROOT_DIR, ".data")
-    data = fetch_covtype(data_home=_data_home)
-    X = data.data.astype(np.float32)
-    y = data.target.astype(int) - 1
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, train_size=60000, test_size=20000, stratify=y, random_state=42
-    )
-    return X_tr, X_te, y_tr, y_te
+    """Same stratified refit split as EvoSynth ([refit] train_rows / test_rows)."""
+    r = get_settings().refit
+    print(f"  [DATA] Loading Covertype dataset ({r.train_rows:,} train / {r.test_rows:,} test)...")
+    return refit_split("covertype")
 
 
 def run_default_extratrees(out_dir):
@@ -75,12 +72,12 @@ def run_random_search(out_dir, n_trials=120):
     print(f" RUNNING BASELINE 2: RANDOM SEARCH ({n_trials} EVALUATIONS)")
     print("=" * 70)
 
-    from evosynth.core.search_space import get_xgboost_search_space
-    from evosynth.evaluators.covtype import CovertypeEvaluator
+    from evosynth.search_spaces.tabular import get_xgboost_search_space
+    from evosynth.evaluators.tabular import TabularEvaluator
     from evosynth.core.individual import Individual
 
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = CovertypeEvaluator(subsample_size=20000)
+    evaluator = TabularEvaluator("covertype", subsample_size=20000)
     dims = len(list(space.keys()))
 
     best_acc = 0.0
@@ -97,33 +94,11 @@ def run_random_search(out_dir, n_trials=120):
         if trial % 10 == 0 or trial == n_trials:
             print(f"  Trial {trial:>3}/{n_trials} | Best CV Accuracy: {best_acc:.2f}% | Elapsed: {(time.time()-start):.1f}s")
 
-    # Refit winning vector on 60k/20k
-    X_tr, X_te, y_tr, y_te = load_covertype_splits()
-    from evosynth.core.decoding import decode_vector_to_dict
-    from evosynth.features.generic import GenericFeatureEngineer
-    import xgboost as xgb
-    import lightgbm as lgb
-
+    # Refit winning vector on the shared refit split (library-default model of the chosen family)
+    load_covertype_splits()
     best_cfg = decode_vector_to_dict(best_vec, space)
-    m_type = best_cfg.get("model_type", "ExtraTrees")
-    fe_strat = best_cfg.get("fe_strategy", "none")
-
-    fe = GenericFeatureEngineer(strategy=fe_strat)
-    if fe_strat != "none":
-        X_tr = fe.fit_transform(X_tr)
-        X_te = fe.transform(X_te)
-
-    if m_type == "ExtraTrees":
-        model = ExtraTreesClassifier(n_estimators=150, random_state=42, n_jobs=-1)
-    elif m_type == "RandomForest":
-        model = RandomForestClassifier(n_estimators=150, random_state=42, n_jobs=-1)
-    elif m_type == "LightGBM":
-        model = lgb.LGBMClassifier(n_estimators=150, random_state=42, n_jobs=-1, verbose=-1)
-    else:
-        model = xgb.XGBClassifier(n_estimators=150, random_state=42, n_jobs=-1, eval_metric="mlogloss")
-
-    model.fit(X_tr, y_tr)
-    test_acc = float(np.mean(model.predict(X_te) == y_te)) * 100.0
+    refit = refit_and_score(best_cfg, dataset="covertype", phase="baseline_default", verbose=False)
+    test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
 
     total_time = time.time() - start
     print(f"  [RESULT] Random Search Test Accuracy: {test_acc:.2f}% (Model: {m_type})")
@@ -155,11 +130,11 @@ def run_optuna_baseline(out_dir, n_trials=120):
         return None
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    from evosynth.evaluators.covtype import CovertypeEvaluator
-    from evosynth.core.search_space import get_xgboost_search_space
+    from evosynth.evaluators.tabular import TabularEvaluator
+    from evosynth.search_spaces.tabular import get_xgboost_search_space
     from evosynth.core.individual import Individual
 
-    evaluator = CovertypeEvaluator(subsample_size=20000)
+    evaluator = TabularEvaluator("covertype", subsample_size=20000)
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
     dims = len(list(space.keys()))
 
@@ -189,32 +164,10 @@ def run_optuna_baseline(out_dir, n_trials=120):
     best_cv = study.best_value
     best_vec = np.array([study.best_params[f"x_{i}"] for i in range(dims)])
 
-    from evosynth.core.decoding import decode_vector_to_dict
-    from evosynth.features.generic import GenericFeatureEngineer
-    import xgboost as xgb
-    import lightgbm as lgb
-
     best_cfg = decode_vector_to_dict(best_vec, space)
-    m_type = best_cfg.get("model_type", "ExtraTrees")
-    fe_strat = best_cfg.get("fe_strategy", "none")
-
-    X_tr, X_te, y_tr, y_te = load_covertype_splits()
-    fe = GenericFeatureEngineer(strategy=fe_strat)
-    if fe_strat != "none":
-        X_tr = fe.fit_transform(X_tr)
-        X_te = fe.transform(X_te)
-
-    if m_type == "ExtraTrees":
-        model = ExtraTreesClassifier(n_estimators=150, random_state=42, n_jobs=-1)
-    elif m_type == "RandomForest":
-        model = RandomForestClassifier(n_estimators=150, random_state=42, n_jobs=-1)
-    elif m_type == "LightGBM":
-        model = lgb.LGBMClassifier(n_estimators=150, random_state=42, n_jobs=-1, verbose=-1)
-    else:
-        model = xgb.XGBClassifier(n_estimators=150, random_state=42, n_jobs=-1, eval_metric="mlogloss")
-
-    model.fit(X_tr, y_tr)
-    test_acc = float(np.mean(model.predict(X_te) == y_te)) * 100.0
+    load_covertype_splits()
+    refit = refit_and_score(best_cfg, dataset="covertype", phase="baseline_default", verbose=False)
+    test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
 
     print(f"  [RESULT] Optuna TPE Test Accuracy: {test_acc:.2f}% (CV: {best_cv:.2f}%)")
     with open(log_file, "w", encoding="utf-8") as f:
