@@ -42,3 +42,6 @@ results_forest/**/checkpoints/
 *.tmp
 
 
+
+# VitePress build cache
+docs/.vitepress/cache/
