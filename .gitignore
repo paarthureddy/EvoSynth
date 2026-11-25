@@ -18,6 +18,7 @@ Final_Year Project/
 
 # Python caches and compiled files
 __pycache__/
+.pytest_cache/
 *.pyc
 *.pyo
 *.pyd

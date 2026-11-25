@@ -10,10 +10,6 @@ export default defineConfig({
     ["link", { rel: "icon", type: "image/png", href: "/logo.png" }],
   ],
 
-  // Not part of the public site: the project handbook (docs/handbook/) and the
-  // panel-defense guide are internal reference documents.
-  srcExclude: ["handbook/**", "research/PANEL_DEFENSE_MASTER_GUIDE.md"],
-
   themeConfig: {
     siteTitle: "EvoSynth",
     logo: "/logo.png",

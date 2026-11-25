@@ -58,10 +58,10 @@ EvoSynth/
 ├── dashboard/                   # React 19 + Vite 8 + Tailwind 4 live dashboard (src/App.jsx)
 ├── docs/                        # VitePress documentation site
 │   ├── guide/ concepts/ algorithms/ reference/ dashboard/ developer/  (site pages)
-│   ├── handbook/                # This handbook (excluded from the site)
-│   ├── research/                # comparative_analysis.md, PANEL_DEFENSE_MASTER_GUIDE.md, AutoML_Relevant_Papers.txt
+│   ├── research/                # comparative_analysis.md, AutoML_Relevant_Papers.txt
 │   └── public/                  # logo.png, favicon.png, arch.png
 ├── paper/                       # paper.tex, slides.tex, figures/, links.md
+├── handbook/                    # This handbook + panel-defense guide (internal; not part of the docs site)
 ├── .github/workflows/deploy-docs.yml  # Builds and deploys docs to GitHub Pages
 └── .data/                       # Downloaded datasets (git-ignored)
 ```

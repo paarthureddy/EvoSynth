@@ -164,7 +164,7 @@ npm install
 npm run docs:dev        # local preview (VitePress)
 ```
 
-Pushing changes under `docs/` to `main` or `PostReview2` triggers `.github/workflows/deploy-docs.yml`, which builds and publishes to GitHub Pages. The handbook (`docs/handbook/`) and the panel-defense guide are excluded from the site (`srcExclude` in `docs/.vitepress/config.mts`).
+Pushing changes under `docs/` to `main` or `PostReview2` triggers `.github/workflows/deploy-docs.yml`, which builds and publishes to GitHub Pages. The handbook and the panel-defense guide are not part of the site; they live in the top-level `handbook/` folder.
 
 ## 7. Using EvoSynth as a library
 
@@ -196,7 +196,11 @@ Used this way, nothing is written to disk. Wrap the code in `evosynth.experiment
 - To see SWAPs, injections and elite sharing in Tier 2, choose `k_iters` small enough that Tier 2 reaches at least one checkpoint.
 - For your own data, write an evaluator as described in [05](05-search-space-and-evaluators.md) §6. For a new optimizer, see [04](04-optimizers.md) §7.
 
-## 8. Troubleshooting
+## 8. Tests
+
+`python -m pytest` (needs the `dev` extra) runs the smoke tests in `tests/` in about 5 seconds, without training any model: settings loading, presets, overrides and validation; search spaces and decoding; a full `DynamicOptimizer` run on the toy objective; run folders (`manifest.json`, `result.json`, `run.log`, `events.jsonl`); and the `evosynth` command.
+
+## 9. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|

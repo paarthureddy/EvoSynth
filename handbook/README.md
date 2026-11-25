@@ -6,7 +6,7 @@
 **Team:** Shivam Kharat, Siddharth Ladda, Kaushal Loya, Paarthu Reddy, Priyansh Narang. **Guide:** Dr. Thangavelu S.
 **Links:** GitHub `https://github.com/paarthureddy/EvoSynth` · Docs `https://evosynth-2027.github.io/evosynth-docs/` · Dataset (Zenodo) `https://doi.org/10.5281/zenodo.23645119`
 
-This folder (`docs/handbook/`) describes the whole EvoSynth project: its idea, design, code, experiments, results, paper and defence material. It is written so that someone can understand, explain, reproduce or rebuild the project from these files alone, without opening the repository.
+This folder (`handbook/`, outside the official docs site) describes the whole EvoSynth project: its idea, design, code, experiments, results, paper and defence material. It is written so that someone can understand, explain, reproduce or rebuild the project from these files alone, without opening the repository.
 
 It describes the code after the restructure (package `src/evosynth`, `settings/` folder, `evosynth` command, one results folder per run). The results are those of the panel-review (v1) runs, archived in `results/archive/2026-11-19_covertype_v1/`; they will be replaced after the Phase 0–5 fixes and re-runs.
 
@@ -77,6 +77,7 @@ The full tables and their caveats are in [08-results.md](08-results.md).
 | [10-paper.md](10-paper.md) | The IEEE-format research paper (`paper/paper.tex`), section by section: abstract, method, algorithm pseudocode, experiments, tables, conclusion and references. The Panel Review slide deck (`paper/slides.tex`), slide by slide, including the team and the default parameter table. |
 | [11-panel-defense-qa.md](11-panel-defense-qa.md) | The 30-second pitch, then likely evaluation and viva questions with answers grounded in the actual code and results. Covers novelty, datasets, mechanics, maths, performance, limitations, and the tricky questions the results invite. |
 | [12-setup-and-usage.md](12-setup-and-usage.md) | Prerequisites and installation (Python, Node), dependencies, dataset caching, and how to run each `evosynth` command with its flags and `--set` overrides. Expected outputs, files produced and typical runtimes. Running the telemetry server and dashboard. Building the docs site. The staged experiment runner. Using EvoSynth from Python code. |
+| [panel-defense-guide.md](panel-defense-guide.md) | The original Panel Review defence and viva guide (formerly `docs/PANEL_DEFENSE_MASTER_GUIDE.md`): elevator pitch, architecture talking points, formulas and prepared answers, as written before the review. Where it disagrees with the code, [03-engine-internals.md](03-engine-internals.md) §9 lists the differences. |
 
 The files are numbered in reading order. Read 01 → 03 to understand the system, 07 → 08 for the evidence, and 11 to prepare a defence.
 

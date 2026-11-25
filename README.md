@@ -209,9 +209,9 @@ EvoSynth/
 ├── tools/run_experiments.ps1     # Staged runner for the full Covertype study
 ├── dashboard/                    # React live telemetry dashboard (Vite + Tailwind CSS)
 ├── docs/                         # VitePress documentation site
-│   ├── handbook/                 # Complete project handbook (not published on the site)
-│   ├── research/                 # Comparative analysis, related papers, panel-defense guide
+│   ├── research/                 # Comparative analysis, related papers
 │   └── public/                   # Logo and architecture figure
+├── handbook/                     # Internal project handbook + panel-defense guide (not on the site)
 └── paper/                        # Paper and slide sources (LaTeX), figures, links
 ```
 
@@ -295,7 +295,7 @@ npm run docs:dev
 Open [http://localhost:5173](http://localhost:5173) (or the displayed VitePress port) to view full guides, algorithm math, API references, and developer tutorials.
 
 The complete project handbook (architecture, engine internals, experiments, results, setup) is in
-[`docs/handbook/`](docs/handbook/README.md); the paper and slides are in [`paper/`](paper/README.md).
+[`handbook/`](handbook/README.md); the paper and slides are in [`paper/`](paper/README.md).
 
 ---
 

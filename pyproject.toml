@@ -33,7 +33,7 @@ evosynth = "evosynth.cli:main"
 [project.optional-dependencies]
 nas       = ["torch==2.14.1", "torchvision==0.29.1"]   # CNN architecture search
 baselines = ["optuna==5.1.0", "flaml==2.8.0"]          # competitor baselines
-dev       = ["pytest"]
+dev       = ["pytest==9.2.0"]                           # tests/ (py -m pytest)
 all       = ["evosynth[nas,baselines,dev]"]
 
 [tool.setuptools.packages.find]
@@ -41,3 +41,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# ConfigSpace 1.x deprecation notices from get_hyperparameter(s)/add_hyperparameters
+filterwarnings = ["ignore:Please use:DeprecationWarning"]

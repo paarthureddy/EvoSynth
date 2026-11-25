@@ -138,8 +138,7 @@ The `composite` event is received but has no handler, so it is ignored. The init
 - **Deployment:** `.github/workflows/deploy-docs.yml` runs on pushes to `main` or `PostReview2` that touch `docs/**` (or on manual dispatch). It installs Node 20, builds VitePress and deploys to GitHub Pages. The public docs link is `https://evosynth-2027.github.io/evosynth-docs/`.
 - **Long-form documents in `docs/research/`:**
   - `comparative_analysis.md` (published as the Comparative Analysis page);
-  - `PANEL_DEFENSE_MASTER_GUIDE.md` (excluded from the site);
   - `AutoML_Relevant_Papers.txt`.
-- **This handbook** (`docs/handbook/`) is excluded from the site (`srcExclude` in `config.mts`).
+- **This handbook and the panel-defense guide** live outside `docs/` (top-level `handbook/`), because the docs site is the official submitted website. They are shared separately as an HTML page.
 
   Their content is covered in files 09–11 of this folder.

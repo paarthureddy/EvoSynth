@@ -30,7 +30,12 @@ Thank you for your interest in contributing to **EvoSynth**! We welcome contribu
    evosynth nas
    ```
 
-5. **Settings rule:** never hard-code a tunable value in Python. Add it to the matching file in
+5. **Run the tests** (about 5 seconds, no model training):
+   ```bash
+   python -m pytest
+   ```
+
+6. **Settings rule:** never hard-code a tunable value in Python. Add it to the matching file in
    `settings/` with a comment saying what it controls, where it is used
    (`Used in: <file> → <function>`) and its range, and read it with `evosynth.config.get_settings()`.
 
