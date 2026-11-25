@@ -143,7 +143,7 @@ Where $N_t$ is total evaluations, $N_{i,t}$ is evaluations allocated to algorith
 
 ## 5. Live Execution Proof & Empirical Results
 
-The following numbers are verified from the completed execution log ([covertype_run_with_fe.txt](file:///c:/Users/siddh/Desktop/College/EvoSynth/covertype_run_with_fe.txt)):
+The following numbers are verified from the completed execution log (`results/archive/2026-11-19_covertype_v1/evosynth/run_120.txt`):
 
 ### 5.1 Progression Benchmark Table
 
@@ -321,10 +321,10 @@ A strong viva defense requires intellectual honesty about system limitations.
 - [x] **Real Dataset:** UCI Forest Covertype (581,012 samples, 54 features, 7 classes) locally cached at `.data/covertype/`.
 - [x] **Verified Benchmark:** Baselines: 80.97%–81.48% $\rightarrow$ EvoSynth Search: 86.39% $\rightarrow$ EvoSynth Generalization: **93.47%**.
 - [x] **Runtime:** 9 minutes 44 seconds end-to-end on local CPU.
-- [x] **Live SWAP Event:** Documented in [covertype_run_with_fe.txt](file:///c:/Users/siddh/Desktop/College/EvoSynth/covertype_run_with_fe.txt) (T1_PSO: 0.720 UCB overtook T2_GA: 0.547 UCB).
+- [x] **Live SWAP Event:** Documented in `results/archive/2026-11-19_covertype_v1/evosynth/run_120.txt` (T1_PSO: 0.720 UCB overtook T2_GA: 0.547 UCB).
 - [x] **Model Selected:** ExtraTrees (334 trees, depth 8, colsample 0.43).
 - [x] **Feature Engineering:** Automated continuous pairwise `interactions` discovered via dataset-agnostic variance sorting.
-- [x] **Slide Deck Updated:** [maint.tex](file:///c:/Users/siddh/Desktop/College/EvoSynth/maint.tex) reflects authentic Covertype numbers with auto-fitting table dimensions.
-- [x] **Research Paper Updated:** [G002_Paper.tex](file:///c:/Users/siddh/Desktop/College/EvoSynth/G002_Paper.tex) includes complete Section 5.3 on the Forest Covertype benchmark.
-- [x] **Full Documentation:** [README.md](file:///c:/Users/siddh/Desktop/College/EvoSynth/README.md) and [docs/comparative_analysis.md](file:///c:/Users/siddh/Desktop/College/EvoSynth/docs/comparative_analysis.md) fully aligned.
+- [x] **Slide Deck Updated:** `paper/slides.tex` reflects authentic Covertype numbers with auto-fitting table dimensions.
+- [x] **Research Paper Updated:** `paper/paper.tex` includes complete Section 5.3 on the Forest Covertype benchmark.
+- [x] **Full Documentation:** `README.md` and `docs/research/comparative_analysis.md` fully aligned.
 
