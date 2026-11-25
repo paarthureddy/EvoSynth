@@ -7,7 +7,6 @@ Final_Year Project/
 *.docx
 *.tex
 *.csv
-run_output.txt
 
 # Keep all markdown files for documentation
 !*.md
@@ -38,7 +37,6 @@ presentations/
 dataset_release/
 .data/
 docs/.vitepress/dist/
-results_forest/**/checkpoints/
 *.tmp
 
 
@@ -49,3 +47,15 @@ docs/.vitepress/cache/
 # Python packaging (editable install metadata)
 *.egg-info/
 build/
+
+# Results (results/<experiment>/<dataset>/<variant>/seed_<k>/): commit only manifest.json,
+# result.json and summary/ folders; logs, events, CSVs and checkpoints stay local.
+results/**
+!results/**/
+!results/**/manifest.json
+!results/**/result.json
+!results/**/summary/**
+# Archive of the v1 (panel review) runs: kept as committed, minus resume state and raw CSVs
+!results/archive/**
+results/archive/**/checkpoints/
+results/archive/**/csv/

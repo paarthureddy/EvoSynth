@@ -8,7 +8,9 @@ Runs and logs the baseline comparisons on the exact same refit train / test spli
   3. Optuna TPE (120 trials, with SQLite persistence for auto-resume)
   4. FLAML AutoML (Time-budget matched to EvoSynth's ~10 min runtime)
 
-Outputs saved to: results_forest/baselines/
+Output: one run folder per baseline, results/baselines/<dataset>/<baseline>/seed_<k>/
+(baseline = default_extratrees | random_search | optuna_tpe | flaml), each with run.log,
+report.txt, result.json, manifest.json (+ optuna.db / flaml.log).
 """
 
 import os
@@ -18,8 +20,7 @@ import json
 import argparse
 import numpy as np
 
-from evosynth.paths import PROJECT_ROOT
-_ROOT_DIR = str(PROJECT_ROOT)
+from evosynth.experiments.run_context import RunContext
 
 
 from sklearn.ensemble import ExtraTreesClassifier
@@ -37,7 +38,7 @@ def load_covertype_splits():
 
 
 def run_default_extratrees(out_dir):
-    log_file = os.path.join(out_dir, "default_extratrees.txt")
+    log_file = os.path.join(out_dir, "report.txt")
     print("\n" + "=" * 70)
     print(" RUNNING BASELINE 1: DEFAULT EXTRATREES (UNTUNED FLOOR)")
     print("=" * 70)
@@ -66,12 +67,13 @@ def run_default_extratrees(out_dir):
         f.write(f" Accuracy             : {acc:.2f}%\n")
         f.write(f" Fit Duration         : {fit_time:.1f} seconds\n")
         f.write("=" * 70 + "\n")
-    return acc
+    return {"metric": "test_accuracy", "test_accuracy": acc, "model_type": "ExtraTrees",
+            "n_estimators": s.experiments.baselines.default_extratrees_trees, "fit_seconds": round(fit_time, 2)}
 
 
 def run_random_search(out_dir, n_trials=None):
     n_trials = get_settings().experiments.baselines.random_search_trials if n_trials is None else n_trials
-    log_file = os.path.join(out_dir, "random_search.txt")
+    log_file = os.path.join(out_dir, "report.txt")
     print("\n" + "=" * 70)
     print(f" RUNNING BASELINE 2: RANDOM SEARCH ({n_trials} EVALUATIONS)")
     print("=" * 70)
@@ -117,13 +119,15 @@ def run_random_search(out_dir, n_trials=None):
         f.write(f" Discovered FE        : {fe_strat}\n")
         f.write(f" Total Runtime        : {total_time/60:.1f} minutes\n")
         f.write("=" * 70 + "\n")
-    return test_acc
+    return {"metric": "test_accuracy", "test_accuracy": float(test_acc), "best_cv_accuracy": float(best_acc),
+            "model_type": m_type, "fe_strategy": fe_strat, "best_config": best_cfg, "trials": n_trials,
+            "total_seconds": round(total_time, 2)}
 
 
 def run_optuna_baseline(out_dir, n_trials=None):
     n_trials = get_settings().experiments.baselines.optuna_trials if n_trials is None else n_trials
-    log_file = os.path.join(out_dir, "optuna.txt")
-    db_file = os.path.join(out_dir, "optuna_covertype.db")
+    log_file = os.path.join(out_dir, "report.txt")
+    db_file = os.path.join(out_dir, "optuna.db")
     print("\n" + "=" * 70)
     print(f" RUNNING BASELINE 3: OPTUNA TPE SAMPLER ({n_trials} TRIALS)")
     print("=" * 70)
@@ -132,7 +136,7 @@ def run_optuna_baseline(out_dir, n_trials=None):
         import optuna
     except ImportError:
         print("  [!] Optuna not installed. Please run: pip install optuna")
-        return None
+        return {"skipped": "optuna not installed"}
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     from evosynth.evaluators.tabular import TabularEvaluator
@@ -185,13 +189,15 @@ def run_optuna_baseline(out_dir, n_trials=None):
         f.write(f" Discovered FE        : {fe_strat}\n")
         f.write(f" Search Runtime       : {search_time/60:.1f} minutes\n")
         f.write("=" * 70 + "\n")
-    return test_acc
+    return {"metric": "test_accuracy", "test_accuracy": float(test_acc), "best_cv_accuracy": float(best_cv),
+            "model_type": m_type, "fe_strategy": fe_strat, "best_config": best_cfg, "trials": n_trials,
+            "search_seconds": round(search_time, 2)}
 
 
 def run_flaml_baseline(out_dir, time_budget=None):
     bl = get_settings().experiments.baselines
     time_budget = bl.flaml_time_budget if time_budget is None else time_budget
-    log_file = os.path.join(out_dir, "flaml.txt")
+    log_file = os.path.join(out_dir, "report.txt")
     print("\n" + "=" * 70)
     print(f" RUNNING BASELINE 4: FLAML AUTOML (TIME BUDGET: {time_budget}s / ~10m)")
     print("=" * 70)
@@ -200,7 +206,7 @@ def run_flaml_baseline(out_dir, time_budget=None):
         from flaml import AutoML
     except ImportError:
         print("  [!] FLAML not installed. Please run: pip install flaml")
-        return None
+        return {"skipped": "flaml not installed"}
 
     X_tr, X_te, y_tr, y_te = load_covertype_splits()
     automl = AutoML()
@@ -208,7 +214,7 @@ def run_flaml_baseline(out_dir, time_budget=None):
         "time_budget": time_budget,
         "metric": bl.flaml_metric,
         "task": "classification",
-        "log_file_name": os.path.join(out_dir, "flaml_run.log"),
+        "log_file_name": os.path.join(out_dir, "flaml.log"),
         "seed": get_settings().run.random_state,
         "estimator_list": list(bl.flaml_estimators)
     }
@@ -233,29 +239,30 @@ def run_flaml_baseline(out_dir, time_budget=None):
         f.write(f" Actual Search Time   : {total_time/60:.1f} minutes\n")
         f.write(f" Best Config          : {json.dumps(automl.best_config, indent=2)}\n")
         f.write("=" * 70 + "\n")
-    return test_acc
+    return {"metric": "test_accuracy", "test_accuracy": float(test_acc), "model_type": str(automl.best_estimator),
+            "best_config": automl.best_config, "time_budget_seconds": time_budget,
+            "total_seconds": round(total_time, 2)}
 
 
 BASELINE_TESTS = ("all", "extratrees", "random", "optuna", "flaml")
 
 
-def run_baselines(test="all", trials=None, time_budget=None, run_name=None, output_dir=None):
-    """Run one or all baselines; outputs go to results_forest/[<run_name>/]baselines/ unless output_dir is given."""
+# --test name -> (run-folder name, function); Optuna resumes from its SQLite study
+_BASELINES = {
+    "extratrees": ("default_extratrees", lambda d, a: run_default_extratrees(d)),
+    "random": ("random_search", lambda d, a: run_random_search(d, n_trials=a["trials"])),
+    "optuna": ("optuna_tpe", lambda d, a: run_optuna_baseline(d, n_trials=a["trials"])),
+    "flaml": ("flaml", lambda d, a: run_flaml_baseline(d, time_budget=a["time_budget"])),
+}
+
+
+def run_baselines(test="all", trials=None, time_budget=None, results_dir=None):
+    """Run one or all baselines, each in its own run folder (Covertype only until Phase 3)."""
     if test not in BASELINE_TESTS:
         raise ValueError(f"unknown baseline '{test}'. Choose from {BASELINE_TESTS}")
-    if output_dir:
-        out_dir = output_dir
-    elif run_name:
-        out_dir = os.path.join(_ROOT_DIR, "results_forest", run_name, "baselines")
-    else:
-        out_dir = os.path.join(_ROOT_DIR, "results_forest", "baselines")
-    os.makedirs(out_dir, exist_ok=True)
-
-    if test in ("all", "extratrees"):
-        run_default_extratrees(out_dir)
-    if test in ("all", "random"):
-        run_random_search(out_dir, n_trials=trials)
-    if test in ("all", "optuna"):
-        run_optuna_baseline(out_dir, n_trials=trials)
-    if test in ("all", "flaml"):
-        run_flaml_baseline(out_dir, time_budget=time_budget)
+    args = {"trials": trials, "time_budget": time_budget}
+    for name, (variant, fn) in _BASELINES.items():
+        if test not in ("all", name):
+            continue
+        with RunContext("baselines", "covertype", variant, results_dir=results_dir, resume=(name == "optuna")) as run:
+            run.write_result(fn(run.path, args))

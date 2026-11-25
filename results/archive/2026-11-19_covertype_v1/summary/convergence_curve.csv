@@ -1,0 +1,4 @@
+eval_budget,cv_accuracy,test_accuracy,search_time_minutes,optimal_architecture,fe_strategy
+120,86.39,93.47,9.7,ExtraTrees,interactions
+300,86.39,93.82,31.6,ExtraTrees,interactions
+500,86.59,94.05,37.3,ExtraTrees,interactions

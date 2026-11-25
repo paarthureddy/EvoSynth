@@ -1,11 +1,14 @@
 # ==============================================================================
-# EvoSynth Master Experiment Orchestrator (Daily Staged Execution)
+# EvoSynth Master Experiment Orchestrator (Staged Execution)
 # System Profile: 12th Gen Intel Core i5-12450HX (8 cores / 12 threads) | 16GB RAM
-# Daily Tracking: Automatically maintains results under results_forest\<TestN_Date>\
+# Every run writes to results\<experiment>\<dataset>\<variant>\seed_<k>\
+# (manifest.json, result.json, run.log, ...). Re-running a stage overwrites that
+# stage's run folders; the ablation and Optuna stages resume from their checkpoints.
 # ==============================================================================
 param (
     [string]$Stage = "menu",
-    [string]$RunName = ""
+    # Extra arguments passed to every evosynth command, e.g. -Extra "--set","run.random_state=7"
+    [string[]]$Extra = @()
 )
 
 $ErrorActionPreference = "Continue"
@@ -16,33 +19,13 @@ Set-Location $rootDir
 # EvoSynth is installed for Python 3.14 (py -3.14 -m pip install -e .).
 # Budgets, population sizes, checkpoint intervals, etc. come from settings/*.toml;
 # override any of them per run with  --set section.key=value
-function Invoke-EvoSynth { & py -3.14 -m evosynth @args }
-
-# ------------------------------------------------------------------------------
-# Daily Run Folder Resolution (e.g., Test1_19_Nov)
-# ------------------------------------------------------------------------------
-$dateStr = (Get-Date).ToString("dd_MMM")
-if (-not $RunName) {
-    $existing = Get-ChildItem -Path (Join-Path $rootDir "results_forest") -Directory -Filter "Test*_${dateStr}" -ErrorAction SilentlyContinue | Sort-Object Name
-    if ($existing.Count -gt 0) {
-        $RunName = $existing[-1].Name
-    } else {
-        $RunName = "Test1_${dateStr}"
-    }
-}
-
-$runDir = Join-Path $rootDir "results_forest\$RunName"
-$null = New-Item -ItemType Directory -Path "$runDir\baselines" -Force
-$null = New-Item -ItemType Directory -Path "$runDir\evosynth" -Force
-$null = New-Item -ItemType Directory -Path "$runDir\ablation\cvgs_300" -Force
-$null = New-Item -ItemType Directory -Path "$runDir\ablation\cvgs_500" -Force
-$null = New-Item -ItemType Directory -Path "$runDir\summary" -Force
+function Invoke-EvoSynth { & py -3.14 -m evosynth @args @Extra }
 
 function Show-Header {
     Clear-Host
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "   EVOSYNTH: MASTER EXPERIMENT RUNNER & BENCHMARK ORCHESTRATOR" -ForegroundColor Cyan
-    Write-Host "   Active Run Folder : results_forest\$RunName\" -ForegroundColor Yellow
+    Write-Host "   Results Folder    : results\<experiment>\covertype\<variant>\seed_<k>\" -ForegroundColor Yellow
     Write-Host "   Target Benchmark  : UCI Forest Covertype (581,012 samples, 54 features)" -ForegroundColor Cyan
     Write-Host "   System Profile    : Intel Core i5-12450HX (8 Cores/12 Threads) | 16 GB RAM" -ForegroundColor DarkCyan
     Write-Host "   Fault Protection  : Atomic Checkpointing Every 10 Evals with Auto-Resume" -ForegroundColor DarkCyan
@@ -51,7 +34,7 @@ function Show-Header {
 }
 
 function Run-Stage1 {
-    Write-Host "`n>>> [STAGE 1] RUNNING BASELINE EXPERIMENTS INTO results_forest\$RunName\baselines\..." -ForegroundColor Yellow
+    Write-Host "`n>>> [STAGE 1] RUNNING BASELINE EXPERIMENTS INTO results\baselines\covertype\..." -ForegroundColor Yellow
     Write-Host "  1. Default ExtraTrees (Untuned Floor on 60k/20k split)" -ForegroundColor White
     Write-Host "  2. Random Search (120 trials)" -ForegroundColor White
     Write-Host "  3. Optuna TPE Sampler (120 trials, SQLite checkpointed)" -ForegroundColor White
@@ -70,34 +53,34 @@ function Run-Stage1 {
         py -3.14 -m pip install flaml | Out-Null
     }
 
-    Invoke-EvoSynth baselines --test all --run-name $RunName
-    Write-Host "`n[STAGE 1 COMPLETE] Baseline logs saved to results_forest\$RunName\baselines\" -ForegroundColor Green
+    Invoke-EvoSynth baselines --test all
+    Write-Host "`n[STAGE 1 COMPLETE] Baseline runs saved under results\baselines\covertype\" -ForegroundColor Green
 }
 
 function Run-Stage2 {
-    Write-Host "`n>>> [STAGE 2] RUNNING EVOSYNTH SCALED BUDGET EXPERIMENTS INTO results_forest\$RunName\evosynth\..." -ForegroundColor Yellow
+    Write-Host "`n>>> [STAGE 2] RUNNING EVOSYNTH SCALED BUDGET EXPERIMENTS INTO results\scaling\covertype\..." -ForegroundColor Yellow
     Write-Host "  1. EvoSynth @ 300 evaluations (Pop=30, Refit 60k/20k)" -ForegroundColor White
     Write-Host "  2. EvoSynth @ 500 evaluations (Pop=30, Refit 60k/20k)" -ForegroundColor White
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
     Write-Host "`n[2A] Starting EvoSynth @ 300 evals (Est: ~20-25 min)..." -ForegroundColor Cyan
-    Invoke-EvoSynth scale --budget 300 --run-name $RunName
+    Invoke-EvoSynth scale --budget 300
 
     Write-Host "`n[2B] Starting EvoSynth @ 500 evals (Est: ~35-45 min)..." -ForegroundColor Cyan
-    Invoke-EvoSynth scale --budget 500 --run-name $RunName
+    Invoke-EvoSynth scale --budget 500
 
-    Write-Host "`n[STAGE 2 COMPLETE] Scaled EvoSynth results saved to results_forest\$RunName\evosynth\" -ForegroundColor Green
+    Write-Host "`n[STAGE 2 COMPLETE] Scaled EvoSynth runs saved under results\scaling\covertype\" -ForegroundColor Green
 }
 
 function Run-Stage3 {
-    Write-Host "`n>>> [STAGE 3] RUNNING COVERTYPE ABLATION STUDY: CVGS-300 INTO results_forest\$RunName\ablation\cvgs_300\..." -ForegroundColor Yellow
+    Write-Host "`n>>> [STAGE 3] RUNNING COVERTYPE ABLATION STUDY: CVGS-300 INTO results\ablation\covertype\cvgs_300\..." -ForegroundColor Yellow
     Write-Host "  Setup: Budget = 300 evals | Pop = 30 | Checkpoint @ 75 evals (25% share)" -ForegroundColor White
     Write-Host "  Algorithms: Isolated GA, PSO, DE, CMA-ES vs. Dynamic Meta-Optimizer" -ForegroundColor White
     Write-Host "  Fault Protection: Checkpoints every 10 evaluations (Safe to interrupt & resume)" -ForegroundColor White
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
-    Invoke-EvoSynth ablation --setup CVGS-300 --run-name $RunName
-    Write-Host "`n[STAGE 3 COMPLETE] CVGS-300 results saved to results_forest\$RunName\ablation\cvgs_300\" -ForegroundColor Green
+    Invoke-EvoSynth ablation --setup CVGS-300
+    Write-Host "`n[STAGE 3 COMPLETE] CVGS-300 saved under results\ablation\covertype\cvgs_300\" -ForegroundColor Green
 }
 
 function Run-Stage4 {
@@ -107,16 +90,11 @@ function Run-Stage4 {
     Write-Host "  Fault Protection: Checkpoints every 10 evaluations (Safe to interrupt & resume)" -ForegroundColor White
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
-    Invoke-EvoSynth ablation --setup CVGS-500 --run-name $RunName
-    Write-Host "`n[STAGE 4 COMPLETE] CVGS-500 results saved to results_forest\$RunName\ablation\cvgs_500\" -ForegroundColor Green
+    Invoke-EvoSynth ablation --setup CVGS-500
+    Write-Host "`n[STAGE 4 COMPLETE] CVGS-500 saved under results\ablation\covertype\cvgs_500\" -ForegroundColor Green
 }
 
-# Main Selection
-if ($Stage -eq "1") { Run-Stage1 }
-elseif ($Stage -eq "2") { Run-Stage2 }
-elseif ($Stage -eq "3") { Run-Stage3 }
-elseif ($Stage -eq "4") { Run-Stage4 }
-elseif ($Stage -eq "all") {
+function Run-All {
     $t0 = Get-Date
     Run-Stage1
     Run-Stage2
@@ -125,40 +103,34 @@ elseif ($Stage -eq "all") {
     $elapsed = (Get-Date) - $t0
     Write-Host "`n================================================================================" -ForegroundColor Cyan
     Write-Host " ALL STAGES COMPLETED IN $($elapsed.TotalHours.ToString('0.1')) HOURS!" -ForegroundColor Green
-    Write-Host " Results are fully structured in results_forest\$RunName\" -ForegroundColor Green
+    Write-Host " Results are under results\ (one folder per run)" -ForegroundColor Green
     Write-Host "================================================================================" -ForegroundColor Cyan
 }
+
+# Main Selection
+if ($Stage -eq "1") { Run-Stage1 }
+elseif ($Stage -eq "2") { Run-Stage2 }
+elseif ($Stage -eq "3") { Run-Stage3 }
+elseif ($Stage -eq "4") { Run-Stage4 }
+elseif ($Stage -eq "all") { Run-All }
 else {
     Show-Header
-    Write-Host "Select which stage to run (Saving into results_forest\$RunName\):" -ForegroundColor White
-    Write-Host "  [1] Stage 1: Competitor Baselines (Default ExtraTrees, Optuna, FLAML) [~15-20 min]" -ForegroundColor White
+    Write-Host "Select which stage to run:" -ForegroundColor White
+    Write-Host "  [1] Stage 1: Competitor Baselines (Default ExtraTrees, Random, Optuna, FLAML) [~15-20 min]" -ForegroundColor White
     Write-Host "  [2] Stage 2: EvoSynth Scaled Runs (EvoSynth@300 & EvoSynth@500)      [~1 hour]" -ForegroundColor White
     Write-Host "  [3] Stage 3: Covertype Ablation CVGS-300 (All 5 Algorithms)         [Overnight]" -ForegroundColor White
     Write-Host "  [4] Stage 4: Deep Covertype Ablation CVGS-500 (All 5 Algorithms)    [Overnight]" -ForegroundColor White
     Write-Host "  [A] Run All Stages Sequentially (1 -> 2 -> 3 -> 4)                   [Overnight]" -ForegroundColor Yellow
-    Write-Host "  [N] Start a New Test Run Folder (e.g. Test2_$dateStr)" -ForegroundColor Cyan
     Write-Host "  [Q] Quit" -ForegroundColor Red
     Write-Host ""
-    $choice = Read-Host "Enter option (1/2/3/4/A/N/Q)"
+    $choice = Read-Host "Enter option (1/2/3/4/A/Q)"
 
     switch ($choice.ToUpper()) {
         "1" { Run-Stage1 }
         "2" { Run-Stage2 }
         "3" { Run-Stage3 }
         "4" { Run-Stage4 }
-        "A" { 
-            Run-Stage1
-            Run-Stage2
-            Run-Stage3
-            Run-Stage4
-        }
-        "N" {
-            $existing = Get-ChildItem -Path (Join-Path $rootDir "results_forest") -Directory -Filter "Test*_${dateStr}" -ErrorAction SilentlyContinue | Sort-Object Name
-            $nextIdx = ($existing | Measure-Object).Count + 1
-            $newRunName = "Test${nextIdx}_${dateStr}"
-            Write-Host "Created new test run target: results_forest\$newRunName\" -ForegroundColor Green
-            & $PSCommandPath -Stage "menu" -RunName $newRunName
-        }
+        "A" { Run-All }
         default { Write-Host "Exiting." -ForegroundColor Gray }
     }
 }

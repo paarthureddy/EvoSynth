@@ -17,7 +17,8 @@
 server_host = "0.0.0.0"
 server_port = 8000
 
-# Where the engine sends events / probes for the server.
+# Where the engine sends events / probes for the server. Events are also always saved to the
+# run's events.jsonl (src/evosynth/experiments/run_context.py → RunContext), server or not.
 # Used in: src/evosynth/telemetry/reporter.py → EventReporter.__init__ (url, probe of /docs),
 #          EventReporter.emit
 # The dashboard's address is set separately in dashboard/src/App.jsx (EventSource URL).
@@ -27,9 +28,3 @@ reporter_url = "http://localhost:8000"
 # Used in: EventReporter.__init__ (probe timeout), EventReporter.emit (post timeout)
 probe_timeout = 0.5
 post_timeout  = 1.0
-
-
-# =====================================================================================
-#  EXPERIMENT PRESETS
-#  Each preset overrides [engine] (and other sections) for one kind of run.
-# =====================================================================================

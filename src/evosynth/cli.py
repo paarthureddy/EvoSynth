@@ -2,8 +2,8 @@
 `evosynth` command-line interface (also: `python -m evosynth`).
 
     evosynth run        [--full | --preset NAME] [--dataset covertype] [--budget N ...] [--no-refit]
-    evosynth scale      --budget 300 [--pop-size N] [--checkpoint-interval N] [--run-name NAME]
-    evosynth ablation   [--setup CVGS-300] [--pop-size N] [--max-workers N] [--run-name NAME]
+    evosynth scale      --budget 300 [--pop-size N] [--checkpoint-interval N]
+    evosynth ablation   [--setup CVGS-300] [--pop-size N] [--max-workers N]
     evosynth baselines  [--test all|extratrees|random|optuna|flaml] [--trials N] [--time-budget S]
     evosynth nas
     evosynth serve      [--host H] [--port P]
@@ -15,6 +15,13 @@ Every command also accepts:
                               --set bandit.c=0.2 --set optimizers.pso.w=0.7
     --settings PATH           use another settings folder (or a single .toml file)
 
+Commands that run experiments also accept:
+    --variant NAME            name of the run folder level (default: preset / budget_<N> / setup)
+    --results-dir PATH        write under PATH instead of results/
+
+Each run writes to results/<experiment>/<dataset>/<variant>/seed_<run.random_state>/
+(manifest.json, result.json, run.log, events.jsonl, ...).
+
 Settings are resolved as: settings/*.toml -> preset -> command-line flags -> --set.
 """
 import argparse
@@ -22,6 +29,7 @@ import json
 import sys
 
 from evosynth.config import ConfigError, load_config, set_settings
+from evosynth.telemetry.run_logger import make_safe
 
 
 # ---------------------------------------------------------------------------------
@@ -62,35 +70,36 @@ def cmd_run(args):
     _activate(args, preset=preset, extra=extra)
     from evosynth.experiments.search import run_search
     label = "Full Benchmark" if preset == "search_full" else ("Fast Demo" if preset == "search_demo" else preset)
-    run_search(dataset=args.dataset, mode_label=label, subsample=args.subsample, refit=not args.no_refit)
+    run_search(dataset=args.dataset, mode_label=label, subsample=args.subsample, refit=not args.no_refit,
+               variant=args.variant or preset, results_dir=args.results_dir)
 
 
 def cmd_scale(args):
     _activate(args)
     from evosynth.experiments.scaling import run_benchmark
     run_benchmark(budget=args.budget, pop_size=args.pop_size, checkpoint_interval=args.checkpoint_interval,
-                  run_name=args.run_name, output_dir=args.output_dir, dataset=args.dataset)
+                  variant=args.variant, results_dir=args.results_dir, dataset=args.dataset)
 
 
 def cmd_ablation(args):
     _activate(args)
     from evosynth.experiments.ablation import run_ablation
     run_ablation(setup=args.setup, pop_size=args.pop_size, max_workers=args.max_workers,
-                 checkpoint_interval=args.checkpoint_interval, run_name=args.run_name,
-                 output_dir=args.output_dir, dataset=args.dataset)
+                 checkpoint_interval=args.checkpoint_interval, results_dir=args.results_dir,
+                 dataset=args.dataset)
 
 
 def cmd_baselines(args):
     _activate(args)
     from evosynth.experiments.baselines import run_baselines
     run_baselines(test=args.test, trials=args.trials, time_budget=args.time_budget,
-                  run_name=args.run_name, output_dir=args.output_dir)
+                  results_dir=args.results_dir)
 
 
 def cmd_nas(args):
     _activate(args)
     from evosynth.experiments.nas import run_nas
-    run_nas()
+    run_nas(variant=args.variant or "default", results_dir=args.results_dir)
 
 
 def cmd_serve(args):
@@ -147,8 +156,6 @@ def build_parser():
     sc.add_argument("--budget", type=int, help="one of experiments.scaling.budgets (default: default_budget)")
     sc.add_argument("--pop-size", "--pop_size", dest="pop_size", type=int)
     sc.add_argument("--checkpoint-interval", "--checkpoint_interval", dest="checkpoint_interval", type=int)
-    sc.add_argument("--run-name", "--run_name", dest="run_name")
-    sc.add_argument("--output-dir", "--output_dir", dest="output_dir")
     sc.add_argument("--dataset", default="covertype")
     sc.set_defaults(func=cmd_scale)
 
@@ -157,8 +164,6 @@ def build_parser():
     a.add_argument("--pop-size", "--pop_size", dest="pop_size", type=int)
     a.add_argument("--max-workers", "--max_workers", dest="max_workers", type=int)
     a.add_argument("--checkpoint-interval", "--checkpoint_interval", dest="checkpoint_interval", type=int)
-    a.add_argument("--run-name", "--run_name", dest="run_name")
-    a.add_argument("--output-dir", "--output_dir", dest="output_dir")
     a.add_argument("--dataset", default="covertype")
     a.set_defaults(func=cmd_ablation)
 
@@ -166,8 +171,6 @@ def build_parser():
     b.add_argument("--test", default="all", choices=["all", "extratrees", "random", "optuna", "flaml"])
     b.add_argument("--trials", type=int, help="Random Search / Optuna trials")
     b.add_argument("--time-budget", "--time_budget", dest="time_budget", type=int, help="FLAML seconds")
-    b.add_argument("--run-name", "--run_name", dest="run_name")
-    b.add_argument("--output-dir", "--output_dir", dest="output_dir")
     b.set_defaults(func=cmd_baselines)
 
     n = sub.add_parser("nas", help="CNN architecture search demo")
@@ -190,10 +193,16 @@ def build_parser():
 
     for sp in (r, sc, a, b, n, sv, st, d):
         _common(sp)
+    for sp in (r, sc, n):
+        sp.add_argument("--variant", help="run folder name (default: preset / budget_<N> / default)")
+    for sp in (r, sc, a, b, n):
+        sp.add_argument("--results-dir", "--results_dir", dest="results_dir", metavar="PATH",
+                        help="write under PATH instead of results/")
     return p
 
 
 def main(argv=None):
+    make_safe(sys.stdout)
     args = build_parser().parse_args(argv)
     try:
         args.func(args)

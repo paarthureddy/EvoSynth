@@ -34,7 +34,9 @@ Inside every file, each setting has a comment saying **what it controls**, **whe
 3. command-line flags, e.g. `evosynth run --budget 300`
 4. `--set` overrides, e.g. `evosynth run --set bandit.c=0.2 --set optimizers.pso.w=0.7`
 
-Each run records the fully resolved settings, so results always say which values produced them.
+Each run records the fully resolved settings in its `manifest.json`
+(`results/<experiment>/<dataset>/<variant>/seed_<random_state>/`), so results always say which
+values produced them.
 
 ## Useful commands
 

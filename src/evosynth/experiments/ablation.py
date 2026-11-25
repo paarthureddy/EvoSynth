@@ -12,7 +12,10 @@ Features:
   - Strict isolation: zero co-evolution, zero elite sharing for standalone algorithms
   - Atomic fault-handling checkpointing every 10 evaluations
   - Auto-resumes interrupted runs from the exact last checkpoint
-  - Outputs directly to results_forest/ablation/<setup>/
+  - Output: results/ablation/<dataset>/<setup>/seed_<k>/ (e.g. .../cvgs_300/seed_42/):
+      run.log, events.jsonl, manifest.json, result.json, summary.txt,
+      individual_runs/<setup>_<algo>.txt, isolated_population.csv (isolated optimizers),
+      population.csv (EvoSynth run), checkpoints/ (resume state)
 """
 
 import os
@@ -29,8 +32,7 @@ from ConfigSpace import Configuration
 import ConfigSpace.hyperparameters as CSH
 
 from evosynth.config import get_settings
-from evosynth.paths import PROJECT_ROOT
-_ROOT_DIR = str(PROJECT_ROOT)
+from evosynth.experiments.run_context import RunContext
 
 
 from evosynth.search_spaces.tabular import get_xgboost_search_space
@@ -307,22 +309,14 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
 # -----------------------------------------------------------------------------
 # Main Benchmark Runner
 # -----------------------------------------------------------------------------
-def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_workers,
-                        checkpoint_eval, checkpoint_interval=10, run_name=None, output_dir=None):
-    tag = setup_name.lower().replace("-", "_")
-    if output_dir:
-        base_dir = output_dir
-    elif run_name:
-        base_dir = os.path.join(_ROOT_DIR, "results_forest", run_name, "ablation", tag)
-    else:
-        base_dir = os.path.join(_ROOT_DIR, "results_forest", "ablation", tag)
-
-    ind_dir = os.path.join(base_dir, "individual_runs")
-    ckpt_dir = os.path.join(base_dir, "checkpoints")
-    csv_dir = os.path.join(base_dir, "csv")
+def run_benchmark_setup(run, setup_name, budget, pop_size, evaluator, space, max_workers,
+                        checkpoint_eval, checkpoint_interval=10):
+    """`run` is the RunContext whose folder receives every output."""
+    base_dir = run.path
+    ind_dir = run.file("individual_runs")
+    ckpt_dir = run.file("checkpoints")
     os.makedirs(ind_dir, exist_ok=True)
     os.makedirs(ckpt_dir, exist_ok=True)
-    os.makedirs(csv_dir, exist_ok=True)
 
     print("=" * 80)
     print(f" EVOSYNTH COVERTYPE ABLATION BENCHMARK — {setup_name}")
@@ -381,6 +375,7 @@ def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_work
         t1_iters=t1_iters,
         k_iters=k_iters,
         max_workers=max_workers,
+        population_csv=run.file("population.csv"),
     )
     best_evosynth = optimizer.run()
     evosynth_time = time.time() - evosynth_start
@@ -479,7 +474,7 @@ def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_work
         f.write("=" * 80 + "\n")
 
     # 2. Granular CSV
-    csv_file = os.path.join(csv_dir, f"ablation_{tag}.csv")
+    csv_file = run.file("isolated_population.csv")
     with open(csv_file, "w", encoding="utf-8") as f:
         hp_keys = list(space.keys())
         f.write("algorithm,eval_id,fitness," + ",".join(hp_keys) + "\n")
@@ -493,7 +488,7 @@ def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_work
     best_iso = max(isolated_results.values(), key=lambda r: r["best_acc"])
     delta_acc = evosynth_result["best_acc"] - best_iso["best_acc"]
 
-    summary_file = os.path.join(base_dir, f"ablation_{tag}_summary.txt")
+    summary_file = run.file("summary.txt")
     with open(summary_file, "w", encoding="utf-8") as f:
         f.write("=" * 120 + "\n")
         f.write(f" EVOSYNTH COVERTYPE ABLATION STUDY — {setup_name} SUMMARY\n")
@@ -527,12 +522,30 @@ def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_work
         f.write(f"   2. Dynamic Architecture Discovery: Winning model = {evosynth_result['params'].get('model_type')} with {evosynth_result['params'].get('fe_strategy')} features.\n")
         f.write("=" * 120 + "\n")
 
+    # 4. result.json (EvoSynth's diversity / composite / UCB are not measured yet - Phase 4.1)
+    def _entry(res, real_metrics=True):
+        out = {"best_cv_accuracy": float(res["best_acc"]), "total_evals": res["total_evals"],
+               "total_seconds": round(res["total_time"], 2),
+               "cv_accuracy_at_checkpoint": float(res["checkpoint_data"]["best_acc"]),
+               "best_config": res["params"]}
+        if real_metrics:
+            out.update(final_diversity=res["final_diversity"], final_composite=res["final_composite"],
+                       final_ucb=res["final_ucb"])
+        return out
+
+    results = {k: _entry(r) for k, r in isolated_results.items()}
+    results["EvoSynth"] = _entry(evosynth_result, real_metrics=False) | {"winning_algorithm": evosynth_result["winning_algo"]}
+    run.write_result({"setup": setup_name, "budget": budget, "pop_size": pop_size,
+                      "checkpoint_eval": checkpoint_eval, "metric": "cv_accuracy",
+                      "best_isolated": best_iso["algo_key"],
+                      "delta_vs_best_isolated": float(delta_acc), "methods": results})
+
     print(f"\n[ALL DONE] Results saved to: {base_dir}")
     print(f"Summary table available at: {summary_file}")
 
 
 def run_ablation(setup=None, pop_size=None, max_workers=None, checkpoint_interval=None,
-                 run_name=None, output_dir=None, dataset="covertype"):
+                 results_dir=None, dataset="covertype"):
     """Isolated GA/PSO/DE/CMA-ES vs EvoSynth for one setup from [experiments.ablation].setups."""
     ab = get_settings().experiments.ablation
     setups = dict(ab.setups)
@@ -545,15 +558,16 @@ def run_ablation(setup=None, pop_size=None, max_workers=None, checkpoint_interva
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
     evaluator = TabularEvaluator(dataset)
 
-    run_benchmark_setup(
-        setup_name=setup,
-        budget=budget,
-        pop_size=ab.pop_size if pop_size is None else pop_size,
-        evaluator=evaluator,
-        space=space,
-        max_workers=ab.max_workers if max_workers is None else max_workers,
-        checkpoint_eval=checkpoint_eval,
-        checkpoint_interval=ab.checkpoint_interval if checkpoint_interval is None else checkpoint_interval,
-        run_name=run_name,
-        output_dir=output_dir,
-    )
+    # resume=True: an interrupted setup continues from checkpoints/ and appends to run.log
+    with RunContext("ablation", dataset, setup, results_dir=results_dir, resume=True) as run:
+        run_benchmark_setup(
+            run=run,
+            setup_name=setup,
+            budget=budget,
+            pop_size=ab.pop_size if pop_size is None else pop_size,
+            evaluator=evaluator,
+            space=space,
+            max_workers=ab.max_workers if max_workers is None else max_workers,
+            checkpoint_eval=checkpoint_eval,
+            checkpoint_interval=ab.checkpoint_interval if checkpoint_interval is None else checkpoint_interval,
+        )

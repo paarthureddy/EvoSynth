@@ -19,7 +19,8 @@
 #          src/evosynth/models/refit.py → refit_split (refit train/test split, also used by baselines);
 #          src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__ (train/val split)
 #          src/evosynth/experiments/baselines.py → run_default_extratrees (model seed),
-#          run_optuna_baseline (TPESampler seed), run_flaml_baseline (FLAML seed)
+#          run_optuna_baseline (TPESampler seed), run_flaml_baseline (FLAML seed);
+#          src/evosynth/experiments/run_context.py → run_path, RunContext (run folder name seed_<k>)
 # Range: any integer
 random_state = 42
 

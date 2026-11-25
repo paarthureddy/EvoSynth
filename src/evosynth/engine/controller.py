@@ -3,9 +3,9 @@ DynamicOptimizer: the EvoSynth meta-optimization loop (Steps 0-6).
 
 Every default comes from the settings folder: [engine], [bandit], [safeguards] in
 settings/engine.toml and [run] in settings/run.toml.
-Telemetry (EventReporter) and run logging (stdout mirror, population CSVs) live in
-evosynth.telemetry; they are set up when this module is imported (Phase 1.10 moves
-that into run()).
+Events go to the active EventReporter (evosynth.telemetry.reporter.get_reporter), which a
+run context points at the run's events.jsonl. Importing this module has no side effects:
+the run folder, run.log and stdout mirror are set up by evosynth.experiments.run_context.
 """
 import os
 import time
@@ -22,20 +22,8 @@ from evosynth.optimizers.cmaes import CMAESOptimizer
 from evosynth.optimizers.de import DifferentialEvolution
 from evosynth.optimizers.ga import GeneticAlgorithm
 from evosynth.optimizers.pso import ParticleSwarm
-from evosynth.paths import RESULTS_DIR as _RESULTS_PATH
-from evosynth.telemetry.reporter import EventReporter
-from evosynth.telemetry.run_logger import PopulationLogger, install_stdout_mirror
-
-# ------------------------------------------------------------------
-# Results directory, live reporter and stdout mirror (set up at import time)
-# ------------------------------------------------------------------
-_RESULTS_DIR = str(_RESULTS_PATH)
-_CSV_DIR = os.path.join(_RESULTS_DIR, "csv")
-os.makedirs(_RESULTS_DIR, exist_ok=True)
-os.makedirs(_CSV_DIR, exist_ok=True)
-
-reporter = EventReporter()
-install_stdout_mirror(_RESULTS_DIR, reporter)
+from evosynth.telemetry.reporter import get_reporter
+from evosynth.telemetry.run_logger import PopulationLogger
 
 
 def _sep(char="=", width=80):
@@ -71,7 +59,7 @@ class DynamicOptimizer:
                  t1_iters=None, k_iters=None,
                  swap_threshold=None, stagnation_limit=None,
                  elite_pct=None, inject_pct=None,
-                 max_workers=None):
+                 max_workers=None, population_csv=None):
         cfg = get_settings()
         eng, sg = cfg.engine, cfg.safeguards
         self.space = search_space
@@ -105,7 +93,9 @@ class DynamicOptimizer:
         self.history = []
         self.cooldowns = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
         self.active_grace_period = None
-        self.pop_logger = PopulationLogger(self.space, _CSV_DIR)
+        # One CSV row per evaluation (population.csv of the run folder), if a path is given
+        self.pop_logger = PopulationLogger(self.space, population_csv) if population_csv else None
+        self.reporter = get_reporter()
         self._algo_stats = {
             'GA': {'best': 0.0, 'prev_best': 0.0},
             'PSO': {'best': 0.0, 'prev_best': 0.0},
@@ -145,13 +135,14 @@ class DynamicOptimizer:
                 self.algo_evals[algo_key] += 1
             
             # Log individual to CSV
-            self.pop_logger.log(self.evals_used, algo_name, ind)
+            if self.pop_logger is not None:
+                self.pop_logger.log(self.evals_used, algo_name, ind)
             
             fitness = ind.fitness
             if algo_key in self._algo_stats:
                 if fitness > self._algo_stats[algo_key]['best']:
                     self._algo_stats[algo_key]['best'] = fitness
-                    reporter.emit("metric", {"algo": algo_key, "accuracy": fitness})
+                    self.reporter.emit("metric", {"algo": algo_key, "accuracy": fitness})
             
             if self.best_individual is None or fitness > self.best_individual.fitness:
                 self.best_individual = ind
@@ -207,12 +198,12 @@ class DynamicOptimizer:
                   f" {raw[name].get('raw_composite', 0.0):>10.3f}"
                   f" {raw[name].get('ucb_bonus', 0.0):>7.3f}"
                   f" {scores.get(name, 0.0):>10.3f}")
-            reporter.emit("composite", {"algo": name, "composite": scores.get(name, 0.0), "diversity": raw[name]['diversity']})
+            self.reporter.emit("composite", {"algo": name, "composite": scores.get(name, 0.0), "diversity": raw[name]['diversity']})
 
     def _random_inject(self, optimizer, inject_pct, dims, tag):
         n_inject = max(1, int(len(optimizer.population) * inject_pct))
         print(f"\n  [INJECT] Replacing bottom {n_inject} in {tag} with fresh random vectors.")
-        reporter.emit("switch", {"action": "Injection", "algo": tag, "details": f"Replaced bottom {n_inject} due to stagnation"})
+        self.reporter.emit("switch", {"action": "Injection", "algo": tag, "details": f"Replaced bottom {n_inject} due to stagnation"})
         fresh = self._evaluate_batch([np.random.rand(dims) for _ in range(n_inject)], tag)
         optimizer.population.sort(key=lambda x: x.fitness, reverse=True)
         optimizer.population = optimizer.population[:-n_inject] + fresh
@@ -225,7 +216,7 @@ class DynamicOptimizer:
         # ==============================================================
         # STEP 0: Search Space
         # ==============================================================
-        reporter.emit("step", {"num": 0, "name": "Search Space Definition"})
+        self.reporter.emit("step", {"num": 0, "name": "Search Space Definition"})
         print(_sep())
         print(_header("STEP 0: SEARCH SPACE DEFINITION"))
         print(_sep())
@@ -237,7 +228,7 @@ class DynamicOptimizer:
         # ==============================================================
         # STEP 1: INITIAL POPULATION
         # ==============================================================
-        reporter.emit("step", {"num": 1, "name": "Initial Population (N=100)"})
+        self.reporter.emit("step", {"num": 1, "name": "Initial Population (N=100)"})
         print(f"\n{_sep()}")
         print(_header(f"STEP 1: INITIAL POPULATION (N={self.pop_size})"))
         print(_sep())
@@ -250,7 +241,7 @@ class DynamicOptimizer:
             batch_inds = self._evaluate_batch(batch_vecs, 'Init')
             full_pop.extend(batch_inds)
             print(f"    Evaluated {len(full_pop)}/{self.pop_size} (best so far: {max(ind.fitness for ind in full_pop):.2f}%)")
-            reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
+            self.reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
         
         full_pop.sort(key=lambda x: x.fitness, reverse=True)
         print(f"  [OK] Full population evaluated. Best: {full_pop[0].fitness:.2f}% | Budget: {self.evals_used}/{self.budget}")
@@ -258,7 +249,7 @@ class DynamicOptimizer:
         # ==============================================================
         # STEP 2: TIER SPLIT (40% T1 / 60% T2 Reserved)
         # ==============================================================
-        reporter.emit("step", {"num": 2, "name": "Tier Split (4-Way)"})
+        self.reporter.emit("step", {"num": 2, "name": "Tier Split (4-Way)"})
         t1_count = int(self.pop_size * self.t1_fraction)
         t2_reserved = full_pop[t1_count:]
         t1_island_size = t1_count // 4
@@ -276,12 +267,12 @@ class DynamicOptimizer:
         print(f"  Tier 1 (40%) : {t1_count} individuals split 4 ways ({t1_island_size} each)")
         print(f"  Tier 2 (60%) : {len(t2_reserved)} individuals RESERVED for Top 2 winners")
         
-        reporter.emit("tier_state", {"T1": ["GA", "PSO", "DE", "CMAES"], "T2": ["(Reserved)", "(Reserved)"]})
+        self.reporter.emit("tier_state", {"T1": ["GA", "PSO", "DE", "CMAES"], "T2": ["(Reserved)", "(Reserved)"]})
 
         # ==============================================================
         # STEP 3: TIER 1 COMPETITION
         # ==============================================================
-        reporter.emit("step", {"num": 3, "name": f"Tier 1 Competition ({self.t1_iters} iters)"})
+        self.reporter.emit("step", {"num": 3, "name": f"Tier 1 Competition ({self.t1_iters} iters)"})
         print(f"\n{_sep()}")
         print(_header(f"STEP 3: TIER 1 COMPETITION ({self.t1_iters} iters)"))
         print(_sep())
@@ -307,7 +298,7 @@ class DynamicOptimizer:
             flag = " <-- NEW BEST" if glob > prev else ""
             
             print(f"  {i:>4}  {bests['GA']:>7.2f}%  {bests['PSO']:>7.2f}%  {bests['DE']:>7.2f}%  {bests['CMAES']:>7.2f}%  {glob:>7.2f}%  {time.time()-ts:>4.1f}s  {self.evals_used:>4}/{self.budget}{flag}")
-            reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
+            self.reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
             
             # Tier 1 Stagnation Check
             if i % self.k == 0:
@@ -320,7 +311,7 @@ class DynamicOptimizer:
         # ==============================================================
         # STEP 4: PROMOTION (TOP 2 to T2)
         # ==============================================================
-        reporter.emit("step", {"num": 4, "name": "Composite Scoring + Top-2 Promotion"})
+        self.reporter.emit("step", {"num": 4, "name": "Composite Scoring + Top-2 Promotion"})
         print(f"\n{_sep()}")
         print(_header("STEP 4: COMPOSITE SCORING + TOP-2 PROMOTION"))
         print(_sep())
@@ -343,8 +334,8 @@ class DynamicOptimizer:
         
         t2_clean = [t.replace("T1_","") for t in top2]
         t1_clean = [t.replace("T1_","") for t in bot2]
-        reporter.emit("tier_state", {"T1": t1_clean, "T2": t2_clean})
-        reporter.emit("switch", {"action": "Promotion", "algo": "System", "details": f"Promoted {t2_clean} to Tier 2"})
+        self.reporter.emit("tier_state", {"T1": t1_clean, "T2": t2_clean})
+        self.reporter.emit("switch", {"action": "Promotion", "algo": "System", "details": f"Promoted {t2_clean} to Tier 2"})
 
         # Build T2 Optimizers
         t2_optims = {}
@@ -368,7 +359,7 @@ class DynamicOptimizer:
         def _print_t2_header():
             t2_list = list(t2_optims.keys())
             t1_list = list(active_t1_optims.keys())
-            reporter.emit("step", {"num": 5, "name": f"Tier 2 {t2_list} + Tier 1 {t1_list}"})
+            self.reporter.emit("step", {"num": 5, "name": f"Tier 2 {t2_list} + Tier 1 {t1_list}"})
             print(f"\n{_sep()}")
             print(_header(f"STEP 5: TIER 2 {t2_list} + TIER 1 {t1_list}"))
             print(_sep())
@@ -412,7 +403,7 @@ class DynamicOptimizer:
             scores_str = "  ".join(f"{bests[a]:>7.2f}%" for a in curr_layout)
             print(f"  {iteration:>4}  {scores_str}  {glob:>7.2f}%  {time.time()-ts:>4.1f}s  {self.evals_used:>4}/{self.budget}{flag}")
             
-            reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
+            self.reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
             
             if new_b:
                 # User requested to remove the hyperparameter printout here
@@ -426,7 +417,7 @@ class DynamicOptimizer:
                     p_algo = self.active_grace_period['algo']
                     d_algo = self.active_grace_period['target_t1']
                     print(f"\n  [ROLLBACK] {p_algo} failed to improve global best. Rolling back to {d_algo}.")
-                    reporter.emit("switch", {"action": "Rollback", "algo": f"{p_algo} -> {d_algo}", "details": "Promoted algorithm failed grace period"})
+                    self.reporter.emit("switch", {"action": "Rollback", "algo": f"{p_algo} -> {d_algo}", "details": "Promoted algorithm failed grace period"})
                     
                     t2_optims[d_algo] = self.active_grace_period['snapshot']
                     del t2_optims[p_algo]
@@ -438,7 +429,7 @@ class DynamicOptimizer:
                     
                     self.active_grace_period = None
                     self.cooldowns[p_algo] = self.cooldown_multiplier * self.k # Penalty
-                    reporter.emit("tier_state", {"T1": list(active_t1_optims.keys()), "T2": list(t2_optims.keys())})
+                    self.reporter.emit("tier_state", {"T1": list(active_t1_optims.keys()), "T2": list(t2_optims.keys())})
                     
                     curr_layout = _print_t2_header()
 
@@ -464,7 +455,7 @@ class DynamicOptimizer:
                 # a) Swap
                 if t1_scores[best_t1_name] > t2_scores[worst_t2_name] + self.swap_threshold and self.cooldowns[best_t1_key] == 0 and self.active_grace_period is None:
                     print(f"\n  [SWAP] {best_t1_name} ({t1_scores[best_t1_name]:.3f}) beats {worst_t2_name} ({t2_scores[worst_t2_name]:.3f}) by >{self.swap_threshold*100:.0f}%!")
-                    reporter.emit("switch", {"action": "Swap", "algo": f"{best_t1_key} <-> {worst_t2_key}", "details": "Demoting T2 algorithm due to low composite score"})
+                    self.reporter.emit("switch", {"action": "Swap", "algo": f"{best_t1_key} <-> {worst_t2_key}", "details": "Demoting T2 algorithm due to low composite score"})
                     
                     import copy
                     self.active_grace_period = {
@@ -495,7 +486,7 @@ class DynamicOptimizer:
                     stagnation_counters[best_t1_key] = 0
                     if worst_t2_key in stagnation_counters: del stagnation_counters[worst_t2_key]
                     
-                    reporter.emit("tier_state", {"T1": list(active_t1_optims.keys()), "T2": list(t2_optims.keys())})
+                    self.reporter.emit("tier_state", {"T1": list(active_t1_optims.keys()), "T2": list(t2_optims.keys())})
 
                 # b) Stagnation
                 for k, opt in list(t2_optims.items()):
@@ -509,7 +500,7 @@ class DynamicOptimizer:
 
                 # c) Elite Sharing (Tier 2 ONLY)
                 print(f"\n  [ELITE SHARE] Pooling top {int(self.elite_pct*100)}% from Tier 2 algorithms and redistributing...")
-                reporter.emit("switch", {"action": "Elite Sharing", "algo": "Tier 2 Only", "details": "Swapped top individuals between T2 islands"})
+                self.reporter.emit("switch", {"action": "Elite Sharing", "algo": "Tier 2 Only", "details": "Swapped top individuals between T2 islands"})
                 elite_pool = []
                 for k, opt in t2_optims.items():
                     n = max(1, int(opt.pop_size * self.elite_pct))
@@ -530,7 +521,7 @@ class DynamicOptimizer:
         # ==============================================================
         # FINAL RESULTS
         # ==============================================================
-        reporter.emit("step", {"num": 6, "name": "Final Results"})
+        self.reporter.emit("step", {"num": 6, "name": "Final Results"})
         print(f"\n{_sep()}")
         print(_header("FINAL RESULTS"))
         print(_sep())
@@ -551,4 +542,6 @@ class DynamicOptimizer:
             print(f"    * {k:<20}: {v:.4f}" if isinstance(v, float) else f"    * {k:<20}: {v}")
         print(_sep())
 
+        if self.pop_logger is not None:
+            self.pop_logger.close()
         return self.best_individual
