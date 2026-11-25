@@ -7,7 +7,7 @@ from evosynth.config import get_settings
 class GeneticAlgorithm(BaseOptimizer):
     def __init__(self, search_space, pop_size, mutation_rate=None):
         super().__init__(search_space, pop_size)
-        g = get_settings().optimizers.ga  # [optimizers.ga] in configs/evosynth.toml
+        g = get_settings().optimizers.ga  # [optimizers.ga] in settings/optimizers.toml
         self.mutation_rate = g.mutation_rate if mutation_rate is None else mutation_rate
         self.mutation_sigma = g.mutation_sigma
         self.tournament_size = g.tournament_size

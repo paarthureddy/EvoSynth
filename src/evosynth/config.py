@@ -1,13 +1,14 @@
 """
-Loading, merging and validating the master settings file (configs/evosynth.toml).
+Loading, merging and validating the settings folder (settings/*.toml).
 
-Resolution order (later wins):
-    configs/evosynth.toml  →  [experiments.<preset>] overrides  →  explicit overrides
-    (e.g. from the command line as "engine.budget=300").
+Every *.toml file in settings/ is merged into one set of settings; a top-level section
+may be defined in only one file. Resolution order (later wins):
+    settings/*.toml  →  [experiments.<preset>] engine overrides  →  explicit overrides
+    (e.g. from the command line as --set engine.budget=300).
 
 Usage:
     from evosynth.config import load_config
-    cfg = load_config()                                   # master file only
+    cfg = load_config()                                   # settings folder only
     cfg = load_config(preset="search_demo")               # + preset (engine keys)
     cfg = load_config(overrides=["engine.budget=300", "bandit.c=0.2"])
     cfg.engine.budget, cfg.composite.fitness, cfg["optimizers"]["pso"]["w"]
@@ -21,7 +22,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from evosynth.paths import DEFAULT_CONFIG_FILE
+from evosynth.paths import SETTINGS_DIR
 
 # Keys of [engine] that an [experiments.<preset>] table may override directly.
 _ENGINE_PRESET_KEYS = {"budget", "pop_size", "t1_iters", "k_iters"}
@@ -109,20 +110,45 @@ def _apply_override(data: dict, keys: list[str], value: Any, strict: bool = True
     node[keys[-1]] = value
 
 
+def read_settings(path: str | Path | None = None) -> dict:
+    """
+    Raw merged settings. `path` may be the settings folder (default: settings/) or a single
+    .toml file. Files in a folder are read in name order; defining the same top-level
+    section in two files is an error.
+    """
+    root = Path(path) if path else SETTINGS_DIR
+    if root.is_dir():
+        files = sorted(root.glob("*.toml"))
+        if not files:
+            raise ConfigError(f"no *.toml files in settings folder: {root}")
+    elif root.is_file():
+        files = [root]
+    else:
+        raise ConfigError(f"settings folder/file not found: {root}")
+
+    data: dict = {}
+    origin: dict[str, str] = {}
+    for f in files:
+        try:
+            with open(f, "rb") as fh:
+                part = tomllib.load(fh)
+        except tomllib.TOMLDecodeError as exc:
+            raise ConfigError(f"{f}: invalid TOML: {exc}") from exc
+        for key, value in part.items():
+            if key in data:
+                raise ConfigError(f"section [{key}] is defined in both {origin[key]} and {f.name}")
+            data[key] = value
+            origin[key] = f.name
+    return data
+
+
 def load_config(
     path: str | Path | None = None,
     preset: str | None = None,
     overrides: Iterable[str] | Mapping[str, Any] | None = None,
 ) -> Settings:
-    """Load the master settings file, apply a preset and overrides, validate, return Settings."""
-    cfg_path = Path(path) if path else DEFAULT_CONFIG_FILE
-    if not cfg_path.is_file():
-        raise ConfigError(f"settings file not found: {cfg_path}")
-    try:
-        with open(cfg_path, "rb") as fh:
-            data = tomllib.load(fh)
-    except tomllib.TOMLDecodeError as exc:
-        raise ConfigError(f"{cfg_path}: invalid TOML: {exc}") from exc
+    """Load the settings folder (or one .toml file), apply a preset and overrides, validate."""
+    data = read_settings(path)
 
     if preset is not None:
         presets = data.get("experiments", {})
@@ -149,7 +175,7 @@ _ACTIVE: Settings | None = None
 
 
 def get_settings() -> Settings:
-    """Settings currently in force. Loads configs/evosynth.toml on first use."""
+    """Settings currently in force. Loads the settings/ folder on first use."""
     global _ACTIVE
     if _ACTIVE is None:
         _ACTIVE = load_config()

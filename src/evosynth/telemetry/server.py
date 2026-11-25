@@ -2,7 +2,7 @@
 Telemetry relay: the engine POSTs events to /event, every connected dashboard receives
 them as Server-Sent Events from /stream. In-memory, no history replay, no auth (local use).
 
-Run: `python api_server.py` (host/port from [telemetry] in configs/evosynth.toml).
+Run: `evosynth serve` (host/port from [telemetry] in settings/telemetry.toml).
 """
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse

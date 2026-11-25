@@ -1,6 +1,6 @@
 """
 4-D toy space for the DummyObjectiveFunction (unit tests only; no dataset).
-Values come from [search_space.toy] in configs/evosynth.toml.
+Values come from [search_space.toy] in settings/search_spaces.toml.
 """
 import ConfigSpace as CS
 

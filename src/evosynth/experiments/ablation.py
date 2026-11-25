@@ -1,4 +1,6 @@
 """
+Command: `evosynth ablation`. Settings: [experiments.ablation] (+ passive_telemetry).
+
 EvoSynth Empirical Ablation Study Runner — UCI Forest Covertype Dataset
 ========================================================================
 Compares isolated individual optimizers (GA, PSO, DE, CMA-ES in strict isolation)
@@ -26,6 +28,7 @@ import concurrent.futures
 from ConfigSpace import Configuration
 import ConfigSpace.hyperparameters as CSH
 
+from evosynth.config import get_settings
 from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
@@ -64,7 +67,7 @@ def _make_optimizer(algo_key, space, pop_size):
     raise ValueError(f"Unknown algo: {algo_key}")
 
 
-def _compute_passive_metrics(population, prev_best, evals_used, total_budget, step_time, c=0.5):
+def _compute_passive_metrics(population, prev_best, evals_used, total_budget, step_time, c=None):
     if not population:
         return {
             "diversity": 0.0, "trend": 0.0, "speed": 0.0, "efficiency": 0.0,
@@ -78,12 +81,16 @@ def _compute_passive_metrics(population, prev_best, evals_used, total_budget, st
     speed = 1.0 / (step_time + 1e-4)
     efficiency = best_fit / math.log(max(1.0, step_time) + math.e)
 
-    w_fit, w_spd, w_eff, w_div, w_trd = 0.30, 0.25, 0.15, 0.15, 0.15
-    norm_fit = min(max(best_fit / 100.0, 0.0), 1.0)
-    norm_spd = min(max(speed / 10.0, 0.0), 1.0)
-    norm_eff = min(max(efficiency / 100.0, 0.0), 1.0)
+    s = get_settings()
+    pt = s.experiments.ablation.passive_telemetry
+    c = pt.c if c is None else c
+    cw = s.composite
+    w_fit, w_spd, w_eff, w_div, w_trd = cw.fitness, cw.speed, cw.efficiency, cw.diversity, cw.trend
+    norm_fit = min(max(best_fit / pt.fitness_scale, 0.0), 1.0)
+    norm_spd = min(max(speed / pt.speed_scale, 0.0), 1.0)
+    norm_eff = min(max(efficiency / pt.efficiency_scale, 0.0), 1.0)
     norm_div = diversity
-    norm_trd = min(max(trend / 10.0, 0.0), 1.0)
+    norm_trd = min(max(trend / pt.trend_scale, 0.0), 1.0)
 
     composite = (
         w_fit * norm_fit + w_spd * norm_spd + w_eff * norm_eff +
@@ -218,7 +225,8 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
     # Warmup Phase (if starting from 0)
     if evals_used < pop_size:
         step_start = time.time()
-        chunk_size = max(5, min(10, pop_size // 3))
+        ab = get_settings().experiments.ablation
+        chunk_size = max(ab.batch_min, min(ab.batch_max, pop_size // ab.batch_divisor))
         init_all_inds = []
         for c_start in range(evals_used, pop_size, chunk_size):
             c_len = min(chunk_size, pop_size - c_start)
@@ -239,7 +247,8 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
         _save_checkpoint()
 
     # Optimization Loop
-    batch_size = max(5, min(10, pop_size // 3))
+    ab = get_settings().experiments.ablation
+    batch_size = max(ab.batch_min, min(ab.batch_max, pop_size // ab.batch_divisor))
     iter_idx = len(iteration_logs)
 
     while evals_used < budget:
@@ -360,8 +369,9 @@ def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_work
     _atomic_json_dump(state_file, exp_state)
 
     evosynth_start = time.time()
-    t1_iters = max(3, int(budget * 0.04))
-    k_iters = max(2, int(budget * 0.02))
+    ab = get_settings().experiments.ablation
+    t1_iters = max(ab.t1_iters_min, int(budget * ab.t1_iters_fraction))
+    k_iters = max(ab.k_iters_min, int(budget * ab.k_iters_fraction))
 
     optimizer = DynamicOptimizer(
         search_space=space,
@@ -521,36 +531,29 @@ def run_benchmark_setup(setup_name, budget, pop_size, evaluator, space, max_work
     print(f"Summary table available at: {summary_file}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="EvoSynth Covertype Ablation Runner")
-    parser.add_argument("--setup", type=str, default="CVGS-300", choices=["CVGS-300", "CVGS-500"],
-                        help="Benchmark setup (default: CVGS-300)")
-    parser.add_argument("--pop_size", type=int, default=30, help="Population size (default: 30)")
-    parser.add_argument("--max_workers", type=int, default=2, help="Parallel evaluation workers (default: 2)")
-    parser.add_argument("--checkpoint_interval", type=int, default=10, help="Save state every N evals (default: 10)")
-    parser.add_argument("--run_name", type=str, default=None, help="Daily run folder name (e.g. Test1_19_Nov)")
-    parser.add_argument("--output_dir", type=str, default=None, help="Direct path to output directory")
-    args = parser.parse_args()
-
-    budget = 300 if args.setup == "CVGS-300" else 500
-    checkpoint_eval = int(budget * 0.25)
+def run_ablation(setup=None, pop_size=None, max_workers=None, checkpoint_interval=None,
+                 run_name=None, output_dir=None, dataset="covertype"):
+    """Isolated GA/PSO/DE/CMA-ES vs EvoSynth for one setup from [experiments.ablation].setups."""
+    ab = get_settings().experiments.ablation
+    setups = dict(ab.setups)
+    setup = setup or next(iter(setups))
+    if setup not in setups:
+        raise ValueError(f"unknown setup '{setup}'. Available: {sorted(setups)}")
+    budget = setups[setup]
+    checkpoint_eval = int(budget * ab.share_checkpoint_fraction)
 
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = TabularEvaluator("covertype", subsample_size=20000)
+    evaluator = TabularEvaluator(dataset)
 
     run_benchmark_setup(
-        setup_name=args.setup,
+        setup_name=setup,
         budget=budget,
-        pop_size=args.pop_size,
+        pop_size=ab.pop_size if pop_size is None else pop_size,
         evaluator=evaluator,
         space=space,
-        max_workers=args.max_workers,
+        max_workers=ab.max_workers if max_workers is None else max_workers,
         checkpoint_eval=checkpoint_eval,
-        checkpoint_interval=args.checkpoint_interval,
-        run_name=args.run_name,
-        output_dir=args.output_dir
+        checkpoint_interval=ab.checkpoint_interval if checkpoint_interval is None else checkpoint_interval,
+        run_name=run_name,
+        output_dir=output_dir,
     )
-
-
-if __name__ == "__main__":
-    main()

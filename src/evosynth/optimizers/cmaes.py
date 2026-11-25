@@ -7,7 +7,7 @@ from evosynth.config import get_settings
 class CMAESOptimizer(BaseOptimizer):
     def __init__(self, search_space, pop_size):
         super().__init__(search_space, pop_size)
-        c = get_settings().optimizers.cmaes  # [optimizers.cmaes] in configs/evosynth.toml
+        c = get_settings().optimizers.cmaes  # [optimizers.cmaes] in settings/optimizers.toml
         self.sigma0 = c.sigma0
         self.min_popsize = c.min_popsize
         self.default_mean = c.default_mean

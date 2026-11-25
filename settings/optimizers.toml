@@ -1,0 +1,68 @@
+# =====================================================================================
+#  EvoSynth settings — The four population optimizers (GA, PSO, DE, CMA-ES)
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[optimizers.ga]
+# Genetic Algorithm — src/evosynth/optimizers/ga.py
+# -------------------------------------------------------------------------------------
+
+# Per-gene probability of Gaussian mutation.
+# Used in: GeneticAlgorithm.__init__ (mutation_rate), GeneticAlgorithm.ask
+# Range: 0–1
+mutation_rate = 0.1
+
+# Standard deviation of the Gaussian mutation noise (latent units).
+# Used in: GeneticAlgorithm.__init__ (self.mutation_sigma) → GeneticAlgorithm.ask
+# Range: 0.01–0.5
+mutation_sigma = 0.1
+
+# Number of random candidates per parent tournament.
+# Used in: GeneticAlgorithm.__init__ (self.tournament_size) → GeneticAlgorithm.ask
+# Range: ≥ 1
+tournament_size = 2
+
+# -------------------------------------------------------------------------------------
+[optimizers.pso]
+# Particle Swarm Optimization — src/evosynth/optimizers/pso.py
+#   v ← w·v + c1·r1·(pbest − x) + c2·r2·(gbest − x)
+# -------------------------------------------------------------------------------------
+
+# Inertia weight w.                     Used in: ParticleSwarm.__init__ (self.w), ParticleSwarm.ask   Range: 0.3–1.0
+w = 0.5
+# Cognitive coefficient c1 (pull to personal best).  Used in: ParticleSwarm.__init__, ParticleSwarm.ask   Range: 0–3
+c1 = 1.5
+# Social coefficient c2 (pull to global best).       Used in: ParticleSwarm.__init__, ParticleSwarm.ask   Range: 0–3
+c2 = 1.5
+# Initial velocities are drawn from U(−init_velocity, +init_velocity).
+# Used in: ParticleSwarm.__init__ (self.init_velocity) → _seed_particles_from_population, ask (cold start)   Range: 0–0.5
+init_velocity = 0.1
+
+# -------------------------------------------------------------------------------------
+[optimizers.de]
+# Differential Evolution (DE/rand/1/bin) — src/evosynth/optimizers/de.py
+# -------------------------------------------------------------------------------------
+
+# Mutation (differential weight) F:  donor = a + F·(b − c).   Used in: DifferentialEvolution.__init__, .ask   Range: 0.4–1.0
+F = 0.8
+# Binomial crossover rate CR.                                 Used in: DifferentialEvolution.__init__, .ask   Range: 0–1
+CR = 0.7
+
+# -------------------------------------------------------------------------------------
+[optimizers.cmaes]
+# CMA-ES (wraps the `cma` library) — src/evosynth/optimizers/cmaes.py
+# -------------------------------------------------------------------------------------
+
+# Initial step size σ0 in latent units.            Used in: CMAESOptimizer.__init__ (self.sigma0) → .ask   Range: 0.05–0.5
+sigma0 = 0.25
+# Minimum CMA population per generation (popsize = max(min_popsize, island size)).
+# Used in: CMAESOptimizer.__init__ (self.min_popsize) → .ask   Range: ≥ 2
+min_popsize = 4
+# Start mean used when the optimizer has no seed population (every latent coordinate).
+# Used in: CMAESOptimizer.__init__ (self.default_mean) → .ask   Range: 0–1
+default_mean = 0.5

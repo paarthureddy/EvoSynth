@@ -1,0 +1,27 @@
+# =====================================================================================
+#  EvoSynth settings — Datasets (one [datasets.<name>] section each)
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[datasets.covertype]
+# UCI Forest Covertype — 581,012 rows × 54 features, 7 classes.
+# Used in: src/evosynth/datasets/registry.py → get_spec, load;
+#          src/evosynth/datasets/loaders.py → load_covertype (source, label_offset);
+#          src/evosynth/evaluators/tabular.py → TabularEvaluator.__init__ (display_name, search_subsample),
+#          TabularEvaluator.evaluate (xgb_eval_metric);
+#          src/evosynth/models/refit.py → refit_and_score (xgb_eval_metric)
+# More datasets (HIGGS via OpenML, Adult, Airlines, Poker Hand, MiniBooNE, Jannis,
+# Fashion-MNIST) are added here in Phase 3.
+# -------------------------------------------------------------------------------------
+
+display_name = "UCI Forest Covertype (581,012 samples, 54 features, 7 classes)"   # printed when loading
+source = "sklearn.fetch_covtype"     # cached under .data/ (src/evosynth/paths.py → DATA_DIR)
+search_subsample = 20000             # stratified rows used during search (TabularEvaluator subsample)
+label_offset = 1                     # labels are 1..7 in the source; y − 1 gives 0..6 for XGBoost/LightGBM
+metric = "accuracy"
+xgb_eval_metric = "mlogloss"         # XGBoost eval_metric (multiclass); used at search and refit time

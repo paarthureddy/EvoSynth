@@ -17,6 +17,6 @@ DATA_DIR = PROJECT_ROOT / ".data"
 # Default output folder for engine logs and population CSVs.
 RESULTS_DIR = PROJECT_ROOT / "results"
 
-# Master settings file (see configs/evosynth.toml).
-CONFIG_DIR = PROJECT_ROOT / "configs"
-DEFAULT_CONFIG_FILE = CONFIG_DIR / "evosynth.toml"
+# Settings folder: every *.toml file in it is merged into one set of settings
+# (see settings/README.md).
+SETTINGS_DIR = PROJECT_ROOT / "settings"

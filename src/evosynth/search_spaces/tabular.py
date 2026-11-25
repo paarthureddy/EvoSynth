@@ -1,6 +1,6 @@
 """
 The tabular search space: model family + feature-engineering strategy + 7 hyperparameters.
-Values come from [search_space.tabular] in configs/evosynth.toml.
+Values come from [search_space.tabular] in settings/search_spaces.toml.
 """
 import ConfigSpace as CS
 

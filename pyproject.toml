@@ -27,6 +27,9 @@ dependencies = [
     "uvicorn==0.49.0",
 ]
 
+[project.scripts]
+evosynth = "evosynth.cli:main"
+
 [project.optional-dependencies]
 nas       = ["torch==2.14.1", "torchvision==0.29.1"]   # CNN architecture search
 baselines = ["optuna==5.1.0", "flaml==2.8.0"]          # competitor baselines

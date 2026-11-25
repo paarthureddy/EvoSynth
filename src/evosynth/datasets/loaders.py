@@ -1,7 +1,7 @@
 """
 One loader per dataset. Each returns (X, y) as numpy arrays (X float32, y int labels
 starting at 0) and caches raw downloads in evosynth.paths.DATA_DIR (.data/).
-New datasets: add a function here and register it in registry.py + configs/evosynth.toml.
+New datasets: add a function here and register it in registry.py + settings/datasets.toml.
 """
 import numpy as np
 

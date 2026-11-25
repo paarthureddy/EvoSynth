@@ -2,7 +2,7 @@
 Name -> dataset specification + loader.
 
 The specification (source, metric, subsample sizes, ...) lives in
-[datasets.<name>] of configs/evosynth.toml; the code that fetches the data lives in
+[datasets.<name>] of settings/datasets.toml; the code that fetches the data lives in
 loaders.py. `load(name)` keeps the loaded arrays in memory for the rest of the process,
 so the search evaluator and the post-search refit share one copy.
 """

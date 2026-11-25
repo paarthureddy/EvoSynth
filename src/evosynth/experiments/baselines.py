@@ -1,7 +1,8 @@
 """
 Competitor & Floor Baselines Runner — UCI Forest Covertype
 ===========================================================
-Runs and logs the baseline comparisons on the exact same 60k train / 20k test split:
+Command: `evosynth baselines`. Settings: [experiments.baselines], [refit], [run].random_state.
+Runs and logs the baseline comparisons on the exact same refit train / test split:
   1. Default ExtraTrees Classifier (Untuned Floor)
   2. Random Search (120 evaluations across the 9-dimensional search space)
   3. Optuna TPE (120 trials, with SQLite persistence for auto-resume)
@@ -43,7 +44,9 @@ def run_default_extratrees(out_dir):
     X_tr, X_te, y_tr, y_te = load_covertype_splits()
 
     start = time.time()
-    model = ExtraTreesClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+    s = get_settings()
+    model = ExtraTreesClassifier(n_estimators=s.experiments.baselines.default_extratrees_trees,
+                                 random_state=s.run.random_state, n_jobs=-1)
     model.fit(X_tr, y_tr)
     fit_time = time.time() - start
 
@@ -66,7 +69,8 @@ def run_default_extratrees(out_dir):
     return acc
 
 
-def run_random_search(out_dir, n_trials=120):
+def run_random_search(out_dir, n_trials=None):
+    n_trials = get_settings().experiments.baselines.random_search_trials if n_trials is None else n_trials
     log_file = os.path.join(out_dir, "random_search.txt")
     print("\n" + "=" * 70)
     print(f" RUNNING BASELINE 2: RANDOM SEARCH ({n_trials} EVALUATIONS)")
@@ -77,7 +81,7 @@ def run_random_search(out_dir, n_trials=120):
     from evosynth.core.individual import Individual
 
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = TabularEvaluator("covertype", subsample_size=20000)
+    evaluator = TabularEvaluator("covertype")
     dims = len(list(space.keys()))
 
     best_acc = 0.0
@@ -116,7 +120,8 @@ def run_random_search(out_dir, n_trials=120):
     return test_acc
 
 
-def run_optuna_baseline(out_dir, n_trials=120):
+def run_optuna_baseline(out_dir, n_trials=None):
+    n_trials = get_settings().experiments.baselines.optuna_trials if n_trials is None else n_trials
     log_file = os.path.join(out_dir, "optuna.txt")
     db_file = os.path.join(out_dir, "optuna_covertype.db")
     print("\n" + "=" * 70)
@@ -134,7 +139,7 @@ def run_optuna_baseline(out_dir, n_trials=120):
     from evosynth.search_spaces.tabular import get_xgboost_search_space
     from evosynth.core.individual import Individual
 
-    evaluator = TabularEvaluator("covertype", subsample_size=20000)
+    evaluator = TabularEvaluator("covertype")
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
     dims = len(list(space.keys()))
 
@@ -144,7 +149,7 @@ def run_optuna_baseline(out_dir, n_trials=120):
         storage=storage_url,
         load_if_exists=True,
         direction="maximize",
-        sampler=optuna.samplers.TPESampler(seed=42)
+        sampler=optuna.samplers.TPESampler(seed=get_settings().run.random_state)
     )
 
     completed = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
@@ -183,7 +188,9 @@ def run_optuna_baseline(out_dir, n_trials=120):
     return test_acc
 
 
-def run_flaml_baseline(out_dir, time_budget=585):
+def run_flaml_baseline(out_dir, time_budget=None):
+    bl = get_settings().experiments.baselines
+    time_budget = bl.flaml_time_budget if time_budget is None else time_budget
     log_file = os.path.join(out_dir, "flaml.txt")
     print("\n" + "=" * 70)
     print(f" RUNNING BASELINE 4: FLAML AUTOML (TIME BUDGET: {time_budget}s / ~10m)")
@@ -199,11 +206,11 @@ def run_flaml_baseline(out_dir, time_budget=585):
     automl = AutoML()
     settings = {
         "time_budget": time_budget,
-        "metric": "accuracy",
+        "metric": bl.flaml_metric,
         "task": "classification",
         "log_file_name": os.path.join(out_dir, "flaml_run.log"),
-        "seed": 42,
-        "estimator_list": ["lgbm", "rf", "extra_tree", "xgboost"]
+        "seed": get_settings().run.random_state,
+        "estimator_list": list(bl.flaml_estimators)
     }
 
     start = time.time()
@@ -229,34 +236,26 @@ def run_flaml_baseline(out_dir, time_budget=585):
     return test_acc
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Covertype Competitor Baselines Runner")
-    parser.add_argument("--test", type=str, default="all",
-                        choices=["all", "extratrees", "random", "optuna", "flaml"],
-                        help="Which baseline to run (default: all)")
-    parser.add_argument("--trials", type=int, default=120, help="Trials for HPO baselines")
-    parser.add_argument("--time_budget", type=int, default=585, help="Time budget for FLAML in seconds")
-    parser.add_argument("--run_name", type=str, default=None, help="Daily run folder name (e.g. Test1_19_Nov)")
-    parser.add_argument("--output_dir", type=str, default=None, help="Direct path to output directory")
-    args = parser.parse_args()
+BASELINE_TESTS = ("all", "extratrees", "random", "optuna", "flaml")
 
-    if args.output_dir:
-        out_dir = args.output_dir
-    elif args.run_name:
-        out_dir = os.path.join(_ROOT_DIR, "results_forest", args.run_name, "baselines")
+
+def run_baselines(test="all", trials=None, time_budget=None, run_name=None, output_dir=None):
+    """Run one or all baselines; outputs go to results_forest/[<run_name>/]baselines/ unless output_dir is given."""
+    if test not in BASELINE_TESTS:
+        raise ValueError(f"unknown baseline '{test}'. Choose from {BASELINE_TESTS}")
+    if output_dir:
+        out_dir = output_dir
+    elif run_name:
+        out_dir = os.path.join(_ROOT_DIR, "results_forest", run_name, "baselines")
     else:
         out_dir = os.path.join(_ROOT_DIR, "results_forest", "baselines")
     os.makedirs(out_dir, exist_ok=True)
 
-    if args.test in ["all", "extratrees"]:
+    if test in ("all", "extratrees"):
         run_default_extratrees(out_dir)
-    if args.test in ["all", "random"]:
-        run_random_search(out_dir, n_trials=args.trials)
-    if args.test in ["all", "optuna"]:
-        run_optuna_baseline(out_dir, n_trials=args.trials)
-    if args.test in ["all", "flaml"]:
-        run_flaml_baseline(out_dir, time_budget=args.time_budget)
-
-
-if __name__ == "__main__":
-    main()
+    if test in ("all", "random"):
+        run_random_search(out_dir, n_trials=trials)
+    if test in ("all", "optuna"):
+        run_optuna_baseline(out_dir, n_trials=trials)
+    if test in ("all", "flaml"):
+        run_flaml_baseline(out_dir, time_budget=time_budget)

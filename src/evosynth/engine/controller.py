@@ -1,7 +1,8 @@
 """
 DynamicOptimizer: the EvoSynth meta-optimization loop (Steps 0-6).
 
-Every default comes from configs/evosynth.toml: [engine], [bandit], [safeguards], [run].
+Every default comes from the settings folder: [engine], [bandit], [safeguards] in
+settings/engine.toml and [run] in settings/run.toml.
 Telemetry (EventReporter) and run logging (stdout mirror, population CSVs) live in
 evosynth.telemetry; they are set up when this module is imported (Phase 1.10 moves
 that into run()).
@@ -63,7 +64,7 @@ def _pick(value, default):
 
 
 class DynamicOptimizer:
-    """Arguments left as None take their value from the active settings (configs/evosynth.toml)."""
+    """Arguments left as None take their value from the active settings (settings/engine.toml, settings/run.toml)."""
 
     def __init__(self, search_space, evaluator,
                  budget=None, pop_size=None,

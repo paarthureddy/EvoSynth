@@ -9,8 +9,14 @@ param (
 )
 
 $ErrorActionPreference = "Continue"
-$rootDir = $PSScriptRoot
+# This script lives in tools/; the project root is its parent folder.
+$rootDir = Split-Path -Parent $PSScriptRoot
 Set-Location $rootDir
+
+# EvoSynth is installed for Python 3.14 (py -3.14 -m pip install -e .).
+# Budgets, population sizes, checkpoint intervals, etc. come from settings/*.toml;
+# override any of them per run with  --set section.key=value
+function Invoke-EvoSynth { & py -3.14 -m evosynth @args }
 
 # ------------------------------------------------------------------------------
 # Daily Run Folder Resolution (e.g., Test1_19_Nov)
@@ -53,18 +59,18 @@ function Run-Stage1 {
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
     # Optional packages check
-    python -c "import optuna" 2>$null
+    py -3.14 -c "import optuna" 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [!] Optuna not found. Installing optuna..." -ForegroundColor Yellow
-        pip install optuna | Out-Null
+        py -3.14 -m pip install optuna | Out-Null
     }
-    python -c "import flaml" 2>$null
+    py -3.14 -c "import flaml" 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [!] FLAML not found. Installing flaml..." -ForegroundColor Yellow
-        pip install flaml | Out-Null
+        py -3.14 -m pip install flaml | Out-Null
     }
 
-    python scripts/run_baselines_forest.py --test all --run_name $RunName
+    Invoke-EvoSynth baselines --test all --run-name $RunName
     Write-Host "`n[STAGE 1 COMPLETE] Baseline logs saved to results_forest\$RunName\baselines\" -ForegroundColor Green
 }
 
@@ -75,10 +81,10 @@ function Run-Stage2 {
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
     Write-Host "`n[2A] Starting EvoSynth @ 300 evals (Est: ~20-25 min)..." -ForegroundColor Cyan
-    python scripts/run_covertype_evosynth.py --budget 300 --pop_size 30 --checkpoint_interval 10 --run_name $RunName
+    Invoke-EvoSynth scale --budget 300 --run-name $RunName
 
     Write-Host "`n[2B] Starting EvoSynth @ 500 evals (Est: ~35-45 min)..." -ForegroundColor Cyan
-    python scripts/run_covertype_evosynth.py --budget 500 --pop_size 30 --checkpoint_interval 10 --run_name $RunName
+    Invoke-EvoSynth scale --budget 500 --run-name $RunName
 
     Write-Host "`n[STAGE 2 COMPLETE] Scaled EvoSynth results saved to results_forest\$RunName\evosynth\" -ForegroundColor Green
 }
@@ -90,7 +96,7 @@ function Run-Stage3 {
     Write-Host "  Fault Protection: Checkpoints every 10 evaluations (Safe to interrupt & resume)" -ForegroundColor White
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
-    python scripts/run_ablation_study_forest.py --setup CVGS-300 --pop_size 30 --max_workers 2 --checkpoint_interval 10 --run_name $RunName
+    Invoke-EvoSynth ablation --setup CVGS-300 --run-name $RunName
     Write-Host "`n[STAGE 3 COMPLETE] CVGS-300 results saved to results_forest\$RunName\ablation\cvgs_300\" -ForegroundColor Green
 }
 
@@ -101,7 +107,7 @@ function Run-Stage4 {
     Write-Host "  Fault Protection: Checkpoints every 10 evaluations (Safe to interrupt & resume)" -ForegroundColor White
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor Gray
 
-    python scripts/run_ablation_study_forest.py --setup CVGS-500 --pop_size 30 --max_workers 2 --checkpoint_interval 10 --run_name $RunName
+    Invoke-EvoSynth ablation --setup CVGS-500 --run-name $RunName
     Write-Host "`n[STAGE 4 COMPLETE] CVGS-500 results saved to results_forest\$RunName\ablation\cvgs_500\" -ForegroundColor Green
 }
 

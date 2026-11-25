@@ -16,7 +16,7 @@ class ImageCNNEvaluator:
     Trains and validates dynamic PyTorch CNN models on image classification (Handwritten Digits/MNIST).
     """
     def __init__(self, space=None, epochs=None, batch_size=None, device=None):
-        # Defaults come from [experiments.nas] in configs/evosynth.toml
+        # Defaults come from [experiments.nas] in settings/experiments.toml
         s = get_settings()
         nas = s.experiments.nas
         self.space = space or get_image_nas_search_space()

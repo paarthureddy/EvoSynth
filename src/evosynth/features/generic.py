@@ -18,7 +18,7 @@ from evosynth.config import get_settings
 
 
 class GenericFeatureEngineer:
-    """Settings defaults come from [features] in configs/evosynth.toml."""
+    """Settings defaults come from [features] in settings/evaluation.toml."""
 
     def __init__(self, strategy="none", max_interaction_features=None,
                  continuous_unique_threshold=None, detection_sample_rows=None):

@@ -6,7 +6,7 @@ from evosynth.config import get_settings
 class DifferentialEvolution(BaseOptimizer):
     def __init__(self, search_space, pop_size):
         super().__init__(search_space, pop_size)
-        d = get_settings().optimizers.de  # [optimizers.de] in configs/evosynth.toml
+        d = get_settings().optimizers.de  # [optimizers.de] in settings/optimizers.toml
         self.F = d.F    # Mutation factor
         self.CR = d.CR  # Crossover probability
         self.population_vectors = []

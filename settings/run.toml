@@ -1,0 +1,31 @@
+# =====================================================================================
+#  EvoSynth settings — Run-wide settings (random state, parallel workers)
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[run]
+# -------------------------------------------------------------------------------------
+
+# Fixed random_state for every sklearn split, CV shuffler and model (not yet a global seed;
+# Phase 0 replaces it with a run-wide `seed` that also drives the optimizers).
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.__init__ (search subsample split),
+#          TabularEvaluator.evaluate (StratifiedKFold shuffle);
+#          src/evosynth/models/factory.py → build_model (every model's random_state);
+#          src/evosynth/models/refit.py → refit_split (refit train/test split, also used by baselines);
+#          src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__ (train/val split)
+#          src/evosynth/experiments/baselines.py → run_default_extratrees (model seed),
+#          run_optuna_baseline (TPESampler seed), run_flaml_baseline (FLAML seed)
+# Range: any integer
+random_state = 42
+
+# Parallel evaluation threads. 0 = automatic = min(8, CPU count).
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (default when max_workers=None),
+#          DynamicOptimizer._evaluate_batch (ThreadPoolExecutor size),
+#          DynamicOptimizer.run (Step 1 chunk size = 2 × workers)
+# Range: 0 (auto) or 1–64
+max_workers = 0

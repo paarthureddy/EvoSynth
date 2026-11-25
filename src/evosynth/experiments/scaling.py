@@ -1,36 +1,53 @@
 """
-EvoSynth Scaled Covertype Benchmark Runner
-===========================================
-Runs EvoSynth at scaled budgets (e.g., 300, 500) on the UCI Forest Covertype dataset.
-Includes atomic checkpointing every 10 evaluations, full log capture, and post-search
-generalization refit on 60,000 train / 20,000 held-out test samples.
+Budget-scaling runs with crash-safe checkpointing. Command: `evosynth scale`.
+
+Runs EvoSynth at a given budget on a tabular dataset, writes an atomic checkpoint every
+N evaluations, captures the full log and finishes with the post-search refit.
+
+Settings: [experiments.scaling] (budgets, default_budget, pop_size, t1/k schedule,
+checkpoint_interval), [datasets.<name>], [refit], [evaluation].cv_folds.
 
 Outputs:
-  - results_forest/evosynth/run_<budget>.txt
-  - results_forest/evosynth/checkpoints/checkpoint_<budget>.json
+  - results_forest/[<run_name>/]evosynth/run_<budget>.txt
+  - results_forest/[<run_name>/]evosynth/checkpoints/checkpoint_<budget>.json
 """
 
 import os
 import sys
 import time
 import json
-import argparse
-import numpy as np
 
+from evosynth import datasets
+from evosynth.config import get_settings
+from evosynth.core.decoding import decode_vector_to_dict
+from evosynth.experiments.checkpointing import TeeLogger, atomic_json_dump as save_atomic_checkpoint
 from evosynth.paths import PROJECT_ROOT
 _ROOT_DIR = str(PROJECT_ROOT)
 
 
-from evosynth.search_spaces.tabular import get_xgboost_search_space
-from evosynth.evaluators.tabular import TabularEvaluator
-from evosynth.engine.controller import DynamicOptimizer
-from evosynth.core.decoding import decode_vector_to_dict
-from evosynth.experiments.checkpointing import TeeLogger, atomic_json_dump as save_atomic_checkpoint
-from ConfigSpace import Configuration
-import ConfigSpace.hyperparameters as CSH
+def schedule(budget, settings=None):
+    """(t1_iters, k_iters) for a budget: max(min, int(fraction * budget)) from [experiments.scaling]."""
+    sc = (settings or get_settings()).experiments.scaling
+    return (max(sc.t1_iters_min, int(budget * sc.t1_iters_fraction)),
+            max(sc.k_iters_min, int(budget * sc.k_iters_fraction)))
 
 
-def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=10, run_name=None, output_dir=None):
+def run_benchmark(budget=None, pop_size=None, subsample=None, checkpoint_interval=None, run_name=None,
+                  output_dir=None, dataset="covertype"):
+    """Arguments left as None come from [experiments.scaling] / [datasets.<name>]."""
+    from evosynth.engine.controller import DynamicOptimizer
+    from evosynth.evaluators.tabular import TabularEvaluator
+    from evosynth.search_spaces.tabular import get_tabular_search_space
+
+    s = get_settings()
+    sc = s.experiments.scaling
+    budget = sc.default_budget if budget is None else budget
+    if budget not in sc.budgets:
+        raise ValueError(f"budget {budget} not in experiments.scaling.budgets {list(sc.budgets)}")
+    pop_size = sc.pop_size if pop_size is None else pop_size
+    checkpoint_interval = sc.checkpoint_interval if checkpoint_interval is None else checkpoint_interval
+    subsample = datasets.get_spec(dataset).search_subsample if subsample is None else subsample
+
     if output_dir:
         target_dir = output_dir
     elif run_name:
@@ -52,11 +69,12 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         print("=" * 80)
         print(f" EVOSYNTH SCALED EXPERIMENT — UCI FOREST COVERTYPE (BUDGET: {budget})")
         print(f" Population: {pop_size} | Checkpoint Interval: Every {checkpoint_interval} evals")
-        print(f" Dataset Subsample: {subsample:,} (2-Fold Stratified CV) | Latent Dims: 9")
+        print(f" Dataset Subsample: {subsample:,} ({s.evaluation.cv_folds}-Fold Stratified CV) | Latent Dims: "
+              f"{len(list(get_tabular_search_space().keys()))}")
         print("=" * 80)
 
-        space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-        evaluator = TabularEvaluator("covertype", subsample_size=subsample)
+        space = get_tabular_search_space(include_model_type=True, include_fe_strategy=True)
+        evaluator = TabularEvaluator(dataset, subsample_size=subsample)
 
         # Wrap evaluator to trigger atomic checkpoints every N evals
         original_evaluate = evaluator.evaluate
@@ -88,8 +106,7 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         evaluator.evaluate = monitored_evaluate
 
         # Determine tier iters based on budget
-        t1_iters = max(3, int(budget * 0.03))
-        k_iters = max(2, int(budget * 0.02))
+        t1_iters, k_iters = schedule(budget, s)
 
         optimizer = DynamicOptimizer(
             search_space=space,
@@ -111,7 +128,7 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         from evosynth.models.refit import refit_and_score
 
         winning_cfg = decode_vector_to_dict(best.vector, space)
-        refit = refit_and_score(winning_cfg, dataset="covertype", phase="refit")
+        refit = refit_and_score(winning_cfg, dataset=dataset, phase="refit")
         test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
 
         elapsed = time.time() - start_time
@@ -143,28 +160,3 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         sys.stdout = tee.stream
         tee.close()
 
-
-def main():
-    parser = argparse.ArgumentParser(description="EvoSynth Scaled Covertype Benchmark")
-    parser.add_argument("--budget", type=int, default=300, choices=[120, 300, 500, 1000],
-                        help="Evaluation budget (default: 300)")
-    parser.add_argument("--pop_size", type=int, default=30, help="Population size (default: 30)")
-    parser.add_argument("--checkpoint_interval", type=int, default=10,
-                        help="Save checkpoint every N evals (default: 10)")
-    parser.add_argument("--run_name", type=str, default=None,
-                        help="Daily run folder name (e.g. Test1_19_Nov)")
-    parser.add_argument("--output_dir", type=str, default=None,
-                        help="Direct path to output directory")
-    args = parser.parse_args()
-
-    run_benchmark(
-        budget=args.budget,
-        pop_size=args.pop_size,
-        checkpoint_interval=args.checkpoint_interval,
-        run_name=args.run_name,
-        output_dir=args.output_dir
-    )
-
-
-if __name__ == "__main__":
-    main()

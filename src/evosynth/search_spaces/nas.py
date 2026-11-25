@@ -1,6 +1,6 @@
 """
 CNN architecture search space (channels, units, dropout, learning rate, optimizer,
-activation). Values come from [search_space.nas] in configs/evosynth.toml.
+activation). Values come from [search_space.nas] in settings/search_spaces.toml.
 """
 import ConfigSpace as CS
 

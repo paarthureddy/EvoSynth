@@ -6,7 +6,7 @@ from evosynth.config import get_settings
 class ParticleSwarm(BaseOptimizer):
     def __init__(self, search_space, pop_size):
         super().__init__(search_space, pop_size)
-        p = get_settings().optimizers.pso  # [optimizers.pso] in configs/evosynth.toml
+        p = get_settings().optimizers.pso  # [optimizers.pso] in settings/optimizers.toml
         self.w = p.w    # Inertia weight
         self.c1 = p.c1  # Cognitive coefficient (Personal best)
         self.c2 = p.c2  # Social coefficient (Global best)

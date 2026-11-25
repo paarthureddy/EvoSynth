@@ -10,7 +10,7 @@ class CompositeScoringEngine:
     """
 
     def __init__(self, weights=None):
-        # Weights for the 5 metrics: [composite] in configs/evosynth.toml
+        # Weights for the 5 metrics: [composite] in settings/engine.toml
         c = get_settings().composite
         self.weights = dict(weights) if weights is not None else {
             'fitness': c.fitness,
