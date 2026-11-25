@@ -1,3 +1,4 @@
+
 ConfigSpace
 numpy
 fastapi
@@ -9,3 +10,8 @@ requests
 cma
 torch
 torchvision
+optuna
+flaml
+deap
+pandas
+matplotlib

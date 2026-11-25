@@ -1,0 +1,65 @@
+================================================================================
+ EVOSYNTH COVERTYPE ABLATION: ISOLATED STANDALONE OPTIMIZER RUN
+================================================================================
+ Setup Identifier    : CVGS-300
+ Algorithm Name      : Particle Swarm Optimization (PSO)
+ Operational Mode    : STRICT ISOLATION (No Co-evolution / No Migration)
+ Budget Allotted     : 300 evaluations
+ Population Size     : 30 individuals
+ Passive Telemetry   : Composite Score & UCB1 (Monitored but strictly UNUSED)
+================================================================================
+
+[STEP 1: ITERATION PROGRESSION LOG]
+  Iter      Evals   Best Acc   Diversity    Trend   Composite   UCB Score   Time  Notes             
+  ----  ---------  ---------  ----------  -------  ----------  ----------  -----  ------------------
+     0     30/300     86.10%       0.243   86.10%       0.468       0.686  261.1s  Warmup Complete   
+     2     40/300     86.10%       0.264    0.00%       0.325       0.514  118.8s                    
+     3     50/300     86.53%       0.312    0.43%       0.344       0.512  68.5s  NEW BEST          
+     4     60/300     86.53%       0.423    0.00%       0.355       0.509  56.4s                    
+     5     70/300     86.53%       0.183    0.00%       0.319       0.462  60.3s                    
+     6     80/300     86.53%       0.276    0.00%       0.333       0.467  55.0s                    
+     7     90/300     86.53%       0.366    0.00%       0.346       0.472  63.1s                    
+     8    100/300     86.53%       0.414    0.00%       0.353       0.473  62.9s                    
+     9    110/300     86.53%       0.347    0.00%       0.343       0.457  62.3s                    
+    10    120/300     86.53%       0.332    0.00%       0.341       0.450  62.7s                    
+    11    130/300     86.53%       0.251    0.00%       0.329       0.434  61.5s                    
+    12    140/300     86.53%       0.213    0.00%       0.323       0.424  61.4s                    
+    13    150/300     86.53%       0.000    0.00%       0.291       0.389  61.7s  LOW DIVERSITY     
+    14    160/300     86.53%       0.000    0.00%       0.291       0.385  65.4s  LOW DIVERSITY     
+    15    170/300     86.53%       0.000    0.00%       0.291       0.383  62.5s  LOW DIVERSITY     
+    16    180/300     86.53%       0.000    0.00%       0.291       0.380  61.9s  LOW DIVERSITY     
+    17    190/300     86.53%       0.000    0.00%       0.290       0.377  67.7s  LOW DIVERSITY     
+    18    200/300     86.53%       0.000    0.00%       0.291       0.375  66.4s  LOW DIVERSITY     
+    19    210/300     86.53%       0.000    0.00%       0.291       0.373  63.0s  LOW DIVERSITY     
+    20    220/300     86.53%       0.000    0.00%       0.291       0.372  62.5s  LOW DIVERSITY     
+    21    230/300     86.53%       0.000    0.00%       0.291       0.370  62.1s  LOW DIVERSITY     
+    22    240/300     86.53%       0.000    0.00%       0.291       0.368  62.5s  LOW DIVERSITY     
+    23    250/300     86.53%       0.000    0.00%       0.291       0.366  63.3s  LOW DIVERSITY     
+    24    260/300     86.53%       0.000    0.00%       0.291       0.365  63.4s  LOW DIVERSITY     
+    25    270/300     86.59%       0.180    0.06%       0.319       0.392  63.1s  NEW BEST          
+    26    280/300     86.59%       0.183    0.00%       0.321       0.393  45.1s                    
+    27    290/300     86.59%       0.252    0.00%       0.332       0.402  44.2s                    
+    28    300/300     86.59%       0.300    0.00%       0.337       0.406  55.2s                    
+
+[STEP 2: CHECKPOINT AUDIT @ 75 EVALS (25% Budget Share)]
+  * Best Accuracy at 25% Share  : 86.53%
+  * Diversity at 25% Share      : 0.278
+  * Passive UCB Score           : 0.938
+
+[STEP 3: FINAL RESULTS AUDIT @ 300 EVALS (100% Full Capacity)]
+  * Peak Accuracy Achieved      : 86.59%
+  * Final Population Diversity  : 0.300
+  * Final Passive UCB Score     : 0.722
+  * Total Search Runtime        : 1964.5 seconds
+
+  Discovered Hyperparameters:
+    * booster             : dart
+    * colsample_bytree    : 0.3881
+    * fe_strategy         : interactions
+    * learning_rate       : 0.0452
+    * max_depth           : 10
+    * model_type          : ExtraTrees
+    * n_estimators        : 207
+    * reg_alpha           : 6.2673
+    * subsample           : 0.9007
+================================================================================

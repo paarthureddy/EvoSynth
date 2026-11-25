@@ -1,0 +1,33 @@
+======================================================================
+======================================================================
+ RUNNING BASELINE 2: RANDOM SEARCH (120 EVALUATIONS)
+======================================================================
+  [DATASET] Loading UCI Forest Covertype (581,012 samples, 54 features, 7 classes)...
+  [DATASET] Stratified subsampling to 20,000 rows for search phase...
+  [DATASET] Ready: 20,000 samples, 54 features, 7 classes
+  [DATASET] Class distribution: {np.int64(0): np.int64(7292), np.int64(1): np.int64(9752), np.int64(2): np.int64(1231), np.int64(3): np.int64(94), np.int64(4): np.int64(327), np.int64(5): np.int64(598), np.int64(6): np.int64(706)}
+  Trial  10/120 | Best CV Accuracy: 86.33% | Elapsed: 127.8s
+  Trial  20/120 | Best CV Accuracy: 86.33% | Elapsed: 228.5s
+  Trial  30/120 | Best CV Accuracy: 86.33% | Elapsed: 396.8s
+  Trial  40/120 | Best CV Accuracy: 86.33% | Elapsed: 468.1s
+  Trial  40/120 | Best CV Accuracy: 86.33% | Elapsed: 468.1s
+  Trial  40/120 | Best CV Accuracy: 86.33% | Elapsed: 468.1s
+  Trial  50/120 | Best CV Accuracy: 86.33% | Elapsed: 738.1s
+  Trial  60/120 | Best CV Accuracy: 86.33% | Elapsed: 984.7s
+  Trial  70/120 | Best CV Accuracy: 86.33% | Elapsed: 1208.0s
+  Trial  80/120 | Best CV Accuracy: 86.33% | Elapsed: 1484.5s
+  Trial  90/120 | Best CV Accuracy: 86.33% | Elapsed: 1587.8s
+  Trial 100/120 | Best CV Accuracy: 86.33% | Elapsed: 1745.8s
+  Trial 110/120 | Best CV Accuracy: 86.33% | Elapsed: 1879.0s
+  Trial 120/120 | Best CV Accuracy: 86.33% | Elapsed: 2033.9s
+  [DATA] Loading Covertype dataset (60,000 train / 20,000 test)...
+  [RESULT] Random Search Test Accuracy: 93.92% (Model: ExtraTrees)
+======================================================================
+ BASELINE REPORT: RANDOM SEARCH (120 TRIALS)
+======================================================================
+ Search Phase CV Acc  : 86.33%
+ Refit Test Accuracy  : 93.92%
+ Discovered Model     : ExtraTrees
+ Discovered FE        : interactions
+ Total Runtime        : 34.0 minutes
+======================================================================

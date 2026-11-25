@@ -1,0 +1,158 @@
+AUTOML PAPERS RELEVANT TO EVOSYNTH (HIGH AND MEDIUM RELEVANCE)
+Sources: AutoML 2025 and AutoML 2026 accepted-paper lists
+Count: 5 High, 16 Medium (21 of 69 papers)
+
+NOTE: 2026 summaries are based on titles and author groups, not full abstracts.
+Read each abstract on OpenReview before citing or building on a paper.
+
+================================================================================
+HIGH RELEVANCE (5)
+================================================================================
+
+1. Overtuning in Hyperparameter Optimization   [AutoML 2025, Best Paper]
+   What it does : Shows HPO often picks configurations that look best only
+                  because of validation noise, which then generalize worse.
+                  Quantifies how often this happens across benchmarks.
+   Relation     : The bandit greedily exploits noisy 2-fold CV scores on a 20k
+                  subsample. Recommended core of the pivot.
+
+2. A Large-Scale Study of Overtuning Mitigation Strategies in Hyperparameter
+   Optimization   [AutoML 2026, Methods]
+   What it does : Compares remedies for overtuning (resampling, regularization,
+                  early stopping and others) at scale.
+   Relation     : Direct follow-up to the 2025 best paper. Supplies baselines
+                  for a noise-aware bandit and confirm-before-select.
+
+3. Zero-Shot Bayesian Optimization with TabPFN: Competitive with
+   State-of-the-Art without Per-Task Training   [AutoML 2026, Methods]
+   What it does : Uses TabPFN as a BO surrogate that needs no per-task training.
+   Relation     : Pre-screen each optimizer's offspring with TabPFN and
+                  evaluate only the promising ones (surrogate-assisted
+                  portfolio search). Individuals are already 9-d vectors.
+
+4. From Tables to Runtime: Predicting Algorithm Runtime Distributions with
+   TabPFN   [AutoML 2026, Methods]
+   What it does : Predicts a runtime distribution for an algorithm using TabPFN.
+   Relation     : Make UCB1 cost-aware (reward per predicted second). Replaces
+                  the hand-tuned speed and efficiency weights in composite.py.
+
+5. Search More or Confirm Better? Reliable Selection in Small-Budget LoRA
+   Hyperparameter Optimization   [AutoML 2026, Late-breaking]
+   What it does : Asks whether a fixed budget is better spent searching more or
+                  re-evaluating the top candidates.
+   Relation     : Exactly the confirm-before-select stage. Directly supports
+                  the overtuning pivot.
+
+================================================================================
+MEDIUM RELEVANCE (16)
+================================================================================
+
+--- AutoML 2025 ---
+
+6. Hyperparameter Optimization via Interacting with Probabilistic Circuits
+   [Runner-up]
+   What it does : Uses probabilistic circuits as the BO surrogate so users can
+                  condition the search on their own beliefs.
+   Relation     : Alternative surrogate and baseline idea. Interactive priors
+                  fit the glass-box dashboard story.
+
+7. Obeying the Order: Introducing Ordered Transfer Hyperparameter Optimization
+   What it does : HPO where tasks arrive in sequence and earlier runs warm-start
+                  later ones.
+   Relation     : Warm-start UCB1 statistics and the population from previous
+                  EvoSynth runs.
+
+8. Ax: A Platform for Adaptive Experimentation
+   What it does : Meta's production Bayesian optimization and experimentation
+                  platform, built on BoTorch.
+   Relation     : A strong baseline to compare EvoSynth against.
+
+9. Regularized Neural Ensemblers
+   What it does : A neural network learns how to combine base-model predictions,
+                  regularized with dropout.
+   Relation     : The final population already holds many good models, so a
+                  cheap ensemble is possible. Conflicts with the single-model,
+                  no-post-hoc-ensemble claim, so keep it optional.
+
+10. EG-ENAS: Efficient and Generalizable Evolutionary Neural Architecture
+    Search for Image Classification
+    What it does : Cheaper evolutionary NAS using fast proxies and better
+                   initialization.
+    Relation     : Directly comparable to run_vision_nas.py. Cite it, or use as
+                   the baseline if the NAS branch is kept.
+
+11. The Ranking Trick: A Simple and Robust Alternative to Score-Based
+    Regression for AutoML
+    What it does : Predicting the ranking of pipelines works better than
+                   regressing their scores in AutoML meta-learning.
+    Relation     : Give UCB1 rank-based rewards instead of raw accuracy, which
+                   is robust to scale differences. Small change to ucb1.py.
+
+12. Exploring One Million Machine Learning Pipelines: A Benchmarking Study
+    What it does : Large study of which preprocessing and model combinations
+                   matter across many datasets.
+    Relation     : Empirical support for the search-space design (fe_strategy,
+                   choice of model families).
+
+--- AutoML 2026, ABCD track ---
+
+13. BBOmix: A Tabular Benchmark for Hyperparameter Optimization in
+    Unsupervised Biological Representation Learning
+    What it does : Precomputed lookup-table HPO benchmark: each evaluation is a
+                   table lookup, not a training job.
+    Relation     : Lookup benchmarks allow many seeds for statistically solid
+                   optimizer comparisons.
+
+14. MLJAR AutoML: Transparent and Fairness-Aware AutoML for Tabular Data with
+    Automatic Documentation
+    What it does : Tabular AutoML system with automatic documentation and
+                   fairness checks.
+    Relation     : Overlaps the glass-box observability claim. Use as a
+                   baseline or comparison point.
+
+15. Equally Good, Yet Different: Benchmarking Rashomon sets in AutoML packages
+    What it does : Benchmarks the Rashomon set: many models with near-equal
+                   accuracy but different behaviour.
+    Relation     : The final population is a Rashomon set. Analysing it, and
+                   choosing within it by inference cost, is cheap novelty.
+
+--- AutoML 2026, Methods track ---
+
+16. Algorithm Selection with Zero Domain Knowledge via Text Embeddings
+    [Runner-up]
+    What it does : Selects algorithms from text embeddings instead of hand-made
+                   meta-features.
+    Relation     : Pick the initial bandit prior (favoured optimizer or model
+                   family) per dataset.
+
+17. Towards Predicting Hyperparameter Importance from Dataset Meta-Features
+    What it does : Predicts which hyperparameters matter for a new dataset
+                   before searching.
+    Relation     : Shrink or reweight the 9-dimensional latent space per
+                   dataset to save budget.
+
+18. Dynamic Priors in Bayesian Optimization for Hyperparameter Optimization
+    What it does : Updates the expert prior during BO instead of fixing it at
+                   the start.
+    Relation     : Conceptually close to the adaptive bandit. Good for related
+                   work and positioning.
+
+19. Efficient ensemble inference
+    What it does : Reduces the inference cost of serving ensembles.
+    Relation     : Relevant if the final population is ensembled. Keeps the
+                   zero-inference-penalty claim intact.
+
+--- AutoML 2026, Late-breaking abstracts ---
+
+20. MOEns: Multi-Objective Post-Hoc Ensembling for Predictive Accuracy and
+    Adversarial Robustness in AutoML
+    What it does : Post-hoc ensembles that trade accuracy against adversarial
+                   robustness.
+    Relation     : A multi-objective way to choose among the models in the
+                   final population.
+
+21. Towards Unifying AutoML: Introducing Neural Pipeline Search Spaces
+    What it does : Unified formal search space covering whole pipelines
+                   (preprocessing, model, hyperparameters).
+    Relation     : Formal framing for the Universal Latent Hypercube. Cite to
+                   position that idea.

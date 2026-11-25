@@ -1,0 +1,28 @@
+================================================================================
+ EVOSYNTH BENCHMARK: DYNAMIC MULTI-ARMED BANDIT META-OPTIMIZER
+================================================================================
+ Setup Identifier    : CVGS-300
+ Architecture        : 2-Tier Island Model + UCB1 Multi-Armed Bandit Controller
+ Algorithms Active   : Portfolio of 4 (GA, PSO, DE, CMA-ES)
+ Dynamic Safeguards  : Live SWAP (>10% UCB Delta), Elite Migration (Top 20%), Diversity Resets
+ Budget Consumed     : 300 evaluations
+ Population Size     : 30 individuals
+================================================================================
+
+  * Peak Accuracy Achieved      : 86.53%
+  * Winning Sub-Optimizer       : T2_CMAES
+  * Final Active Diversity      : 0.450
+  * Final Active UCB Score      : 0.720
+  * Total Search Runtime        : 2200.1 seconds
+
+  Discovered Hyperparameters:
+    * booster             : gbtree
+    * colsample_bytree    : 0.4454
+    * fe_strategy         : interactions
+    * learning_rate       : 0.0131
+    * max_depth           : 10
+    * model_type          : ExtraTrees
+    * n_estimators        : 347
+    * reg_alpha           : 6.6753
+    * subsample           : 0.8514
+================================================================================

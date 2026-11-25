@@ -1,0 +1,107 @@
+================================================================================
+ EVOSYNTH SCALED EXPERIMENT — UCI FOREST COVERTYPE (BUDGET: 300)
+ Population: 30 | Checkpoint Interval: Every 10 evals
+ Dataset Subsample: 20,000 (2-Fold Stratified CV) | Latent Dims: 9
+================================================================================
+  [DATASET] Loading UCI Forest Covertype (581,012 samples, 54 features, 7 classes)...
+  [DATASET] Stratified subsampling to 20,000 rows for search phase...
+  [DATASET] Ready: 20,000 samples, 54 features, 7 classes
+  [DATASET] Class distribution: {np.int64(0): np.int64(7292), np.int64(1): np.int64(9752), np.int64(2): np.int64(1231), np.int64(3): np.int64(94), np.int64(4): np.int64(327), np.int64(5): np.int64(598), np.int64(6): np.int64(706)}
+================================================================================
+======================= STEP 0: SEARCH SPACE DEFINITION =======================
+================================================================================
+  Hyperparameter Space : 9 dimensions
+  Population Size      : 30
+  Budget               : 300 evals
+  T1 Competition       : 9 iters (4 Algorithms)
+
+================================================================================
+====================== STEP 1: INITIAL POPULATION (N=30) ======================
+================================================================================
+    Evaluated 16/30 (best so far: 85.28%)
+    Evaluated 30/30 (best so far: 85.28%)
+  [OK] Full population evaluated. Best: 85.28% | Budget: 30/300
+
+================================================================================
+========================== STEP 2: TIER SPLIT (4-WAY) ==========================
+================================================================================
+  Tier 1 (40%) : 12 individuals split 4 ways (3 each)
+  Tier 2 (60%) : 18 individuals RESERVED for Top 2 winners
+
+================================================================================
+===================== STEP 3: TIER 1 COMPETITION (9 iters) =====================
+================================================================================
+  Iter        GA       PSO        DE     CMAES    Global   Time       Budget
+  ----  --------  --------  --------  --------  --------  -----  -----------
+     1    85.28%    83.42%    82.56%    81.28%    85.28%  61.5s    42/300
+     2    85.28%    83.48%    82.56%    83.12%    85.28%  72.3s    54/300
+     3    85.28%    83.48%    82.89%    83.12%    85.28%  101.8s    66/300
+     4    85.28%    83.66%    82.89%    83.12%    85.28%  50.2s    78/300
+     5    85.28%    83.66%    82.92%    83.39%    85.28%  115.3s    90/300
+     6    85.28%    83.66%    82.92%    83.39%    85.28%  139.1s   102/300
+     7    85.28%    83.66%    82.92%    83.39%    85.28%  171.5s   114/300
+     8    85.29%    83.66%    83.19%    83.58%    85.29%  126.6s   126/300 <-- NEW BEST
+     9    85.29%    83.66%    83.19%    83.58%    85.29%  159.4s   138/300
+
+================================================================================
+================= STEP 4: COMPOSITE SCORING + TOP-2 PROMOTION =================
+================================================================================
+
+  Algorithm     Best Acc  Diversity  Composite   Bonus  UCB Score
+  ------------ --------- ---------- ---------- ------- ----------
+  T1_DE           83.19%      0.471      0.625   0.043      0.668
+  T1_CMAES        83.58%      0.424      0.529   0.043      0.572
+  T1_GA           85.29%      0.416      0.529   0.043      0.571
+  T1_PSO          83.66%      0.000      0.142   0.043      0.184
+
+  [PROMOTED to Tier 2] : T1_DE, T1_CMAES
+  [RETAINED in Tier 1] : T1_GA, T1_PSO
+
+================================================================================
+============ STEP 5: TIER 2 ['DE', 'CMAES'] + TIER 1 ['GA', 'PSO'] ============
+================================================================================
+  Iter     T2_DE  T2_CMAES     T1_GA    T1_PSO    Global   Time       Budget
+  ----  --------  --------  --------  --------  --------  -----  -----------
+     1    84.30%    86.27%    85.29%    83.66%    86.27%  128.5s   168/300 <-- NEW BEST
+     2    84.30%    86.27%    85.29%    83.66%    86.27%  139.7s   198/300
+     3    84.30%    86.27%    85.29%    83.66%    86.27%  177.5s   228/300
+     4    84.30%    86.27%    85.29%    83.71%    86.27%  156.6s   258/300
+     5    85.31%    86.39%    85.29%    83.71%    86.39%  139.8s   288/300 <-- NEW BEST
+
+================================================================================
+================================ FINAL RESULTS ================================
+================================================================================
+  Total Evaluations  : 300
+  Total Time         : 31m 16.2s
+  Winning Algorithm  : T2_CMAES
+  Best Accuracy      : 86.3950%
+  Optimal Model Type : ExtraTrees
+
+  Best Hyperparameters:
+    * booster             : dart
+    * colsample_bytree    : 0.6185
+    * fe_strategy         : interactions
+    * learning_rate       : 0.0860
+    * max_depth           : 9
+    * model_type          : ExtraTrees
+    * n_estimators        : 279
+    * reg_alpha           : 4.6919
+    * subsample           : 0.7522
+================================================================================
+
+================================================================================
+ STEP 6: POST-SEARCH GENERALIZATION REFIT ON HELD-OUT TEST DATA
+================================================================================
+  Evaluating winning architecture & hyperparameters at full capacity...
+  [FE] Applying winning feature engineering strategy: 'interactions'
+  [MODEL] Training winning architecture: 'ExtraTrees' on 60,000 samples...
+
+  +----------------------------------------------------------------+
+  | EVO-SYNTH FINAL BENCHMARK SUMMARY (BUDGET: 300)          |
+  +----------------------------------------------------------------+
+  | Total Search Time              : 31.6 minutes
+  | Search Phase CV Accuracy       : 86.39% (20k slice)
+  | Generalization Test Accuracy   : 93.82% (60k train, 20k test)
+  | Optimal Architecture           : ExtraTrees
+  | Optimal Feature Engineering    : interactions
+  +----------------------------------------------------------------+

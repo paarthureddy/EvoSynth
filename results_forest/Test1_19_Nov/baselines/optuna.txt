@@ -1,0 +1,19 @@
+======================================================================
+ RUNNING BASELINE 3: OPTUNA TPE SAMPLER (120 TRIALS)
+======================================================================
+  [DATASET] Loading UCI Forest Covertype (581,012 samples, 54 features, 7 classes)...
+  [DATASET] Stratified subsampling to 20,000 rows for search phase...
+  [DATASET] Ready: 20,000 samples, 54 features, 7 classes
+  [DATASET] Class distribution: {np.int64(0): np.int64(7292), np.int64(1): np.int64(9752), np.int64(2): np.int64(1231), np.int64(3): np.int64(94), np.int64(4): np.int64(327), np.int64(5): np.int64(598), np.int64(6): np.int64(706)}
+  [OPTUNA] Prior completed trials: 0/120. Running remaining: 120...
+  [DATA] Loading Covertype dataset (60,000 train / 20,000 test)...
+  [RESULT] Optuna TPE Test Accuracy: 89.80% (CV: 84.61%)
+======================================================================
+ BASELINE REPORT: OPTUNA TPE SAMPLER (120 TRIALS)
+======================================================================
+ Search Phase CV Acc  : 84.61%
+ Refit Test Accuracy  : 89.80%
+ Discovered Model     : XGBoost
+ Discovered FE        : interactions
+ Search Runtime       : 35.6 minutes
+======================================================================

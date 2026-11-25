@@ -2,7 +2,16 @@ import os
 import sys
 
 # Ensure project root is in sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+_current = os.path.abspath(os.path.dirname(__file__))
+while _current and not os.path.exists(os.path.join(_current, 'automl_engine')):
+    _parent = os.path.dirname(_current)
+    if _parent == _current:
+        break
+    _current = _parent
+_ROOT_DIR = _current
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
+
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse

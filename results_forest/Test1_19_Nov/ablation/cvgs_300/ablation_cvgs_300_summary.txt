@@ -1,0 +1,585 @@
+
+
+>>> [STAGE 3] RUNNING COVERTYPE ABLATION STUDY: CVGS-300...
+  Setup: Budget = 300 evals | Pop = 30 | Checkpoint @ 75 evals (25% share)
+  Algorithms: Isolated GA, PSO, DE, CMA-ES vs. Dynamic Meta-Optimizer
+  Fault Protection: Checkpoints every 10 evaluations (Safe to interrupt & resume)
+--------------------------------------------------------------------------------
+  [DATASET] Loading UCI Forest Covertype (581,012 samples, 54 features, 7 classes)...
+  [DATASET] Stratified subsampling to 20,000 rows for search phase...
+  [DATASET] Ready: 20,000 samples, 54 features, 7 classes
+  [DATASET] Class distribution: {np.int64(0): np.int64(7292), np.int64(1): np.int64(9752), np.int64(2): np.int64(1231), np.int64(3): np.int64(94), np.int64(4): np.int64(327), np.int64(5): np.int64(598), np.int64(6): np.int64(706)}
+================================================================================
+ EVOSYNTH COVERTYPE ABLATION BENCHMARK — CVGS-300
+ Budget: 300 evals | Population: 30 | Checkpoint @ 75 evals
+ Checkpoint Interval: Every 10 evals (Auto-Resume Enabled)
+ Mode: Strict Isolation for GA, PSO, DE, CMA-ES vs. Dynamic Meta-Optimizer
+================================================================================
+
+[RUNNING] Isolated GA (Budget: 300, Pop: 30)...
+[08:20:07] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:11] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:15] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:22] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:33] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:39] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:40] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:44] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:47] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:50] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:20:59] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:21:08] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:21:57] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:22:05] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:22:24] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:22:25] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:23:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:23:28] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:25:18] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:25:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+  [OK] GA Finished: Best = 86.53% | Model = ExtraTrees | Time = 37.0m
+
+[RUNNING] Isolated PSO (Budget: 300, Pop: 30)...
+[08:57:13] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:57:16] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:57:28] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:57:30] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:58:12] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:58:17] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:58:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:58:27] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:58:56] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:59:01] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:59:44] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:59:48] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:59:53] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[08:59:59] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:01:34] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:01:38] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:01:49] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:01:52] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:03:00] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:03:11] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+  [OK] PSO Finished: Best = 86.59% | Model = ExtraTrees | Time = 32.7m
+
+[RUNNING] Isolated DE (Budget: 300, Pop: 30)...
+[09:29:35] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:29:37] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:29:39] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:29:43] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:30:06] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:30:09] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:30:12] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:30:15] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:30:17] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:30:23] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:32:50] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:33:02] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:33:14] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:33:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:33:43] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:33:54] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:34:04] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:34:05] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:35:19] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:35:23] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:35:43] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:35:50] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:36:33] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:36:35] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:37:48] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:37:54] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+  [OK] DE Finished: Best = 86.59% | Model = ExtraTrees | Time = 30.2m
+
+[RUNNING] Isolated CMAES (Budget: 300, Pop: 30)...
+[09:59:10] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:59:13] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:59:16] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[09:59:20] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:00:14] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:00:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:00:27] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:00:31] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:00:50] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:00:56] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:01:01] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:01:08] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:02:47] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:02:53] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:05:18] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:05:25] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:05:55] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:06:13] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:09:50] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:09:52] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:10:14] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:10:29] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+  [OK] CMAES Finished: Best = 86.59% | Model = ExtraTrees | Time = 25.4m
+
+[RUNNING] EvoSynth Dynamic Meta-Optimizer (Budget: 300, Pop: 30)...
+================================================================================
+======================= STEP 0: SEARCH SPACE DEFINITION =======================
+================================================================================
+  Hyperparameter Space : 9 dimensions
+  Population Size      : 30
+  Budget               : 300 evals
+  T1 Competition       : 12 iters (4 Algorithms)
+
+================================================================================
+====================== STEP 1: INITIAL POPULATION (N=30) ======================
+================================================================================
+    Evaluated 4/30 (best so far: 86.12%)
+    Evaluated 8/30 (best so far: 86.12%)
+[10:25:38] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:25:41] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:25:44] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:25:48] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+    Evaluated 12/30 (best so far: 86.12%)
+    Evaluated 16/30 (best so far: 86.12%)
+[10:26:10] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:10] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:12] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:13] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:16] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:20] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:22] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:27] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+    Evaluated 20/30 (best so far: 86.12%)
+[10:26:43] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:26:46] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+    Evaluated 24/30 (best so far: 86.12%)
+[10:26:55] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:27:01] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+    Evaluated 28/30 (best so far: 86.12%)
+    Evaluated 30/30 (best so far: 86.12%)
+  [OK] Full population evaluated. Best: 86.12% | Budget: 30/300
+
+================================================================================
+========================== STEP 2: TIER SPLIT (4-WAY) ==========================
+================================================================================
+  Tier 1 (40%) : 12 individuals split 4 ways (3 each)
+  Tier 2 (60%) : 18 individuals RESERVED for Top 2 winners
+
+================================================================================
+==================== STEP 3: TIER 1 COMPETITION (12 iters) ====================
+================================================================================
+  Iter        GA       PSO        DE     CMAES    Global   Time       Budget
+  ----  --------  --------  --------  --------  --------  -----  -----------
+[10:29:39] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:29:50] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     1    86.12%    82.45%    81.75%    83.06%    86.12%  96.5s    42/300
+[10:30:25] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:30:42] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     2    86.23%    82.45%    85.19%    85.92%    86.23%  118.5s    54/300 <-- NEW BEST
+[10:32:38] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:32:43] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     3    86.30%    82.45%    85.19%    85.92%    86.30%  137.7s    66/300 <-- NEW BEST
+[10:34:41] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:34:49] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:35:35] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:35:42] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     4    86.30%    82.45%    85.19%    85.92%    86.30%  91.5s    78/300
+[10:36:07] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:36:07] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:36:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:36:24] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     5    86.30%    82.45%    85.19%    86.07%    86.30%  75.9s    90/300
+[10:38:36] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:38:45] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     6    86.39%    82.68%    85.19%    86.07%    86.39%  111.1s   102/300 <-- NEW BEST
+[10:39:49] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:40:02] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     7    86.39%    85.84%    85.19%    86.07%    86.39%  122.7s   114/300
+     8    86.39%    85.97%    85.19%    86.07%    86.39%  68.7s   126/300
+[10:43:16] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:43:21] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     9    86.39%    86.36%    85.19%    86.25%    86.39%  80.9s   138/300
+[10:44:27] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:44:38] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+    10    86.39%    86.36%    85.19%    86.39%    86.39%  85.9s   150/300
+    11    86.39%    86.36%    85.19%    86.39%    86.39%  115.0s   162/300
+    12    86.39%    86.41%    85.19%    86.48%    86.48%  68.9s   174/300 <-- NEW BEST
+
+  [INJECT] Replacing bottom 1 in T1_GA with fresh random vectors.
+
+  [INJECT] Replacing bottom 1 in T1_DE with fresh random vectors.
+[10:48:03] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:48:22] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+
+================================================================================
+================= STEP 4: COMPOSITE SCORING + TOP-2 PROMOTION =================
+================================================================================
+
+  Algorithm     Best Acc  Diversity  Composite   Bonus  UCB Score
+  ------------ --------- ---------- ---------- ------- ----------
+  T1_GA           86.39%      0.471      0.703   0.037      0.740
+  T1_CMAES        86.48%      0.413      0.580   0.038      0.618
+  T1_PSO          86.41%      0.411      0.556   0.038      0.594
+  T1_DE           85.19%      0.471      0.425   0.037      0.462
+
+  [PROMOTED to Tier 2] : T1_GA, T1_CMAES
+  [RETAINED in Tier 1] : T1_PSO, T1_DE
+
+================================================================================
+============ STEP 5: TIER 2 ['GA', 'CMAES'] + TIER 1 ['PSO', 'DE'] ============
+================================================================================
+  Iter     T2_GA  T2_CMAES    T1_PSO     T1_DE    Global   Time       Budget
+  ----  --------  --------  --------  --------  --------  -----  -----------
+[10:49:53] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:50:01] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:50:47] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:50:53] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:50:55] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:50:57] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:50:59] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:51:01] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:51:25] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:51:42] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     1    86.44%    86.48%    86.41%    85.19%    86.48%  197.4s   206/300
+     2    86.48%    86.48%    86.41%    85.19%    86.48%  176.3s   236/300
+     3    86.48%    86.53%    86.41%    85.19%    86.53%  181.1s   266/300 <-- NEW BEST
+[10:59:48] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+[10:59:58] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\learner.cc:794: 
+Parameters: { "use_label_encoder" } are not used.
+
+     4    86.48%    86.53%    86.41%    85.19%    86.53%  171.1s   296/300
+
+================================================================================
+================================ FINAL RESULTS ================================
+================================================================================
+  Total Evaluations  : 300
+  Total Time         : 36m 40.1s
+  Winning Algorithm  : T2_CMAES
+  Best Accuracy      : 86.5300%
+  Optimal Model Type : ExtraTrees
+
+  Best Hyperparameters:
+    * booster             : gbtree
+    * colsample_bytree    : 0.4454
+    * fe_strategy         : interactions
+    * learning_rate       : 0.0131
+    * max_depth           : 10
+    * model_type          : ExtraTrees
+    * n_estimators        : 347
+    * reg_alpha           : 6.6753
+    * subsample           : 0.8514
+================================================================================
+
+[ALL DONE] Results saved to: C:\Users\siddh\Desktop\College\EvoSynth\results_forest\ablation\cvgs_300
+Summary table available at: C:\Users\siddh\Desktop\College\EvoSynth\results_forest\ablation\cvgs_300\ablation_cvgs_300_summary.txt
+
+[STAGE 3 COMPLETE] CVGS-300 results saved to results_forest\ablation\cvgs_300\
+
+========================================================================================================================
+ EVOSYNTH COVERTYPE ABLATION STUDY — CVGS-300 SUMMARY
+========================================================================================================================
+ Objective: Test isolated optimizers vs. EvoSynth dynamic meta-optimizer on Covertype.
+ Parameters: Population = 30 | Budget = 300 | 25% Share Checkpoint = 75
+
+------------------------------------------------------------------------------------------------------------------------
+ PART 1: 25% SHARED BUDGET CHECKPOINT (At Evaluation 75)
+------------------------------------------------------------------------------------------------------------------------
+ Strategy / Algorithm            Budget Used     Diversity   Passive UCB   Best Accuracy   Model Architecture  
+ ------------------------------  --------------  ----------  ------------  --------------  --------------------
+ Isolated GA                       75 evals        0.300        0.941           86.48%   ExtraTrees          
+ Isolated PSO                      75 evals        0.278        0.938           86.53%   ExtraTrees          
+ Isolated DE                       75 evals        0.296        0.940           86.36%   ExtraTrees          
+ Isolated CMAES                    75 evals        0.228        0.929           86.34%   ExtraTrees          
+ ------------------------------  --------------  ----------  ------------  --------------  --------------------
+ EVOSYNTH (Co-evolution)         75 evals        0.500        0.704           86.30%   ExtraTrees          
+
+------------------------------------------------------------------------------------------------------------------------
+ PART 2: 100% FULL CAPACITY COMPARISON (At Evaluation 300)
+------------------------------------------------------------------------------------------------------------------------
+ Strategy / Algorithm            Budget Used     Diversity   Passive UCB   Best Accuracy   Model Architecture  
+ ------------------------------  --------------  ----------  ------------  --------------  --------------------
+ Isolated GA                      300 evals        0.281        0.719           86.53%   ExtraTrees          
+ Isolated PSO                     300 evals        0.300        0.722           86.59%   ExtraTrees          
+ Isolated DE                      300 evals        0.475        0.749           86.59%   ExtraTrees          
+ Isolated CMAES                   300 evals        0.297        0.722           86.59%   ExtraTrees          
+ ------------------------------  --------------  ----------  ------------  --------------  --------------------
+ Best Isolated (PSO)           300 evals        0.300        0.722           86.59%   ExtraTrees          
+ EVOSYNTH (Co-evolution)        300 evals        0.450        0.720           86.53%   ExtraTrees          
+------------------------------------------------------------------------------------------------------------------------
+ EMPIRICAL CONCLUSION:
+   1. Accuracy Delta: EvoSynth (86.53%) vs Best Isolated (PSO @ 86.59%): -0.06%
+   2. Dynamic Architecture Discovery: Winning model = ExtraTrees with interactions features.
+========================================================================================================================

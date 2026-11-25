@@ -1,0 +1,9 @@
+======================================================================
+ BASELINE REPORT: DEFAULT EXTRATREES (UNTUNED)
+======================================================================
+ Model                : ExtraTreesClassifier (sklearn defaults)
+ Train Split          : 60,000 samples
+ Test Split           : 20,000 samples (held-out)
+ Accuracy             : 89.59%
+ Fit Duration         : 1.3 seconds
+======================================================================

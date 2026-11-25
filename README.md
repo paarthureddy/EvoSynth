@@ -1,7 +1,7 @@
 # EvoSynth: Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Model Selection and Hyperparameter Tuning
 
 <p align="center">
-  <img src="./Logo.png" alt="EvoSynth Logo" width="220" />
+  <img src="./assets/Logo.png" alt="EvoSynth Logo" width="220" />
 </p>
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -42,7 +42,7 @@ When defending this project before an evaluation panel, every keyword in the tit
 ## 🔄 End-to-End System Workflow & Architecture
 
 <p align="center">
-  <img src="./arch.png" alt="EvoSynth End-to-End System Architecture" width="100%" />
+  <img src="./assets/arch.png" alt="EvoSynth End-to-End System Architecture" width="100%" />
 </p>
 
 The EvoSynth workflow operates in **7 discrete, automated stages**:

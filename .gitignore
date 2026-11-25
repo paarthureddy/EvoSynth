@@ -37,4 +37,8 @@ reports/
 presentations/
 dataset_release/
 .data/
+docs/.vitepress/dist/
+results_forest/**/checkpoints/
+*.tmp
+
 
