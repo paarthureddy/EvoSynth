@@ -31,7 +31,6 @@
     * 6.2 Deep Learning Vision NAS (PyTorch CNN)
     * 6.3 Scalability on Big Datasets (50,000+ Samples)
   7. [Objective Self-Awareness: Strengths, Limitations, and Trade-offs](#7-objective-self-awareness-strengths-limitations-and-trade-offs)
-  8. [Professor & Evaluation Panel Defense Guide](#8-professor--evaluation-panel-defense-guide)
 
   ---
 
@@ -341,21 +340,3 @@
   2. **Lack of Multi-Fidelity Scheduling (ASHA/Hyperband):** While EvoSynth implements early stopping on gradient boosted trees, it does not currently use successive halving across data subsamples (e.g., evaluating candidates on 10% data before promoting to 100%).
   3. **Single-Node Execution:** Parallelization runs across local CPU cores via `ThreadPoolExecutor`; it does not natively distribute evaluations across a cluster of independent cloud servers (unlike Ray Tune or enterprise H2O).
   4. **Inactive Dimensions on Simpler Models:** When `RandomForest` is selected in the latent vector, boosting-specific hyperparameters (`learning_rate`, `booster`, `reg_alpha`) remain inactive, introducing minor neutral drift in the latent space.
-
-  ---
-
-  ## 8. Professor & Evaluation Panel Defense Guide
-
-  When defending this project before an evaluation committee, use these concise, authoritative responses to common panel questions:
-
-  ### Q1: "Why not simply train multiple models and ensemble them with stacking?"
-  > *"Ensembling is an inference-time prediction strategy; EvoSynth is an offline search strategy. A stacked ensemble combines 15 to 30 models at prediction time, multiplying inference latency by $20\times$ to $50\times$ and requiring gigabytes of RAM in production. EvoSynth uses multiple algorithms strictly during the offline search phase to explore non-convex landscapes and discover a single, optimal, standalone model that delivers microsecond inference latency with zero deployment bloat."*
-
-  ### Q2: "If accuracy reaches a plateau, why keep running the search?"
-  > *"Flat accuracy does not mean idle compute. In noisy, non-convex landscapes, what appears to be a plateau is often a deceptive local minimum. Single-algorithm optimizers stall permanently in these basins. EvoSynth monitors population diversity ($D$) and improvement trend ($T$): when stagnation is detected, our UCB1 controller triggers random latent injections and diverts budget to stochastic operators (like Genetic Algorithms) to jump out of the local trap."*
-
-  ### Q3: "Tools like FLAML claim to tune models in 15 seconds. Why does EvoSynth need more evaluations?"
-  > *"FLAML achieves speed through Cost-Frugal Optimization—greedy local hill-climbing from low-cost starting points. On smooth convex problems, this is efficient. But on rugged, collinear, or noisy landscapes, greedy search gets permanently trapped in the nearest local minimum. In our empirical benchmarks on 30% label noise, FLAML plateaued at 76.10%, whereas EvoSynth achieved 79.40%. A fast search that converges to a sub-optimal model is simply fast at failing to find the global optimum."*
-
-  ### Q4: "How does EvoSynth overcome the No Free Lunch (NFL) theorem?"
-  > *"The No Free Lunch theorem proves that no single optimization algorithm can outperform all others across all landscapes. Rather than attempting to create a single 'perfect' algorithm, EvoSynth operates as a Meta-Optimizer over a portfolio of complementary algorithms (GA, PSO, DE, CMA-ES). By continuously evaluating fitness velocity, diversity, and trend, the UCB1 Multi-Armed Bandit dynamically routes computational resources to whichever algorithm's search dynamics match the current phase of the landscape."*

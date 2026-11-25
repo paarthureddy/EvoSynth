@@ -328,3 +328,22 @@ A strong viva defense requires intellectual honesty about system limitations.
 - [x] **Research Paper Updated:** `paper/paper.tex` includes complete Section 5.3 on the Forest Covertype benchmark.
 - [x] **Full Documentation:** `README.md` and `docs/research/comparative_analysis.md` fully aligned.
 
+---
+
+## 11. Short Answers from the Comparative Analysis
+
+These four answers were the closing section of `docs/research/comparative_analysis.md` (section 8, "Professor & Evaluation Panel Defense Guide"). They moved here so that no defence material is on the official documentation site. Q3 originally cited the pathological 30%-label-noise benchmark (FLAML 76.10% vs EvoSynth 79.40%), which the project no longer uses; it now cites the v1 Covertype results from `results/archive/2026-11-19_covertype_v1/`.
+
+When defending this project before an evaluation committee, use these concise, authoritative responses to common panel questions:
+
+### Q1: "Why not simply train multiple models and ensemble them with stacking?"
+> *"Ensembling is an inference-time prediction strategy; EvoSynth is an offline search strategy. A stacked ensemble combines 15 to 30 models at prediction time, multiplying inference latency by $20\times$ to $50\times$ and requiring gigabytes of RAM in production. EvoSynth uses multiple algorithms strictly during the offline search phase to explore non-convex landscapes and discover a single, optimal, standalone model that delivers microsecond inference latency with zero deployment bloat."*
+
+### Q2: "If accuracy reaches a plateau, why keep running the search?"
+> *"Flat accuracy does not mean idle compute. In noisy, non-convex landscapes, what appears to be a plateau is often a deceptive local minimum. Single-algorithm optimizers stall permanently in these basins. EvoSynth monitors population diversity ($D$) and improvement trend ($T$): when stagnation is detected, our UCB1 controller triggers random latent injections and diverts budget to stochastic operators (like Genetic Algorithms) to jump out of the local trap."*
+
+### Q3: "Tools like FLAML claim to tune models in 15 seconds. Why does EvoSynth need more evaluations?"
+> *"FLAML achieves speed through Cost-Frugal Optimization—greedy local hill-climbing from low-cost starting points. On smooth convex problems, this is efficient. But on rugged, collinear, or noisy landscapes, greedy search gets permanently trapped in the nearest local minimum. On UCI Forest Covertype, with the same 60k / 20k split, FLAML's 585-second search reached 92.44% test accuracy, while EvoSynth at 500 evaluations reached 94.05%. A fast search that converges to a sub-optimal model is simply fast at failing to find the global optimum."*
+
+### Q4: "How does EvoSynth overcome the No Free Lunch (NFL) theorem?"
+> *"The No Free Lunch theorem proves that no single optimization algorithm can outperform all others across all landscapes. Rather than attempting to create a single 'perfect' algorithm, EvoSynth operates as a Meta-Optimizer over a portfolio of complementary algorithms (GA, PSO, DE, CMA-ES). By continuously evaluating fitness velocity, diversity, and trend, the UCB1 Multi-Armed Bandit dynamically routes computational resources to whichever algorithm's search dynamics match the current phase of the landscape."*
