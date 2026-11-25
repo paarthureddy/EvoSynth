@@ -1,0 +1,106 @@
+# =====================================================================================
+#  EvoSynth settings — Experiment presets (one [experiments.<name>] section per kind of run)
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[experiments.search_demo]
+# Quick search + refit. Command: `evosynth run` (default preset).
+# Applied to [engine] by src/evosynth/config.py → load_config(preset=...), called from
+# src/evosynth/cli.py → cmd_run; then read by DynamicOptimizer.__init__ via experiments/search.py → run_search.
+# -------------------------------------------------------------------------------------
+budget = 120
+pop_size = 20
+t1_iters = 3
+k_iters = 2
+
+# -------------------------------------------------------------------------------------
+[experiments.search_full]
+# Command: `evosynth run --full` (or --preset search_full). Applied exactly like search_demo.
+# -------------------------------------------------------------------------------------
+budget = 500
+pop_size = 40
+t1_iters = 5
+k_iters = 3
+
+# -------------------------------------------------------------------------------------
+[experiments.scaling]
+# Budget-scaling runs with checkpointing. Command: `evosynth scale --budget N`.
+# Used in: src/evosynth/experiments/scaling.py → run_benchmark (budgets, default_budget, pop_size,
+#          checkpoint_interval) and schedule():
+# t1_iters = max(t1_iters_min, int(t1_iters_fraction · budget)); k_iters likewise.
+# -------------------------------------------------------------------------------------
+budgets = [120, 300, 500, 1000]   # allowed `evosynth scale --budget` values
+default_budget = 300
+pop_size = 30
+t1_iters_fraction = 0.03
+t1_iters_min = 3
+k_iters_fraction = 0.02
+k_iters_min = 2
+checkpoint_interval = 10          # write checkpoint JSON every N evaluations (run_benchmark → monitored_evaluate)
+
+# -------------------------------------------------------------------------------------
+[experiments.ablation]
+# Isolated optimizers vs EvoSynth. Command: `evosynth ablation --setup NAME`.
+# Used in: src/evosynth/experiments/ablation.py → run_ablation (setups, pop_size, max_workers,
+#          checkpoint_interval, share_checkpoint_fraction), run_isolated_optimizer (batch_*),
+#          run_benchmark_setup (t1/k schedule for the EvoSynth run).
+# -------------------------------------------------------------------------------------
+setups = { "CVGS-300" = 300, "CVGS-500" = 500 }   # setup name → budget (run_ablation)
+pop_size = 30                      # run_ablation (--pop-size default)
+max_workers = 2                    # run_ablation (--max-workers default; low to limit RAM)
+checkpoint_interval = 10           # run_isolated_optimizer (resume checkpoint every N evals)
+share_checkpoint_fraction = 0.25   # run_ablation: checkpoint_eval = int(budget · fraction) ("25% budget share")
+batch_min = 5                      # run_isolated_optimizer: batch = max(batch_min, min(batch_max, pop // batch_divisor))
+batch_max = 10
+batch_divisor = 3
+t1_iters_fraction = 0.04           # run_benchmark_setup: EvoSynth t1_iters = max(3, int(0.04 · budget))
+t1_iters_min = 3
+k_iters_fraction = 0.02            # run_benchmark_setup: EvoSynth k_iters = max(2, int(0.02 · budget))
+k_iters_min = 2
+
+[experiments.ablation.passive_telemetry]
+# Constants of the passive (decision-free) metrics logged for isolated optimizers.
+# Used in: src/evosynth/experiments/ablation.py → _compute_passive_metrics.
+# Phase 4.2 replaces these with the controller's own scoring formulas, then this table is removed.
+c = 0.5
+fitness_scale = 100.0
+speed_scale = 10.0
+efficiency_scale = 100.0
+trend_scale = 10.0
+
+# -------------------------------------------------------------------------------------
+[experiments.baselines]
+# Competitor and floor baselines. Command: `evosynth baselines --test ...`.
+# Used in: src/evosynth/experiments/baselines.py → run_default_extratrees, run_random_search,
+#          run_optuna_baseline, run_flaml_baseline; refit_trees by src/evosynth/models/factory.py →
+#          build_model (phase="baseline_default").
+# -------------------------------------------------------------------------------------
+default_extratrees_trees = 100     # run_default_extratrees (untuned floor)
+random_search_trials = 120         # run_random_search (--trials overrides)
+optuna_trials = 120                # run_optuna_baseline (--trials overrides)
+flaml_time_budget = 585            # seconds; run_flaml_baseline (--time-budget overrides)
+flaml_metric = "accuracy"          # run_flaml_baseline
+flaml_estimators = ["lgbm", "rf", "extra_tree", "xgboost"]   # run_flaml_baseline
+refit_trees = 150                  # models/factory.py build_model(phase="baseline_default") (Phase 4.4 unifies refits)
+
+# -------------------------------------------------------------------------------------
+[experiments.nas]
+# CNN architecture search.
+# epochs / batch_size / validation_fraction / sgd_momentum / device are read by
+# src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__ (defaults) and .evaluate (momentum).
+# budget / pop_size / t1_iters / k_iters: src/evosynth/experiments/nas.py → run_nas (command: evosynth nas).
+# -------------------------------------------------------------------------------------
+budget = 80
+pop_size = 20
+t1_iters = 3
+k_iters = 2
+epochs = 2                 # ImageCNNEvaluator.__init__ default
+batch_size = 64            # ImageCNNEvaluator.__init__
+validation_fraction = 0.25 # ImageCNNEvaluator.__init__ (train/val split)
+sgd_momentum = 0.9         # ImageCNNEvaluator.evaluate (when optimizer = SGD)
+device = "cpu"             # ImageCNNEvaluator.__init__ ("cuda" used only if available)

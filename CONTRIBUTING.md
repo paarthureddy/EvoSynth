@@ -16,18 +16,28 @@ Thank you for your interest in contributing to **EvoSynth**! We welcome contribu
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   pip install -e ".[all]"    # Python 3.11+; installs the `evosynth` command
    ```
 
-3. **Run Tabular Search Verification:**
+3. **Check the Settings and Run a Quick Search:**
    ```bash
-   python main.py
+   evosynth settings check
+   evosynth run --budget 36 --pop-size 20 --t1-iters 2 --k-iters 1 --no-refit
    ```
 
 4. **Run Vision NAS Verification:**
    ```bash
-   python run_vision_nas.py
+   evosynth nas
    ```
+
+5. **Run the tests** (about 5 seconds, no model training):
+   ```bash
+   python -m pytest
+   ```
+
+6. **Settings rule:** never hard-code a tunable value in Python. Add it to the matching file in
+   `settings/` with a comment saying what it controls, where it is used
+   (`Used in: <file> → <function>`) and its range, and read it with `evosynth.config.get_settings()`.
 
 ---
 
@@ -45,9 +55,11 @@ Thank you for your interest in contributing to **EvoSynth**! We welcome contribu
 ## 🧩 Adding a New Optimizer
 
 EvoSynth's modular architecture makes it easy to add new optimization algorithms:
-1. Subclass the base optimizer interface under `automl_engine/engine/`.
-2. Implement `step()` and latent space vector transformation in `automl_engine/core/search_space.py`.
-3. Register the new heuristic in `automl_engine/engine/controller.py` so the UCB1 Multi-Armed Bandit can assign exploration arms to it.
+1. Implement the ask / tell interface (`ask(n)` returns latent vectors in $[0, 1]^d$, `tell(individuals)` updates the optimizer) in `src/evosynth/optimizers/`.
+2. Put its constants in `settings/optimizers.toml` (with "Used in" comments).
+3. Register it in `src/evosynth/engine/controller.py` (`_make_optimizer`) so the UCB1 Multi-Armed Bandit can assign exploration arms to it.
+
+See `docs/developer/adding-optimizer.md` for a full example.
 
 ---
 

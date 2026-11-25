@@ -1,0 +1,51 @@
+# =====================================================================================
+#  EvoSynth settings — Search spaces (tabular model + FE + hyperparameters, CNN NAS, toy)
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[search_space.tabular]
+# The 9-dimensional tabular search space (model family + FE strategy + 7 hyperparameters).
+# Used in: src/evosynth/search_spaces/tabular.py → get_tabular_search_space (alias get_xgboost_search_space)
+# Ranges are {low, high} (inclusive); log = true means log-uniform scaling;
+# int = true makes it an integer hyperparameter (otherwise it is a float).
+# -------------------------------------------------------------------------------------
+
+model_types      = ["XGBoost", "RandomForest", "LightGBM", "ExtraTrees"]   # categorical, order = latent bins
+fe_strategies    = ["none", "stats", "interactions"]                        # categorical (see [features])
+boosters         = ["gbtree", "dart"]                                       # XGBoost only
+learning_rate    = { low = 0.01, high = 0.3, log = true }                   # XGBoost / LightGBM
+n_estimators     = { low = 50,   high = 500, int = true }                   # all models
+max_depth        = { low = 3,    high = 10, int = true }                    # all models
+subsample        = { low = 0.5,  high = 1.0 }                               # XGBoost / LightGBM
+colsample_bytree = { low = 0.3,  high = 1.0 }                               # XGB/LGBM; max_features for RF/ET
+reg_alpha        = { low = 0.0,  high = 10.0 }                              # XGBoost / LightGBM (L1)
+
+# -------------------------------------------------------------------------------------
+[search_space.nas]
+# CNN architecture search space.
+# Used in: src/evosynth/search_spaces/nas.py → get_image_nas_search_space
+# -------------------------------------------------------------------------------------
+
+conv1_channels = [16, 32, 64]
+conv2_channels = [32, 64, 128]
+fc_units       = [64, 128, 256]
+optimizers     = ["Adam", "SGD", "RMSprop"]
+activations    = ["relu", "leaky_relu"]
+dropout_rate   = { low = 0.0,    high = 0.5 }
+learning_rate  = { low = 0.0001, high = 0.1, log = true }
+
+# -------------------------------------------------------------------------------------
+[search_space.toy]
+# 4-D test space for the DummyObjectiveFunction (unit tests only; no dataset).
+# Used in: src/evosynth/search_spaces/toy.py → get_dummy_search_space
+# -------------------------------------------------------------------------------------
+
+learning_rate = { low = 0.001, high = 0.3, log = true }
+num_layers    = { low = 1,     high = 10, int = true }
+optimizers    = ["Adam", "SGD", "RMSprop"]
+dropout       = { low = 0.0,   high = 0.5 }

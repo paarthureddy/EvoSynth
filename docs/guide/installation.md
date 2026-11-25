@@ -6,7 +6,7 @@ This guide covers setting up the Python optimization backend, dependencies, and 
 
 ## Prerequisites
 
-* **Python:** Version 3.9+ (tested up to Python 3.14)
+* **Python:** Version 3.11+ (developed and tested on Python 3.14)
 * **Node.js:** Version 18+ (for the dashboard)
 * **Package Managers:** `pip` and `npm`
 
@@ -29,16 +29,19 @@ venv\Scripts\activate
 # Activate on Linux/macOS:
 source venv/bin/activate
 
-# Install backend dependencies
-pip install -r requirements.txt
+# Install EvoSynth and its dependencies (pinned in pyproject.toml)
+pip install -e ".[all]"        # or just `pip install -e .` without NAS / baseline extras
 ```
 
-### Core Dependencies (`requirements.txt`)
+This installs the `evosynth` command (also runnable as `python -m evosynth`).
+
+### Core Dependencies (`pyproject.toml`)
 * `ConfigSpace`: High-dimensional search space boundaries and categorical distributions.
 * `numpy` & `scipy`: Vector operations and scientific computing.
 * `xgboost` & `lightgbm`: Gradient boosted tree models.
 * `scikit-learn`: Datasets, metrics, cross-validation, and Random Forest models.
-* `torch` & `torchvision`: Deep learning framework for Convolutional Neural Network NAS.
+* `torch` & `torchvision` (extra `nas`): Deep learning framework for Convolutional Neural Network NAS.
+* `optuna` & `flaml` (extra `baselines`): competitor baselines.
 * `fastapi` & `uvicorn`: High-throughput Server-Sent Events (SSE) telemetry backend.
 * `cma`: Covariance Matrix Adaptation Evolution Strategy.
 
@@ -63,5 +66,7 @@ The Vite dev server will host the frontend at `http://localhost:5173`.
 Run the quick verification command:
 
 ```bash
-python -c "from automl_engine.core.search_space import get_xgboost_search_space; from automl_engine.core.evaluator import XGBoostEvaluator; print('EvoSynth Backend Ready!')"
+evosynth settings check      # validates the settings/ folder
+evosynth datasets list       # registered datasets
+evosynth run                 # quick search + refit (preset search_demo)
 ```

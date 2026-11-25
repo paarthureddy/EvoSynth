@@ -4,7 +4,7 @@
 
 The Genetic Algorithm component simulates biological natural selection using chromosomes of continuous latent vectors $\mathbf{z} \in [0, 1]^d$.
 
-* **Implementation:** [`automl_engine/optimizers/ga.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/optimizers/ga.py)
+* **Implementation:** [`src/evosynth/optimizers/ga.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/optimizers/ga.py) (constants in [`settings/optimizers.toml`](https://github.com/paarthureddy/EvoSynth/blob/main/settings/optimizers.toml))
 * **Primary Role:** Global exploration and escaping deceptive basins through stochastic genetic operators.
 
 ---

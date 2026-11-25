@@ -1,0 +1,84 @@
+# =====================================================================================
+#  EvoSynth settings — How candidates are scored, feature engineering, post-search refit
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[evaluation]
+# How a candidate configuration is scored during search (tabular).
+# -------------------------------------------------------------------------------------
+
+# Cross-validation folds (StratifiedKFold, shuffled).
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.evaluate      Range: 2–10
+cv_folds = 2
+
+# Boosted models stop after this many rounds without validation improvement.
+# Used in: src/evosynth/models/factory.py → build_model (XGBoost early_stopping_rounds),
+#          fit_model (LightGBM early_stopping callback)
+# Range: 5–50
+early_stopping_rounds = 10
+
+# RandomForest / ExtraTrees are capped at this many trees during search (n_estimators = min(n, cap)).
+# Used in: src/evosynth/models/factory.py → build_model (phase="search")      Range: ≥ 10
+search_tree_cap = 150
+
+# RF/ET depth = max_depth × multiplier, or unlimited when max_depth is at its upper bound.
+# Used in: src/evosynth/models/factory.py → _bagging_depth (both search and refit phases)
+# Range: ≥ 1
+bagging_depth_multiplier = 3
+
+# Score recorded for a CV fold whose model raised an exception (fraction, 0.5 = 50%).
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.evaluate (except branch).
+#          Phase 3.4 changes this to 0.0 + logging.
+# Range: 0–1
+failed_fold_score = 0.5
+
+# Threads per individual model during search (parallelism comes from max_workers instead).
+# Used in: src/evosynth/models/factory.py → build_model (phase="search")
+# Range: 1
+model_n_jobs = 1
+
+# -------------------------------------------------------------------------------------
+[features]
+# Dataset-agnostic feature engineering (`fe_strategy` gene).
+# Used in: src/evosynth/features/generic.py → GenericFeatureEngineer
+# -------------------------------------------------------------------------------------
+
+# A column counts as continuous if it has more unique values than this (in the sample below).
+# Used in: GenericFeatureEngineer.fit      Range: ≥ 2
+continuous_unique_threshold = 15
+
+# Number of leading rows inspected to detect continuous columns.
+# Used in: GenericFeatureEngineer.fit      Range: ≥ 100
+detection_sample_rows = 2000
+
+# 'interactions' uses the top-N continuous columns by variance (N·(N−1)/2 pairs × 2 features).
+# Used in: GenericFeatureEngineer.__init__ (max_interaction_features), GenericFeatureEngineer.fit
+# Range: 2–15
+max_interaction_features = 6
+
+# -------------------------------------------------------------------------------------
+[refit]
+# Post-search generalisation refit of the winning configuration (held-out test).
+# Used in: src/evosynth/models/refit.py → refit_split, refit_and_score;
+#          src/evosynth/models/factory.py → build_model (phase="refit").
+# Called by src/evosynth/experiments/search.py → run_search and
+#           src/evosynth/experiments/scaling.py → run_benchmark ("STEP 6").
+# -------------------------------------------------------------------------------------
+
+# Rows used to train / test the winner (stratified split of the full dataset).
+# Also used by every baseline: src/evosynth/experiments/baselines.py → load_covertype_splits (via models/refit.refit_split)
+train_rows = 60000
+test_rows  = 20000
+
+# Minimum trees in the refit model: n_estimators = max(tuned value, minimum).
+min_trees_bagging = 150   # RandomForest / ExtraTrees
+min_trees_lgbm    = 250   # LightGBM
+min_trees_xgb     = 200   # XGBoost
+
+# Threads per model at refit time (-1 = all cores).
+model_n_jobs = -1

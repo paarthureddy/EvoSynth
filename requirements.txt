@@ -1,17 +1,3 @@
-
-ConfigSpace
-numpy
-fastapi
-uvicorn
-xgboost
-lightgbm
-scikit-learn
-requests
-cma
-torch
-torchvision
-optuna
-flaml
-deap
-pandas
-matplotlib
+# Dependencies are defined (and pinned) in pyproject.toml.
+# This file is kept so `pip install -r requirements.txt` still works:
+-e .[all]

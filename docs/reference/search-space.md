@@ -1,23 +1,24 @@
 # Search Space API Reference
 
-Search spaces define the configuration boundaries, conditional relationships, and probability distributions for hyperparameters.
+Search spaces define the configuration boundaries and distributions for hyperparameters. They are built with `ConfigSpace` from the ranges in [`settings/search_spaces.toml`](https://github.com/paarthureddy/EvoSynth/blob/main/settings/search_spaces.toml); edit that file to change a range or add a choice.
 
-* **Source:** [`automl_engine/core/search_space.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/core/search_space.py)
+* **Source:** [`src/evosynth/search_spaces/`](https://github.com/paarthureddy/EvoSynth/tree/main/src/evosynth/search_spaces)
 
 ---
 
-## 1. `get_model_switching_search_space()`
+## 1. `get_tabular_search_space()`
 
-Defines the multi-model architecture search space:
+Defines the multi-model tabular search space (9 dimensions):
 
 ```python
-from automl_engine.core.search_space import get_model_switching_search_space
+from evosynth.search_spaces.tabular import get_tabular_search_space
 
-space = get_model_switching_search_space()
+space = get_tabular_search_space(include_model_type=True, include_fe_strategy=True)
 ```
 
 ### Dimensions:
-* `model_type` (Categorical): `['XGBoost', 'RandomForest', 'LightGBM']`
+* `model_type` (Categorical): `['XGBoost', 'RandomForest', 'LightGBM', 'ExtraTrees']`
+* `fe_strategy` (Categorical): `['none', 'stats', 'interactions']`
 * `learning_rate` (UniformFloat, log): `[0.01, 0.3]`
 * `n_estimators` (UniformInteger): `[50, 500]`
 * `max_depth` (UniformInteger): `[3, 10]`
@@ -33,7 +34,7 @@ space = get_model_switching_search_space()
 Defines the Neural Architecture Search space for PyTorch CNNs:
 
 ```python
-from automl_engine.core.search_space import get_image_nas_search_space
+from evosynth.search_spaces.nas import get_image_nas_search_space
 
 space = get_image_nas_search_space()
 ```
@@ -46,3 +47,13 @@ space = get_image_nas_search_space()
 * `learning_rate` (UniformFloat, log): `[1e-4, 1e-1]`
 * `optimizer` (Categorical): `['Adam', 'SGD', 'RMSprop']`
 * `activation` (Categorical): `['relu', 'leaky_relu']`
+
+---
+
+## 3. `get_dummy_search_space()`
+
+A small toy space (`learning_rate`, `num_layers`, `optimizer`, `dropout`) used with `DummyObjectiveFunction` for fast engine tests.
+
+```python
+from evosynth.search_spaces.toy import get_dummy_search_space
+```

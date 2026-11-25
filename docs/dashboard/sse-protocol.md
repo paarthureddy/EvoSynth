@@ -6,7 +6,7 @@ EvoSynth utilizes standard HTTP **Server-Sent Events (SSE)** rather than WebSock
 
 ```text
   Python Optimizer ────POST /event────► FastAPI Telemetry ────SSE Stream────► React Dashboard
- (controller.py)                         (api_server.py)                     (EventSource Hook)
+ (controller.py)                    (evosynth serve)                       (EventSource Hook)
 ```
 
 ---

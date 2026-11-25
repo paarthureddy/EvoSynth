@@ -4,7 +4,7 @@
 
 Differential Evolution is a continuous stochastic search heuristic that uses vector differences for perturbing the population.
 
-* **Implementation:** [`automl_engine/optimizers/de.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/optimizers/de.py)
+* **Implementation:** [`src/evosynth/optimizers/de.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/optimizers/de.py) (constants in [`settings/optimizers.toml`](https://github.com/paarthureddy/EvoSynth/blob/main/settings/optimizers.toml))
 * **Primary Role:** Robust navigation across non-linear, non-separable, and correlated hyperparameter surfaces.
 
 ---

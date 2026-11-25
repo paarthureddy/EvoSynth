@@ -21,15 +21,14 @@ EvoSynth System Architecture
 ┌──────────────────────────────────▼─────────────────────────────────────┐
 │                     Evaluation & Search Space Layer                    │
 │  • Universal Latent Space Continuous Mapper ([0, 1]^n)                 │
-│  • MultiModelEvaluator (XGBoost, LightGBM, Random Forest)              │
+│  • TabularEvaluator (XGBoost, LightGBM, RandomForest, ExtraTrees)      │
 │  • ImageCNNEvaluator (PyTorch CNN Neural Architecture Search)          │
-│  • PathologicalXGBoostEvaluator (Noisy Local Minima Benchmark)         │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 1. Meta-Control Layer (`automl_engine/engine`)
+## 1. Meta-Control Layer (`src/evosynth/engine`)
 
 * **`DynamicOptimizer`:** Coordinates the multi-step lifecycle, from initial random sampling to tournament evaluation and Tier 2 exploitation loops.
 * **`UCB1Bandit`:** Implements the Upper Confidence Bound algorithm:
@@ -41,7 +40,7 @@ EvoSynth System Architecture
 
 ---
 
-## 2. Worker Optimizer Layer (`automl_engine/optimizers`)
+## 2. Worker Optimizer Layer (`src/evosynth/optimizers`)
 
 All optimizers conform to a decoupled **Ask / Tell** interface:
 * `ask(n)`: Generates $n$ candidate latent vectors $\mathbf{z} \in [0, 1]^d$.
@@ -49,7 +48,7 @@ All optimizers conform to a decoupled **Ask / Tell** interface:
 
 ---
 
-## 3. Evaluator & Search Space Layer (`automl_engine/core`)
+## 3. Evaluator & Search Space Layer (`src/evosynth/core`, `evaluators`, `search_spaces`)
 
 * **Universal Latent Space:** Maps mixed categorical, integer, and log-scale continuous parameters into a unified $[0, 1]^d$ hypercube.
 * **Asynchronous Parallelism:** Evaluates candidate configurations across multi-core workers via `concurrent.futures.ThreadPoolExecutor`.

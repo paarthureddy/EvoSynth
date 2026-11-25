@@ -1,0 +1,30 @@
+# =====================================================================================
+#  EvoSynth settings — Live dashboard telemetry (engine -> FastAPI -> React)
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[telemetry]
+# Live dashboard plumbing (engine → FastAPI → React).
+# -------------------------------------------------------------------------------------
+
+# Where the telemetry server listens.
+# Used in: src/evosynth/telemetry/server.py → serve (command: evosynth serve)
+server_host = "0.0.0.0"
+server_port = 8000
+
+# Where the engine sends events / probes for the server. Events are also always saved to the
+# run's events.jsonl (src/evosynth/experiments/run_context.py → RunContext), server or not.
+# Used in: src/evosynth/telemetry/reporter.py → EventReporter.__init__ (url, probe of /docs),
+#          EventReporter.emit
+# The dashboard's address is set separately in dashboard/src/App.jsx (EventSource URL).
+reporter_url = "http://localhost:8000"
+
+# Seconds to wait for the server probe at start-up / for each event POST.
+# Used in: EventReporter.__init__ (probe timeout), EventReporter.emit (post timeout)
+probe_timeout = 0.5
+post_timeout  = 1.0

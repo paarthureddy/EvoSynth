@@ -1,0 +1,136 @@
+# =====================================================================================
+#  EvoSynth settings — Meta-optimizer engine: tiers, UCB1 bandit, composite score, safeguards
+# =====================================================================================
+#  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
+#  in this folder is merged into one set of settings; a section may appear in one file only.
+#  Each setting: what it controls / Used in: <file> → <function> / Range.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[engine]
+# DynamicOptimizer defaults, read in src/evosynth/engine/controller.py → DynamicOptimizer.__init__
+# whenever the corresponding argument is None. The [experiments.*] presets below override
+# budget / pop_size / t1_iters / k_iters for each kind of run.
+# -------------------------------------------------------------------------------------
+
+# Total number of model evaluations for one run (shared by all four optimizers).
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (budget),
+#          DynamicOptimizer._evaluate_batch (truncates batches to remaining budget),
+#          DynamicOptimizer.run (loop termination)
+# Range: ≥ pop_size + 4·t1_iters·(island size); typically 120–2500
+budget = 2000
+
+# Size N of the initial random population.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 1 generation,
+#          Step 2 tier split, T2 island sizes)
+# Range: ≥ 20 (so each Tier 1 island has ≥ 2 members); recommended ≥ 40
+pop_size = 100
+
+# Number of Tier 1 tournament iterations before the top optimizers are promoted.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 3 loop)
+# Range: ≥ 1; typically 3–30
+t1_iters = 30
+
+# Checkpoint interval k: every k iterations scoring, SWAP, stagnation injection and elite
+# sharing are evaluated. Also sets the cooldown (= cooldown_multiplier · k).
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 3 T1 stagnation
+#          check, Step 5 switching checkpoint, cooldowns after SWAP / rollback)
+# Range: ≥ 1; must be small enough that Tier 2 reaches ≥ 1 checkpoint within the budget
+k_iters = 10
+
+# Fraction of the (sorted) initial population that seeds Tier 1; the rest is the Tier 2 reserve.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (self.t1_fraction) →
+#          DynamicOptimizer.run (Step 2: t1_count = int(pop_size · t1_fraction)).
+#          (src/evosynth/engine/tiers.py → TierManager.__init__ t1_ratio is wired in Phase 1.6.)
+# Range: 0.1–0.9
+t1_fraction = 0.40
+
+# How many Tier 1 optimizers are promoted to Tier 2 after the tournament.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (self.n_promoted) →
+#          DynamicOptimizer.run (Step 4: top/bottom slices). Reserve split in halves → only 2 supported.
+# Range: 2 (fixed until the tier logic is generalised)
+n_promoted = 2
+
+# -------------------------------------------------------------------------------------
+[bandit]
+# UCB1 exploration bonus added to each optimizer's composite score:
+#     UCB = composite + c · sqrt( ln(total evaluations) / evaluations of this optimizer )
+# -------------------------------------------------------------------------------------
+
+# Exploration constant c used for promotion and SWAP decisions.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (self.c),
+#          DynamicOptimizer._compute_composite (exploration_bonus).
+#          (src/evosynth/engine/bandit.py → UCB1Bandit.__init__ has its own default c=1.414,
+#          which does not affect decisions today; Phase 1.1 makes UCB1Bandit use this value.)
+# Range: 0.0 (no exploration) – 2.0; typical 0.05–0.5
+c = 0.1
+
+# -------------------------------------------------------------------------------------
+[composite]
+# Composite score = Σ weight · (min-max normalised metric across the islands being compared).
+# The five weights must sum to 1.0.
+# Used in: src/evosynth/engine/scoring.py → CompositeScoringEngine.__init__ (self.weights),
+#          CompositeScoringEngine.calculate_scores (weighted sum);
+#          src/evosynth/experiments/ablation.py → _compute_passive_metrics (same weights, passive only)
+# -------------------------------------------------------------------------------------
+
+# Weight of the island's best fitness (accuracy).          Range: 0–1
+fitness = 0.30
+# Weight of speed (improvement since last scoring call).  Range: 0–1
+speed = 0.25
+# Weight of efficiency (currently a constant 1.0 for every island → no effect until Phase 1.2).  Range: 0–1
+efficiency = 0.15
+# Weight of population diversity.                          Range: 0–1
+diversity = 0.15
+# Weight of trend (currently identical to speed until Phase 1.3).  Range: 0–1
+trend = 0.15
+
+# Value given to a metric when every island has the same value (no spread to normalise).
+# Used in: src/evosynth/engine/scoring.py → CompositeScoringEngine.calculate_scores
+# Range: 0–1
+tie_value = 0.5
+
+# -------------------------------------------------------------------------------------
+[safeguards]
+# SWAP / grace period / rollback / cooldown / stagnation injection / elite sharing.
+# All used in src/evosynth/engine/controller.py → DynamicOptimizer.run (Steps 3 and 5)
+# unless stated otherwise.
+# -------------------------------------------------------------------------------------
+
+# Additive UCB margin: SWAP happens when UCB(best Tier 1) > UCB(worst Tier 2) + swap_margin.
+# Used in: DynamicOptimizer.__init__ (self.swap_threshold; renamed swap_margin in Phase 1.5),
+#          DynamicOptimizer.run (Step 5 "a) Swap")
+# Range: 0.0–0.5
+swap_margin = 0.10
+
+# Iterations a newly swapped-in optimizer has to improve the global best before rollback.
+# Used in: DynamicOptimizer.__init__ (self.grace_iters) → DynamicOptimizer.run (Step 5: grace period)
+# Range: ≥ 1
+grace_iters = 5
+
+# Cooldown after a SWAP (demoted optimizer) or rollback (failed challenger) = multiplier · k_iters.
+# Used in: DynamicOptimizer.__init__ (self.cooldown_multiplier) → DynamicOptimizer.run (Step 5 SWAP and rollback)
+# Range: ≥ 0
+cooldown_multiplier = 2
+
+# Consecutive zero-trend checkpoints before a Tier 2 island gets random injection.
+# Used in: DynamicOptimizer.__init__ (stagnation_limit), DynamicOptimizer.run (Step 5 "b) Stagnation")
+# Range: ≥ 1
+stagnation_limit = 3
+
+# Fraction of a stagnant Tier 1 island replaced by fresh random vectors (at any zero-trend checkpoint).
+# Used in: DynamicOptimizer.__init__ (self.t1_inject_pct) → DynamicOptimizer.run (Step 3) → _random_inject
+# Range: 0–1
+t1_inject_pct = 0.50
+
+# Fraction of a stagnant Tier 2 island replaced by fresh random vectors.
+# Used in: DynamicOptimizer.__init__ (inject_pct), DynamicOptimizer.run (Step 5), DynamicOptimizer._random_inject
+# Range: 0–1
+t2_inject_pct = 0.20
+
+# Fraction of each Tier 2 island exchanged at every checkpoint (elite sharing).
+# Used in: DynamicOptimizer.__init__ (elite_pct), DynamicOptimizer.run (Step 5 "c) Elite Sharing");
+#          src/evosynth/engine/tiers.py → TierManager.share_elites (top_pct, class not yet used)
+# Range: 0–0.5
+elite_pct = 0.20

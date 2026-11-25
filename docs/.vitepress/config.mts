@@ -18,7 +18,7 @@ export default defineConfig({
       { text: "Guide", link: "/guide/introduction" },
       { text: "Algorithms", link: "/algorithms/genetic-algorithm" },
       { text: "API Reference", link: "/reference/controller" },
-      { text: "Comparative Analysis", link: "/comparative_analysis" },
+      { text: "Comparative Analysis", link: "/research/comparative_analysis" },
     ],
 
     sidebar: {

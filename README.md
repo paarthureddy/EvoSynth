@@ -1,10 +1,10 @@
 # EvoSynth: Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Model Selection and Hyperparameter Tuning
 
 <p align="center">
-  <img src="./assets/Logo.png" alt="EvoSynth Logo" width="220" />
+  <img src="./docs/public/logo.png" alt="EvoSynth Logo" width="220" />
 </p>
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://react.dev/)
@@ -32,17 +32,17 @@ When defending this project before an evaluation panel, every keyword in the tit
 
 | Title Component | Concrete Workflow Stage | Source Implementation |
 | :--- | :--- | :--- |
-| **Dynamic Multi-Armed Bandit** | Calculates real-time Upper Confidence Bounds ($UCB1 = \bar{X}_i + c \sqrt{\frac{\ln N}{n_i}}$) across composite fitness, velocity, diversity, and trend metrics. | [`automl_engine/engine/ucb1.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/engine/ucb1.py) |
-| **Meta-Optimizer** | Controls and coordinates multiple underlying optimization algorithms (Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES) in a 2-Tier Island Model. | [`automl_engine/engine/controller.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/engine/controller.py) |
-| **Automated Model Selection** | Decodes latent vectors to dynamically switch model families (`XGBoost`, `LightGBM`, `RandomForest`, or PyTorch `CNN`) within the same search loop. | [`automl_engine/core/search_space.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/core/search_space.py) |
-| **Hyperparameter Tuning** | Evaluates continuous & discrete parameters in parallel with early stopping to prevent wasted compute on suboptimal branches. | [`automl_engine/core/evaluator.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/core/evaluator.py) |
+| **Dynamic Multi-Armed Bandit** | Calculates real-time Upper Confidence Bounds ($UCB1 = \bar{X}_i + c \sqrt{\frac{\ln N}{n_i}}$) across composite fitness, velocity, diversity, and trend metrics. | [`src/evosynth/engine/bandit.py`](src/evosynth/engine/bandit.py) |
+| **Meta-Optimizer** | Controls and coordinates multiple underlying optimization algorithms (Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES) in a 2-Tier Island Model. | [`src/evosynth/engine/controller.py`](src/evosynth/engine/controller.py) |
+| **Automated Model Selection** | Decodes latent vectors to dynamically switch model families (`XGBoost`, `LightGBM`, `RandomForest`, or PyTorch `CNN`) within the same search loop. | [`src/evosynth/search_spaces/`](src/evosynth/search_spaces/) |
+| **Hyperparameter Tuning** | Evaluates continuous & discrete parameters in parallel with early stopping to prevent wasted compute on suboptimal branches. | [`src/evosynth/evaluators/tabular.py`](src/evosynth/evaluators/tabular.py) |
 
 ---
 
 ## 🔄 End-to-End System Workflow & Architecture
 
 <p align="center">
-  <img src="./assets/arch.png" alt="EvoSynth End-to-End System Architecture" width="100%" />
+  <img src="./docs/public/arch.png" alt="EvoSynth End-to-End System Architecture" width="100%" />
 </p>
 
 The EvoSynth workflow operates in **7 discrete, automated stages**:
@@ -134,7 +134,7 @@ EvoSynth overcomes the NFL limitation by maintaining a **dynamic portfolio of co
 | **Production Deliverable** | Single model | Single model | Heavy Stacked Ensemble (10+ models) | **Single fast model (~2ms latency)** |
 | **Observability** | Optuna Dashboard (Static polling) | Terminal logs | Web tables | **Real-Time "Glass-Box" SSE Telemetry Dashboard** |
 
-*(For complete mathematical derivations and empirical comparisons, see [docs/comparative_analysis.md](file:///c:/Users/siddh/Desktop/College/EvoSynth/docs/comparative_analysis.md).)*
+*(For complete mathematical derivations and empirical comparisons, see [docs/research/comparative_analysis.md](docs/research/comparative_analysis.md).)*
 
 ---
 
@@ -181,36 +181,38 @@ EvoSynth addresses the computational bottleneck of high-budget evolutionary sear
 
 ```text
 EvoSynth/
-├── api_server.py                 # FastAPI Server-Sent Events (SSE) telemetry backend
-├── run_covertype.py              # Real-World UCI Forest Covertype Benchmark Runner
-├── main.py                       # Tabular AutoML entry point (Model Switching + HPO)
-├── run_vision_nas.py             # Deep Learning Neural Architecture Search (PyTorch CNN)
-├── requirements.txt              # Backend dependencies
-├── automl_engine/                # Core AutoML & Meta-Optimization Engine
-│   ├── core/
-│   │   ├── search_space.py       # Latent space mapping & ConfigSpace schemas (9D)
-│   │   ├── individual.py         # Latent continuous [0, 1] vector individual
-│   │   ├── generic_feature_engineer.py # Dataset-agnostic automated feature engineering
-│   │   ├── covtype_evaluator.py  # UCI Covertype evaluator with 4 models & generic FE
-│   │   ├── evaluator.py          # Multi-model evaluator (XGBoost, LightGBM, RF) + Early Stopping
-│   │   ├── hard_evaluator.py     # Pathological noisy evaluator for local minima stress-testing
-│   │   └── image_evaluator.py    # PyTorch CNN Neural Architecture Search evaluator
-│   ├── engine/
-│   │   ├── controller.py         # DynamicOptimizer main loop, parallel execution & SWAP logic
-│   │   ├── ucb1.py               # Upper Confidence Bound (UCB1) Multi-Armed Bandit
-│   │   ├── composite.py          # Multi-metric composite fitness scoring engine
-│   │   └── tier_manager.py       # Active (T1) vs Background (T2) island manager
-│   └── optimizers/
-│       ├── ga.py                 # Genetic Algorithm (Crossover & Mutation)
-│       ├── pso.py                # Particle Swarm Optimization (Continuous Velocity)
-│       ├── de.py                 # Differential Evolution
-│       └── cmaes.py              # Covariance Matrix Adaptation Evolution Strategy
-├── dashboard/                    # React Live Telemetry Dashboard (Vite + Tailwind CSS)
-│   ├── src/                      # UI components, charts, and SSE hooks
-│   └── package.json              # Dashboard dependencies
-└── docs/                         # Full VitePress Technical Documentation Suite
-    ├── comparative_analysis.md   # Rigorous academic defense vs Optuna, FLAML, H2O.ai, AutoGluon
-    └── .vitepress/               # Documentation site configuration and themes
+├── pyproject.toml                # Package metadata, pinned dependencies, `evosynth` command
+├── requirements.txt              # `-e .[all]` (installs the package with every extra)
+├── settings/                     # EVERY tunable value (TOML), one file per topic + README index
+│   ├── engine.toml               # Budget, tiers, UCB c, composite weights, safeguards
+│   ├── optimizers.toml           # GA / PSO / DE / CMA-ES constants
+│   ├── search_spaces.toml        # Model families, FE strategies, hyperparameter ranges
+│   ├── evaluation.toml           # CV, early stopping, feature engineering, refit
+│   ├── datasets.toml             # One section per dataset
+│   ├── experiments.toml          # Presets for each command
+│   └── run.toml, telemetry.toml
+├── src/evosynth/                 # The Python package
+│   ├── cli.py                    # `evosynth run | scale | ablation | baselines | nas | serve | settings | datasets`
+│   ├── config.py                 # Loads, merges and validates settings/
+│   ├── core/                     # Individual, latent-vector decoding
+│   ├── search_spaces/            # Tabular (9D), NAS and toy ConfigSpace spaces
+│   ├── datasets/                 # Dataset registry, loaders (download to .data/), splits
+│   ├── features/                 # Dataset-agnostic feature engineering
+│   ├── models/                   # Model factory, post-search refit, CNN
+│   ├── evaluators/               # TabularEvaluator, ImageCNNEvaluator, toy objective
+│   ├── engine/                   # DynamicOptimizer, UCB1 bandit, composite scoring, tiers
+│   ├── optimizers/               # GA, PSO, DE, CMA-ES (ask / tell)
+│   ├── telemetry/                # Event reporter, run logging, FastAPI SSE server
+│   └── experiments/              # search, scaling, ablation, baselines, nas, run folders
+├── results/                      # One folder per run: <experiment>/<dataset>/<variant>/seed_<k>/
+│   └── archive/                  # Panel-review (v1) results, kept unchanged
+├── tools/run_experiments.ps1     # Staged runner for the full Covertype study
+├── dashboard/                    # React live telemetry dashboard (Vite + Tailwind CSS)
+├── docs/                         # VitePress documentation site
+│   ├── research/                 # Comparative analysis, related papers
+│   └── public/                   # Logo and architecture figure
+├── handbook/                     # Internal project handbook + panel-defense guide (not on the site)
+└── paper/                        # Paper and slide sources (LaTeX), figures, links
 ```
 
 ---
@@ -218,6 +220,8 @@ EvoSynth/
 ## 🚀 Quickstart & Usage
 
 ### 1. Installation
+
+Requires Python 3.11+ (developed on 3.14).
 
 ```bash
 # Clone the repository
@@ -229,34 +233,45 @@ python -m venv venv
 venv\Scripts\activate      # On Windows
 # source venv/bin/activate # On Linux/macOS
 
-# Install dependencies
-pip install -r requirements.txt
+# Install EvoSynth with all extras (NAS, baselines, tests)
+pip install -e ".[all]"
 ```
+
+This installs the `evosynth` command (also available as `python -m evosynth`). Datasets are
+downloaded on first use into `.data/`.
 
 ### 2. Run Real-World Benchmark (UCI Forest Covertype)
-Executes dynamic meta-optimization across 4 model families (XGBoost, LightGBM, RandomForest, ExtraTrees) with automated dataset-agnostic feature engineering and post-search generalization refit (hits **93.47%** in ~9.5 minutes):
+Executes dynamic meta-optimization across 4 model families (XGBoost, LightGBM, RandomForest, ExtraTrees) with automated dataset-agnostic feature engineering and post-search generalization refit:
 ```bash
-python run_covertype.py              # Fast benchmark (120 evals, ~9.5 min)
-python run_covertype.py --full       # Full benchmark (500 evals, pop=40)
+evosynth run                         # Fast benchmark (preset search_demo: 120 evals)
+evosynth run --full                  # Full benchmark (preset search_full: 500 evals, pop=40)
+evosynth scale --budget 300          # Budget-scaling run with checkpoints
+evosynth ablation --setup CVGS-300   # Isolated GA / PSO / DE / CMA-ES vs EvoSynth
+evosynth baselines --test all        # Default ExtraTrees, Random Search, Optuna, FLAML
 ```
 
-### 3. Run Tabular Multi-Model AutoML (Synthetic Testbed)
-Executes dynamic model switching (`XGBoost`, `LightGBM`, `RandomForest`) on the synthetic benchmark:
+Each run writes to `results/<experiment>/<dataset>/<variant>/seed_<k>/` (`manifest.json` with the
+exact settings, git commit and library versions; `result.json`; `run.log`; ...).
+
+### 3. Change Any Setting
+All hyperparameters, weights and presets live in [`settings/`](settings/README.md). Edit a file, or
+override a value for one run:
 ```bash
-python main.py
+evosynth settings show engine
+evosynth run --set bandit.c=0.2 --set composite.fitness=0.4 --set composite.speed=0.15
 ```
 
 ### 4. Run Deep Learning Vision NAS
 Discovers optimal CNN layer topology (convolutional channels, fully connected units, activation functions) and training hyperparameters in PyTorch:
 ```bash
-python run_vision_nas.py
+evosynth nas
 ```
 
 ### 5. Launch Live Telemetry Dashboard
 
 In Terminal 1 (Start the Telemetry API):
 ```bash
-python api_server.py
+evosynth serve
 ```
 
 In Terminal 2 (Start the React Dashboard):
@@ -278,6 +293,9 @@ npm install
 npm run docs:dev
 ```
 Open [http://localhost:5173](http://localhost:5173) (or the displayed VitePress port) to view full guides, algorithm math, API references, and developer tutorials.
+
+The complete project handbook (architecture, engine internals, experiments, results, setup) is in
+[`handbook/`](handbook/README.md); the paper and slides are in [`paper/`](paper/README.md).
 
 ---
 
