@@ -1,6 +1,6 @@
 # 08 — Results
 
-Every figure below is taken from files in the repository (`results/`, `results_forest/Test1_19_Nov/`, `submission/`). Each section names its source. Accuracy is in %. "CV" means search-phase cross-validation accuracy. "Test" means accuracy on the 20k held-out Covertype rows.
+Every figure below is taken from files in the repository: the panel-review (v1) results archived in `results/archive/2026-11-19_covertype_v1/` and the paper in `paper/`. They were produced by the v1 code (git tag `v1-panel-review`) and will be replaced by the re-runs after the Phase 0–5 fixes. Each section names its source. Accuracy is in %. "CV" means search-phase cross-validation accuracy. "Test" means accuracy on the 20k held-out Covertype rows.
 
 ---
 
@@ -9,7 +9,7 @@ Every figure below is taken from files in the repository (`results/`, `results_f
 **Protocol:**
 - Every method is tested on the same stratified **60,000 train / 20,000 test** split (`random_state = 42`).
 - Searches score candidates on a 20,000-row stratified slice with 2-fold CV.
-- **Source:** `results_forest/Test1_19_Nov/summary/main_comparison_table.txt` and the baseline and run files.
+- **Source:** `results/archive/2026-11-19_covertype_v1/summary/main_comparison_table.txt` and the baseline and run files.
 
 | Category | Method | Search budget | CV (20k) | **Test (60k/20k)** | FE | Winning model |
 |---|---|---|---|---|---|---|
@@ -50,7 +50,7 @@ For ExtraTrees only three of these matter: the number of trees, depth (×3, or u
 
 **Points to keep in mind when reading this table:**
 - **Random Search is a strong competitor.** At 120 evaluations it reached 93.92% test accuracy. That is above EvoSynth @120 (93.47) and @300 (93.82), and below EvoSynth @500 (94.05). On this space, search CV saturates at about 86.3–86.6% for every method, because the `ExtraTrees` + `interactions` region is easy to find.
-- **The refit protocols differ** (see [07-experiments.md](07-experiments.md) E5):
+- **The refit protocols differ** (see [07-experiments.md](07-experiments.md) E3):
   - Random Search and Optuna refit only their chosen *model family and FE strategy*, with 150 trees and library defaults; their tuned hyperparameters are discarded.
   - EvoSynth refits with its tuned hyperparameters.
   - FLAML trains its own final model.
@@ -78,54 +78,9 @@ For ExtraTrees only three of these matter: the number of trees, depth (×3, or u
 
 ---
 
-## 3. UPGS ablation on the pathological noisy dataset
+## 3. CVGS ablation on Covertype (search CV only)
 
-**Source:** `results/ablation_upgs_{120,2500}_summary.txt` and `results/individual_runs/`.
-**Setup:** population 50.
-- UPGS-120 uses 3-fold CV and a checkpoint at 30 evaluations.
-- UPGS-2500 uses `fast_mode` (a single 75/25 split) and a checkpoint at 625 evaluations.
-
-### UPGS-120
-
-| Strategy | @30 evals best | @30 div | @30 passive UCB | **@120 best** | @120 div | @120 UCB | Model | Runtime |
-|---|---|---|---|---|---|---|---|---|
-| Isolated GA | 79.00 | 0.228 | 0.961 | 79.35 | 0.302 | 0.724 | ExtraTrees* | 138.7 s |
-| Isolated PSO | 79.25 | 0.210 | 0.959 | 79.35 | 0.329 | 0.728 | ExtraTrees* | 193.5 s |
-| Isolated DE | **79.55** | 0.224 | 0.963 | 79.55 | 0.245 | 0.716 | XGBoost | 189.6 s |
-| Isolated CMA-ES | 79.45 | 0.281 | 0.971 | 79.45 | 0.275 | 0.720 | ExtraTrees* | 185.0 s |
-| **EvoSynth** | 79.00 | 0.500† | 0.704† | **79.65** | 0.450† | 0.720† | ExtraTrees* | 212.4 s |
-
-- EvoSynth's winner was `T1_DE`. Its configuration: ExtraTrees*, 50 trees, depth 8, colsample 0.4732.
-- **Conclusion printed by the script:** EvoSynth beats the best isolated optimizer (DE) by +0.10 points. At the 25% checkpoint the best isolated optimizer (79.55) was ahead of EvoSynth (79.00).
-
-### UPGS-2500
-
-| Strategy | @625 best | @625 div | @625 UCB | **@2500 best** | @2500 div | @2500 UCB | Model | Runtime |
-|---|---|---|---|---|---|---|---|---|
-| Isolated GA | 80.80 | 0.307 | 0.835 | 80.80 | 0.000 | 0.612 | XGBoost | 829.8 s |
-| Isolated PSO | **81.80** | 0.219 | 0.824 | **81.80** | 0.000 | 0.617 | XGBoost | 1438.4 s |
-| Isolated DE | 80.80 | 0.260 | 0.828 | 80.80 | 0.140 | 0.633 | XGBoost | 900.0 s |
-| Isolated CMA-ES | 80.60 | 0.218 | 0.822 | 81.00 | 0.197 | 0.643 | XGBoost | 1570.2 s |
-| **EvoSynth** | 81.00 | 0.500† | 0.704† | 81.20 | 0.450† | 0.720† | XGBoost | 3100.2 s |
-
-- EvoSynth's winner was `T2_DE`, with XGBoost gbtree, 374 trees, depth 10, lr 0.1338, reg_alpha 8.92, subsample 0.62 and colsample 0.62.
-- **Here isolated PSO (81.80) beat EvoSynth (81.20) by 0.60 points.** The auto-generated conclusion text prints this as "+-0.60%".
-- The isolated GA and PSO populations fully collapsed (diversity 0.000) by 2,500 evaluations. DE and CMA-ES kept some diversity.
-
-**Notes on this ablation:**
-- \* On this evaluator `ExtraTrees` is trained as a RandomForest, and `fe_strategy` is ignored ([05](05-search-space-and-evaluators.md) §3.3).
-- † **EvoSynth's diversity, composite and UCB values in both ablation scripts are hard-coded constants**:
-  - checkpoint: 0.500 / 0.625 / 0.704;
-  - final: 0.450 / 0.654 / 0.720.
-
-  Only EvoSynth's accuracy, runtime, winner and hyperparameters are measured. The diversity comparison between isolated runs and EvoSynth is therefore not a measured result. The isolated optimizers' values come from passive telemetry, which uses different formulas and a different `c` from the controller.
-- The pathological landscape is very flat: everything lands within 79–82%. The differences are tenths of a point, and the 75/25 split in `fast_mode` is noisy.
-
----
-
-## 4. CVGS ablation on Covertype (search CV only)
-
-**Source:** `results_forest/Test1_19_Nov/ablation/`. Population 30, 2-fold CV on 20k rows.
+**Source:** `results/archive/2026-11-19_covertype_v1/ablation/`. Population 30, 2-fold CV on 20k rows.
 
 ### CVGS-300 (checkpoint at 75 evaluations)
 
@@ -137,6 +92,7 @@ For ExtraTrees only three of these matter: the number of trees, depth (×3, or u
 | Isolated CMA-ES | 86.34 | 0.228 | 0.929 | **86.59** | 0.297 | 0.722 | ExtraTrees (293, 9) | 25.4 min |
 | **EvoSynth** | 86.30 | 0.500† | 0.704† | 86.53 | 0.450† | 0.720† | ExtraTrees (347, 10) | 36.7 min |
 
+- † **EvoSynth's diversity, composite and UCB values in the ablation are hard-coded constants** (checkpoint 0.500 / 0.625 / 0.704; final 0.450 / 0.654 / 0.720). Only EvoSynth's accuracy, runtime, winner and hyperparameters are measured, so the diversity comparison with the isolated runs is not a measured result. The isolated optimizers' values come from passive telemetry, which uses different formulas and a different `c` from the controller. Measuring them is Phase 4.1.
 - **EvoSynth run details:** `t1_iters = 12`, `k = 6`.
   - Tier 1 injections hit T1_GA and T1_DE.
   - GA and CMAES were promoted.
@@ -159,14 +115,14 @@ For ExtraTrees only three of these matter: the number of trees, depth (×3, or u
   - after refit, EvoSynth's configuration reaches 94.05%, against 89.59% for untuned ExtraTrees and 89.80% for Optuna.
 - **Provenance:**
   - `experiment_state.json` records all four isolated runs as completed. It records the EvoSynth step inside this ablation harness as still `"running"`.
-  - The EvoSynth row's values (86.59 CV, 94.05 test) match the standalone E4 run at 500 evaluations.
+  - The EvoSynth row's values (86.59 CV, 94.05 test) match the standalone E2 run at 500 evaluations.
   - The diversity and UCB columns reported at 500 evaluations repeat the CVGS-300 values.
 
 ---
 
-## 5. The documented live SWAP (Covertype, 120 evaluations)
+## 4. The documented live SWAP (Covertype, 120 evaluations)
 
-**Source:** `results_forest/Test1_19_Nov/evosynth/run_120.txt` (identical to `results/covertype_run_with_fe.txt`).
+**Source:** `results/archive/2026-11-19_covertype_v1/evosynth/run_120.txt`.
 **Setup:** pop 20, `t1_iters = 3`, `k = 2`.
 
 ```
@@ -201,19 +157,17 @@ REFIT   93.47% on 20k unseen test rows
 
 ---
 
-## 6. Results reported in the paper and docs without logs in the repository
+## 5. Results reported in the paper and docs without logs in the repository
 
 | Experiment | Result | Source |
 |---|---|---|
 | **Speed-up** (100-individual initial population / 120-evaluation run) | Serial on 1 core: 44.8 s / 392.4 s. Parallel on 8 threads: 5.1 s / 78.2 s. **Parallel + early stopping on 8 threads: 3.9 s / 63.9 s.** This is the **11.5×** initial-population speed-up. | Paper Table I |
-| **Pathological stress test** (30% label noise) | EvoSynth 79.40, standalone PSO 76.85, FLAML 76.10, Random Search 74.50, default XGBoost 74.20 | `comparative_analysis.md` §6.2, paper §III |
-| **Breast-cancer / noisy CASH output** | Chose XGBoost: lr 0.0163, 327 trees, depth 6, subsample 0.9797, colsample 0.9270, reg_alpha 7.5669, gbtree. 79.40% on the noisy split, 96.49% on the clean breast-cancer data. 63.9 s for 120 evaluations on 8 threads. | Paper Table III, comparative analysis §6.2 |
-| **Vision NAS** (digits) | 80 evaluations: 95.33% in 14.6 s (paper), or 95.78% in 17.7 s (panel deck). Best topology (paper): conv1 = 16, conv2 = 64, fc = 64, dropout 0.0107, LeakyReLU, Adam with lr 0.0309. | Paper §III, `maint.tex` slide 7 |
+| **Vision NAS** (digits) | 80 evaluations: 95.33% in 14.6 s (paper), or 95.78% in 17.7 s (panel deck). Best topology (paper): conv1 = 16, conv2 = 64, fc = 64, dropout 0.0107, LeakyReLU, Adam with lr 0.0309. | Paper §III, `paper/slides.tex` slide 7 |
 | **Inference footprint** | About 2 ms per prediction and about 150 MB RAM for the single winning model. Ensembles are quoted at 50–200 ms and 2–8 GB. | README, slides, comparative analysis (these figures are asserted; no measurement code is in the repo) |
 
 ---
 
-## 7. Overall reading of the evidence
+## 6. Overall reading of the evidence
 
 1. **The mechanics work as designed.**
    - The logs show promotion by composite score plus UCB, a live SWAP that promoted the eventual winner, T1 injections, elite sharing and rollback-ready grace periods.
@@ -223,8 +177,8 @@ REFIT   93.47% on 20k unseen test rows
    - It beats Optuna TPE, FLAML and the untuned floors.
    - Random Search comes close (93.92% at 120 evaluations), under its different refit protocol.
 3. **Accuracy against isolated optimizers.**
-   - In the ablations, EvoSynth's *search* accuracy is within ±0.6 points of the best isolated optimizer.
-   - It wins UPGS-120 by 0.10, loses UPGS-2500 by 0.60, loses CVGS-300 by 0.06, and is within 0.01 on CVGS-500.
+   - In the Covertype ablations, EvoSynth's *search* accuracy is within 0.1 points of the best isolated optimizer.
+   - It loses CVGS-300 by 0.06 and is within 0.01 on CVGS-500 (where its own ablation run did not finish).
    - Its practical value lies in not needing to know in advance which optimizer suits the landscape, and in its safeguards against collapse. It does not consistently beat the best single optimizer chosen after the fact.
 4. **Feature engineering made the largest difference.**
    - The searchable `interactions` gene combined with ExtraTrees was the single biggest accuracy lever on Covertype.

@@ -1,6 +1,6 @@
 # 04 — The Four Optimizers
 
-All optimizers live in `automl_engine/optimizers/`. They operate **only** on latent vectors in `[0,1]^d` and never see real hyperparameter values.
+All optimizers live in `src/evosynth/optimizers/`; their constants are in `settings/optimizers.toml`. They operate **only** on latent vectors in `[0,1]^d` and never see real hyperparameter values.
 
 ---
 
@@ -62,7 +62,7 @@ Fitness is **maximised** (accuracy in %).
 | `tell` | Maps the i-th evaluated individual to particle i: sets `pos` to the evaluated vector, and updates pbest and gbest on improvement. Then merges into `self.population`, sorts, and truncates to `pop_size`. |
 | Pure cold start | With no seed population, it creates `pop_size` random particles |
 
-**Character:** fast, momentum-driven convergence towards the personal and global bests. It is the most exploitative optimizer and the most prone to collapse on noisy landscapes. The pathological dataset was designed to exploit this.
+**Character:** fast, momentum-driven convergence towards the personal and global bests. It is the most exploitative optimizer and the most prone to collapse on noisy landscapes.
 
 ---
 
@@ -78,7 +78,7 @@ Fitness is **maximised** (accuracy in %).
 | Crossover | Binomial: `u = copy(x_i)`. For each gene j, `u_j = v_j` if `rand < CR` or `j == j_rand` (one gene is guaranteed to come from the donor). |
 | Selection (`tell`) | (μ+λ) truncation: merge, sort, keep the top `pop_size`. This is a population-level greedy selection, not the classic one-to-one parent-vs-trial replacement. |
 
-**Character:** robust exploration by vector differences that scale naturally with the population's spread. In the UPGS-2500 ablation, DE kept the highest diversity of the isolated optimizers.
+**Character:** robust exploration by vector differences that scale naturally with the population's spread. In the CVGS-300 ablation, DE kept the highest final diversity of the isolated optimizers (0.475).
 
 ---
 
@@ -113,13 +113,11 @@ Wraps the `cma` library's `CMAEvolutionStrategy`.
 
 The panel material's "NFL" summary of each optimizer: GA explores globally but converges slowly; PSO accelerates quickly but converges prematurely; DE navigates robustly but is sensitive to diversity collapse; CMA-ES handles ill-conditioned problems well but is heavier.
 
-**Note on the Hybrid Workflow document.** It gives illustrative operator settings (GA tournament k = 3, uniform crossover p_c = 0.8, mutation p_m = 0.2; DE F = 0.5) that **differ from the code**. The values in the tables above are what the code actually uses.
-
 ---
 
 ## 7. Adding a new optimizer
 
-1. Create `automl_engine/optimizers/my_opt.py` with a subclass of `BaseOptimizer` that implements `ask(n)` and `tell(inds)`:
+1. Create `src/evosynth/optimizers/my_opt.py` (constants in `settings/optimizers.toml`) with a subclass of `BaseOptimizer` that implements `ask(n)` and `tell(inds)`:
    - keep `self.population` sorted best-first and truncated to `self.pop_size`;
    - treat the first `tell` as a seed population;
    - always return vectors clipped to `[0, 1]`.

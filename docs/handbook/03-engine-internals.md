@@ -1,6 +1,6 @@
 # 03 — Engine Internals (`DynamicOptimizer`)
 
-This file walks through `automl_engine/engine/controller.py` and the scoring modules exactly as they are implemented. All constants and formulas are taken from the code. Where the docs, paper or slides describe something differently, §9 lists the difference.
+This file walks through `src/evosynth/engine/controller.py` and the scoring modules exactly as they are implemented. All constants and formulas are taken from the code. Where the docs, paper or slides describe something differently, §9 lists the difference.
 
 ---
 
@@ -166,7 +166,7 @@ UCB(a)   = composite(a) + bonus(a)
 - **Efficiency is constant.** It is always 1.0, so it normalises to 0.5 for every island and adds a constant 0.075. It never changes a ranking.
 - **Speed and trend are the same quantity.** Together they make up 40% of the composite weight and reward recent improvement.
 - **Diversity is fitness-based, not location-based.** It measures how spread an island's fitness values are, not distance in the latent space.
-- **Diversity is fixed at 0.500 for islands of two.** For two values `a ≠ b`, `std = |a−b|/2`, so `std/spread = 0.5` exactly. With identical values it is 0. This is why 0.500 appears so often in logs with small islands (pop 20 → 2 per T1 island). The UPGS/CVGS ablation summaries also report a *hardcoded* 0.500/0.450 for EvoSynth; see [08-results.md](08-results.md).
+- **Diversity is fixed at 0.500 for islands of two.** For two values `a ≠ b`, `std = |a−b|/2`, so `std/spread = 0.5` exactly. With identical values it is 0. This is why 0.500 appears so often in logs with small islands (pop 20 → 2 per T1 island). The CVGS ablation summaries also report a *hardcoded* 0.500/0.450 for EvoSynth; see [08-results.md](08-results.md).
 - **Trend depends on call history.** `prev_best` is stored per family and updated on *every* scoring call (T1 stagnation checks, promotion and each checkpoint). Trend is therefore "improvement since the last time this family was scored".
 - **Scores are relative.** Because of min–max normalisation, a composite score only means something within one table. The best island on a metric gets 1 and the worst gets 0.
 - **The bonus is small.** With `c = 0.1` it is typically 0.04–0.08. It mainly breaks near-ties in favour of families that have consumed less budget.
@@ -175,7 +175,7 @@ UCB(a)   = composite(a) + bonus(a)
 
 ## 4. Worked example: reproducing the real Step 4 table
 
-These numbers come from the Covertype 120-evaluation run (`results_forest/Test1_19_Nov/evosynth/run_120.txt`, which is identical to `results/covertype_run_with_fe.txt`). The run used pop = 20, `t1_iters = 3` and `k = 2`, so each T1 island has 2 individuals.
+These numbers come from the Covertype 120-evaluation run (`results/archive/2026-11-19_covertype_v1/evosynth/run_120.txt`). The run used pop = 20, `t1_iters = 3` and `k = 2`, so each T1 island has 2 individuals.
 
 Tier 1 log:
 
@@ -250,33 +250,29 @@ The function edits `opt.population` directly. For PSO and CMA-ES the injected in
 
 ## 7. Helper engine classes
 
-### `CompositeScoringEngine` (`composite.py`)
+### `CompositeScoringEngine` (`engine/scoring.py`)
 
-Holds the weights `{fitness:0.30, speed:0.25, efficiency:0.15, diversity:0.15, trend:0.15}`. `calculate_scores(dict)` returns normalised weighted sums as in §3.
+Holds the weights `{fitness:0.30, speed:0.25, efficiency:0.15, diversity:0.15, trend:0.15}` from `[composite]` in `settings/engine.toml`. `calculate_scores(dict)` returns normalised weighted sums as in §3.
 
-### `UCB1Bandit` (`ucb1.py`)
+### `UCB1Bandit` (`engine/bandit.py`)
 
 - `__init__(c=1.414)` sets up the exploration constant, a `stats` dict mapping algo → {pulls, total_reward}, and `total_pulls`.
 - `register_algorithm`, and `update(algo, reward)` which adds a pull and adds the reward.
 - `select_next(available)` returns any algorithm with zero pulls; otherwise it returns the argmax of `avg_reward + c·sqrt(ln(total_pulls)/pulls)`.
 
-### `TierManager` (`tier_manager.py`)
+### `TierManager` (`engine/tiers.py`)
 
 - Shuffles a population and splits it 40/60 (`t1_ratio = 0.4`).
 - `allocate_t1_batch` / `allocate_t2_batch` pop batches from each pool.
 - The static `share_elites(a, b, top_pct=0.2)` performs a *pairwise* swap: A's worst are replaced by B's elites, and vice versa.
-
-### `PopulationManager` (`population.py`)
-
-Generates `total_size` random individuals and evaluates them sequentially.
 
 ---
 
 ## 8. How much of the bandit and helpers the controller actually uses
 
 - **`UCB1Bandit`.** The controller instantiates it and, at Step 4, calls `register_algorithm` and `update`. It **never calls `select_next`**. All promotion and swap decisions use the controller's own UCB-style score from §3 (composite plus `0.1·sqrt(ln N / n_i)`). So the "UCB1 bandit" in EvoSynth is that inline formula. The `UCB1Bandit` class with `c = √2` is bookkeeping that the decision logic does not use.
-- **`TierManager`.** Imported but not used. The controller implements the split itself, without shuffling: the sorted top 40% go to T1. It also implements elite sharing as *pooled* sharing, not `TierManager`'s pairwise swap.
-- **`PopulationManager`.** Not used. The controller generates the population itself, in parallel.
+- **`TierManager`.** Imported but not yet used (Phase 1 wires it in for the stratified split and pairwise elite sharing). The controller implements the split itself, without shuffling: the sorted top 40% go to T1. It also implements elite sharing as *pooled* sharing, not `TierManager`'s pairwise swap.
+- **`PopulationManager`** was removed in the restructure; the controller generates the population itself, in parallel.
 
 ---
 
@@ -284,15 +280,15 @@ Generates `total_size` random individuals and evaluates them sequentially.
 
 | Topic | Code (authoritative) | Elsewhere |
 |---|---|---|
-| Composite weights | 5 metrics: 0.30 / 0.25 / 0.15 / 0.15 / 0.15 | Paper §II-D: 4 pillars 0.40 / 0.20 / 0.20 / 0.20. The slides and the Hybrid Workflow use the code's 5-metric weights. |
+| Composite weights | 5 metrics: 0.30 / 0.25 / 0.15 / 0.15 / 0.15 | Paper §II-D: 4 pillars 0.40 / 0.20 / 0.20 / 0.20. The slides use the code's 5-metric weights. |
 | Exploration constant | `c = 0.1` | Panel guide says `c = 0.5`. The `UCB1Bandit` default is 1.414. The passive ablation telemetry uses 0.5. |
 | Diversity | std/spread of fitness values | Panel guide: mean pairwise Euclidean distance in latent space |
 | Speed | Equals trend (improvement) | Panel guide: inverse runtime. The ablation scripts' passive telemetry uses `1/(step_time+1e-4)`. |
 | Efficiency | Constant 1.0 | Panel guide: `F/ln(t+e)`. The ablation scripts' passive telemetry uses that formula. |
 | SWAP rule | `UCB_T1 > UCB_T2 + 0.10` (additive) | Several docs: "beats by >10%" or `UCB_T1 > 1.10 × UCB_T2` |
 | Who gets the cooldown on SWAP | The demoted T2 family (`2k`). On rollback, the failed challenger (`2k`). | Docs: "demoted algorithm locked out" — consistent |
-| T1 seeding | Contiguous rank slices of the sorted population; GA gets the best | Hybrid Workflow: interleaved ranks (I1, I5, I9…) |
+| T1 seeding | Contiguous rank slices of the sorted population; GA gets the best | Phase 1 replaces it with a stratified-random split (`TierManager`) |
 | T2 reserve | The worst 60% of the initial population | Some docs describe it as neutral "reserved capacity" |
 | Elite sharing | Pooled top-n, written into both islands | `TierManager.share_elites`: pairwise swap |
 | Stagnation rule | T1: any zero-trend checkpoint → 50%. T2: 3 consecutive → 20%. | Docs: "3 consecutive checkpoints" for both |
-| Default `t1_iters` / `k` | 30 / 10 in the constructor. Scripts override them (e.g. 3 / 2 for demos). | Slides: 10 / 5 |
+| Default `t1_iters` / `k` | 30 / 10 in `[engine]`. Command presets override them (e.g. 3 / 2 for `evosynth run`). | Slides: 10 / 5 |

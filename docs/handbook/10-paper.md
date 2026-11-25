@@ -1,21 +1,22 @@
 # 10 — Research Paper & Panel Review Deck
 
-The `submission/` folder holds:
+The `paper/` folder holds:
 
 | File | What it is |
 |---|---|
-| `G002_Paper.tex` | IEEE conference-format paper |
-| `maint.tex` | Beamer slide deck for the Panel Review |
-| `Group2___PPT__Panel_Review___2_ (1).pdf` | The rendered review deck |
-| `G002_Github.url` | Link to the GitHub repository |
-| `G002_Website.url` | Link to the documentation site |
-| `G002_Dataset.url` | Link to the Zenodo dataset (`doi:10.5281/zenodo.23645119`) |
+| `paper.tex` | IEEE conference-format paper (formerly `submission/G002_Paper.tex`) |
+| `slides.tex` | Beamer slide deck for the Panel Review (formerly `submission/maint.tex`) |
+| `figures/` | `arch.png`, `logo.png` (`approval.png` and `arch_updated.png`, used by the slides, are missing) |
+| `links.md` | GitHub repository, documentation site, Zenodo dataset (`doi:10.5281/zenodo.23645119`) |
+| `panel_review.pdf` | The rendered review deck (local only, git-ignored) |
 
-The Zenodo dataset is "EvoSynth-Bench". It contains the pathological classification benchmark CSV and the HPO trajectory CSV, which can be checked with `scripts/load_dataset.py`.
+The Zenodo dataset v1 is "EvoSynth-Bench" (an HPO trajectory CSV and a benchmark CSV). A new Zenodo version follows the re-runs.
+
+**Status.** This chapter describes the paper and deck **as presented at the Panel Review**. The paper still reports the Wisconsin Breast Cancer and pathological-noise experiments, which the project no longer uses; those parts are rewritten in Phase 6 together with the new results (they are marked "removed in Phase 6" below).
 
 ---
 
-## Part A — The paper (`G002_Paper.tex`)
+## Part A — The paper (`paper/paper.tex`)
 
 **Title:** *EvoSynth: Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Hyperparameter Tuning and Model Selection*
 **Byline:** Group G002, Dept. of CSE (Capstone Engineering Research Project).
@@ -88,8 +89,8 @@ return best architecture and hyperparameters
 ### III. Experimental evaluation
 
 **Setup:**
-- Wisconsin Breast Cancer: 569 × 30, binary.
-- Pathological noisy dataset: 2,000 × 20 with `flip_y = 0.3`.
+- Wisconsin Breast Cancer: 569 × 30, binary (removed in Phase 6).
+- Pathological noisy dataset: 2,000 × 20 with `flip_y = 0.3` (removed in Phase 6).
 - Handwritten digits for NAS: 1,797 images of 8×8.
 
 **Table I — speed-up:**
@@ -117,11 +118,11 @@ Initial population evaluation is **11.5× faster**. A full 120-evaluation run dr
 - The `interactions` features (`c_i − c_j` and `sqrt(c_i² + c_j²)`) combined with ExtraTrees cut error from 19.0% to 6.53%, a 64.6% relative reduction, in 9 min 44 s in total.
 - The paper also describes the **live SWAP**: GA's diversity fell to 0.450 and its UCB to 0.547, while Tier 1 PSO held diversity 0.500 and reached UCB 0.720. PSO was promoted and GA demoted.
 
-**Noisy local minima:**
+**Noisy local minima (removed in Phase 6):**
 - Static PSO and hill-climbing plateaued around 76%.
 - EvoSynth's stagnation detection, exploration bonus, elite reseeding and 20% injection reached **79.40%**.
 
-**Table III — multi-model output on the noisy data:**
+**Table III — multi-model output on the noisy data (removed in Phase 6):**
 
 | Parameter | Range | Selected |
 |---|---|---|
@@ -175,7 +176,7 @@ EvoSynth projects mixed hyperparameters into a universal latent space and manage
 
 ---
 
-## Part B — Panel Review deck (`maint.tex`)
+## Part B — Panel Review deck (`paper/slides.tex`)
 
 **Title slide:**
 - Team (S.No, register number, name):
@@ -274,7 +275,7 @@ Default parameters listed on the slide:
 | Output | 1 model | 1 model | 10-model stack | 1 model (2 ms, 150 MB) |
 
 - **Pareto advantage:** 93.47% without the cost of an ensemble.
-- **Live demo:** `run_covertype.py` with the dashboard.
+- **Live demo:** the Covertype run (now `evosynth run`) with the dashboard.
 - **Vision NAS:** **95.78%** in 80 evaluations (17.7 s).
 
 **8. Technical justification and trade-offs**

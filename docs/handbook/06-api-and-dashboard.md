@@ -3,7 +3,7 @@
 EvoSynth's "glass-box" observability works in three parts:
 
 ```
-DynamicOptimizer (controller.py)            FastAPI relay (scripts/api_server.py)        React dashboard (dashboard/)
+DynamicOptimizer (controller.py)            FastAPI relay (telemetry/server.py)          React dashboard (dashboard/)
   EventReporter.emit(type, data) ──HTTP POST /event──►  fan-out to client queues ──SSE GET /stream──► EventSource → React state
   LoggerWriter (stdout mirror) ──"log" events────┘
 ```
@@ -12,15 +12,15 @@ SSE (server-sent events) was chosen over WebSockets because the traffic is one-w
 
 ---
 
-## 1. Engine side: `EventReporter` and `LoggerWriter` (`controller.py`)
+## 1. Engine side: `EventReporter` and `LoggerWriter` (`src/evosynth/telemetry/`)
 
-- **`EventReporter()`** is created once, when the module is imported.
-  - It probes `GET http://localhost:8000/docs` with a 0.5 s timeout and sets `enabled = True` only if the probe succeeds.
-  - Telemetry is therefore **off** unless the API server is already running when the engine is imported.
-- **`emit(event_type, payload)`** returns immediately when disabled. Otherwise it starts a daemon thread that POSTs `{"type": event_type, "data": payload}` to `http://localhost:8000/event` with a 1 s timeout. Failures are swallowed, so telemetry can never slow down or crash a run.
-- **`LoggerWriter`** replaces `sys.stdout`. Each `write`:
+- **`EventReporter`** (`reporter.py`) is created by `RunContext` when a run starts (or lazily by `get_reporter()`), and the controller uses the active one.
+  - It probes `GET http://localhost:8000/docs` with a 0.5 s timeout (`[telemetry]` settings) and sets `enabled = True` only if the probe succeeds.
+  - Live telemetry is therefore **off** unless the API server is already running when the run starts.
+- **`emit(event_type, payload)`** always appends the event, with a timestamp, to the run's `events.jsonl` (except `log` events). When enabled, it also starts a daemon thread that POSTs `{"type": event_type, "data": payload}` to `http://localhost:8000/event` with a 1 s timeout. Failures are swallowed, so telemetry can never slow down or crash a run.
+- **`LoggerWriter`** (`run_logger.py`) replaces `sys.stdout` for the duration of a run. Each `write`:
   - echoes to the real console;
-  - appends to `results/run_output.txt`, flushing every time so the log survives crashes and Ctrl-C;
+  - appends to the run folder's `run.log`, flushing every time so the log survives crashes and Ctrl-C;
   - emits a `log` event when the text is non-empty and is not just `"\n"`.
 
 ## 2. Event catalogue
@@ -45,7 +45,7 @@ Example `switch` payloads emitted by the code:
 {"action":"Elite Sharing","algo":"Tier 2 Only","details":"Swapped top individuals between T2 islands"}
 ```
 
-## 3. FastAPI relay (`scripts/api_server.py`; root `api_server.py` runs it)
+## 3. FastAPI relay (`src/evosynth/telemetry/server.py`; command `evosynth serve`)
 
 ```python
 app = FastAPI()
@@ -65,7 +65,7 @@ async def stream():
     # yields f"data: {json.dumps(event)}\n\n" for each event; removes queue on disconnect
 ```
 
-- Start it with `python api_server.py`. This runs uvicorn on `0.0.0.0:8000` with log level warning.
+- Start it with `evosynth serve` (`--host` / `--port` override `[telemetry]`). This runs uvicorn on `0.0.0.0:8000` with log level warning.
 - FastAPI's own `/docs` page doubles as the engine's liveness probe.
 - **Behaviour:**
   - The server is stateless and in-memory.
@@ -116,7 +116,7 @@ The `composite` event is received but has no handler, so it is ignored. The init
 - **Speed / trend:** a positive value means the island is still improving; 0 means a plateau.
 - **UCB score = composite + bonus.** The composite score reflects empirical performance. The bonus favours families that have consumed fewer evaluations.
 
-**To run:** start `python api_server.py` first, then `cd dashboard && npm install && npm run dev`, then start an experiment (e.g. `python run_covertype.py`). See [12-setup-and-usage.md](12-setup-and-usage.md).
+**To run:** start `evosynth serve` first, then `cd dashboard && npm install && npm run dev`, then start an experiment (e.g. `evosynth run`). See [12-setup-and-usage.md](12-setup-and-usage.md).
 
 ## 5. Documentation site (`docs/`)
 
@@ -132,14 +132,14 @@ The `composite` event is received but has no handler, so it is ignored. The init
 | API Reference | Controller, Evaluator, Search Space |
 | Dashboard | Overview, SSE Protocol, Interpreting Data |
 | Developer | Adding an Optimizer, Custom Evaluator |
-| Standalone | Comparative Analysis |
+| Standalone | Comparative Analysis (`research/comparative_analysis.md`) |
 
 - **Local build:** `cd docs && npm install && npm run docs:dev`.
 - **Deployment:** `.github/workflows/deploy-docs.yml` runs on pushes to `main` or `PostReview2` that touch `docs/**` (or on manual dispatch). It installs Node 20, builds VitePress and deploys to GitHub Pages. The public docs link is `https://evosynth-2027.github.io/evosynth-docs/`.
-- **Long-form documents that are not site pages:**
-  - `comparative_analysis.md`;
-  - `PANEL_DEFENSE_MASTER_GUIDE.md`;
-  - `Hybrid_Workflow.md`, a simulated end-to-end walkthrough rendered to `Hybrid Workflow.pdf` by `scripts/generate_hybrid_workflow_pdf.py` using ReportLab;
+- **Long-form documents in `docs/research/`:**
+  - `comparative_analysis.md` (published as the Comparative Analysis page);
+  - `PANEL_DEFENSE_MASTER_GUIDE.md` (excluded from the site);
   - `AutoML_Relevant_Papers.txt`.
+- **This handbook** (`docs/handbook/`) is excluded from the site (`srcExclude` in `config.mts`).
 
   Their content is covered in files 09–11 of this folder.

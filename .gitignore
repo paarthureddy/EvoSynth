@@ -12,12 +12,8 @@ Final_Year Project/
 !*.md
 !**/*.md
 
-# Whitelist college deliverables
-!G002_Paper.tex
-!G002_*.url
-!G002_*.pdf
-!G002_*.tex
-!maint.tex
+# Paper and slide sources (paper/); built PDFs stay local
+!paper/*.tex
 
 
 # Python caches and compiled files

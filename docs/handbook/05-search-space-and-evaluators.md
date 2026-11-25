@@ -1,10 +1,10 @@
 # 05 — Search Spaces, Decoding & Evaluators
 
-## 1. Search spaces (`automl_engine/core/search_space.py`)
+## 1. Search spaces (`src/evosynth/search_spaces/`)
 
-All search spaces are `ConfigSpace.ConfigurationSpace` objects.
+All search spaces are `ConfigSpace.ConfigurationSpace` objects, built from the ranges and choices in `settings/search_spaces.toml` (`[search_space.tabular]`, `.nas`, `.toy`). Changing a range there changes the space; no Python edit is needed.
 
-### 1.1 `get_dummy_search_space()`: 4 dimensions (test function)
+### 1.1 `get_dummy_search_space()` (`toy.py`): 4 dimensions (test function)
 
 | Name | Type | Range |
 |---|---|---|
@@ -13,23 +13,23 @@ All search spaces are `ConfigSpace.ConfigurationSpace` objects.
 | `optimizer` | categorical | Adam, SGD, RMSprop |
 | `dropout` | float | 0.0 – 0.5 |
 
-### 1.2 `get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)`: the main 9-dimensional tabular space
+### 1.2 `get_tabular_search_space(include_model_type=True, include_fe_strategy=True)` (`tabular.py`): the main 9-dimensional tabular space
 
 | Name | Type | Range / choices | Used by |
 |---|---|---|---|
-| `model_type` | categorical | XGBoost, RandomForest, LightGBM, ExtraTrees | All evaluators: chooses the model family |
-| `fe_strategy` | categorical | none, stats, interactions | Covertype evaluator only |
+| `model_type` | categorical | XGBoost, RandomForest, LightGBM, ExtraTrees | Chooses the model family |
+| `fe_strategy` | categorical | none, stats, interactions | `GenericFeatureEngineer` (§4) |
 | `learning_rate` | float, log scale | 0.01 – 0.3 | XGBoost, LightGBM |
 | `n_estimators` | int | 50 – 500 | All (RF/ET capped at 150 during search) |
-| `max_depth` | int | 3 – 10 | All (RF/ET on Covertype use depth×3, or unlimited when depth = 10) |
+| `max_depth` | int | 3 – 10 | All (RF/ET use depth×3, or unlimited when depth = 10) |
 | `subsample` | float | 0.5 – 1.0 | XGBoost, LightGBM |
 | `booster` | categorical | gbtree, dart | XGBoost |
 | `colsample_bytree` | float | 0.3 – 1.0 | XGB/LGBM; used as `max_features` for RF/ET |
 | `reg_alpha` | float | 0.0 – 10.0 | XGBoost, LightGBM (L1) |
 
-Without the two flags the space is 7-dimensional. `get_model_switching_search_space()` is an alias for the version with `model_type`. Note that the default call includes `fe_strategy`, so `main.py` and the UPGS ablations also search a 9-dimensional space, even though their evaluators ignore `fe_strategy` (§3).
+Without the two flags the space is 7-dimensional. `get_xgboost_search_space` is kept as an alias of `get_tabular_search_space`.
 
-### 1.3 `get_image_nas_search_space()`: 7 dimensions (CNN NAS)
+### 1.3 `get_image_nas_search_space()` (`nas.py`): 7 dimensions (CNN NAS)
 
 | Name | Type | Choices / range |
 |---|---|---|
@@ -45,7 +45,7 @@ Without the two flags the space is 7-dimensional. `get_model_switching_search_sp
 
 ## 2. Decoding the universal latent space
 
-Every individual is a vector `z ∈ [0,1]^d`. Each evaluator, and the controller's `_decode_individual`, decodes it like this:
+Every individual is a vector `z ∈ [0,1]^d`. `evosynth.core.decoding.decode_vector_to_dict(vector, space)`, used by the evaluators, the controller and the refit, decodes it like this:
 
 ```python
 valid_vec = np.copy(individual.vector)
@@ -63,7 +63,7 @@ config = Configuration(space, vector=valid_vec)
   - linear: `x = L + z·(U − L)`;
   - log scale: `x = exp(ln L + z·(ln U − ln L))`;
   - integers are rounded from the scaled value.
-- **Dimension order is `list(space.keys())`.** In the ConfigSpace version used, that order is **alphabetical**, as every log's hyperparameter listing shows: `booster, colsample_bytree, fe_strategy, learning_rate, max_depth, model_type, n_estimators, reg_alpha, subsample`. The vector index of a hyperparameter is its alphabetical position, not its declaration order. (The Hybrid Workflow document's example puts `model_type` first for readability.)
+- **Dimension order is `list(space.keys())`.** In the ConfigSpace version used, that order is **alphabetical**, as every log's hyperparameter listing shows: `booster, colsample_bytree, fe_strategy, learning_rate, max_depth, model_type, n_estimators, reg_alpha, subsample`. The vector index of a hyperparameter is its alphabetical position, not its declaration order.
 - **Inactive dimensions.** For RF/ET, `learning_rate`, `subsample`, `booster` and `reg_alpha` have no effect. They drift neutrally through the search, which the project lists as a known limitation.
 
 Why the latent space is needed: PSO velocities, DE differences, GA blending and CMA-ES covariance all need continuous vectors. Binning lets those continuous operators move between model families and other categorical choices without special rules.
@@ -72,9 +72,9 @@ Why the latent space is needed: PSO velocities, DE differences, GA blending and 
 
 ## 3. Evaluators
 
-All evaluators return **accuracy in percent** (0–100; higher is better) and set every model's `random_state = 42`.
+Evaluators live in `src/evosynth/evaluators/`. All return **accuracy in percent** (0–100; higher is better) and set every model's `random_state` to `run.random_state` (42).
 
-### 3.1 `DummyObjectiveFunction` (`evaluator.py`)
+### 3.1 `DummyObjectiveFunction` (`toy.py`)
 
 A microsecond-fast synthetic objective with a known optimum: `lr = 0.05`, `layers = 4`, `optimizer = Adam`, `dropout = 0.2`.
 
@@ -83,28 +83,13 @@ error = |lr − 0.05|·500 + |layers − 4|·5 + |dropout − 0.2|·100 + (0 if 
 score = max(0, 100 − error)
 ```
 
-### 3.2 `XGBoostEvaluator` (alias `ModelSwitchingEvaluator`), Wisconsin Breast Cancer
+### 3.2 `TabularEvaluator(dataset="covertype", subsample_size=None)` (`tabular.py`), the real-world benchmark
 
-- **Data:** `sklearn.datasets.load_breast_cancer`, 569 samples, 30 features, binary.
-- **Protocol:** `StratifiedKFold(3, shuffle=True, random_state=42)`; mean fold accuracy × 100.
-- **Models by `model_type`:**
-  - **XGBoost:** `XGBClassifier(lr, n_estimators, max_depth, subsample, booster, colsample_bytree, reg_alpha, early_stopping_rounds=10, eval_metric="logloss", n_jobs=1)`, fit with `eval_set = validation fold`.
-  - **LightGBM:** `LGBMClassifier(...)` with the `lgb.early_stopping(10)` callback. On any exception it falls back to a simple XGBoost.
-  - **Anything else:** `RandomForestClassifier(n_estimators=min(n,150), max_depth=depth, max_features=colsample)`. This includes the `ExtraTrees` choice: in this evaluator, choosing ExtraTrees trains a RandomForest.
-- `fe_strategy`, if present in the space, is ignored.
+The evaluator is generic over the datasets registered in `settings/datasets.toml` (`evosynth datasets list`); the data loading lives in `src/evosynth/datasets/`, the model construction in `src/evosynth/models/factory.py` (`build_model(phase="search")`). `subsample_size` defaults to `datasets.<name>.search_subsample`. Covertype is currently the only registered dataset (HIGGS, Adult, Airlines, Poker Hand, MiniBooNE and Jannis follow in Phase 3).
 
-### 3.3 `PathologicalXGBoostEvaluator(fast_mode=False)` (`hard_evaluator.py`), the noisy stress test
-
-- **Data:** `make_classification(n_samples=2000, n_features=20, n_informative=5, n_redundant=10, n_classes=2, flip_y=0.3, random_state=42)`. The **30% random label flips** create a deceptive landscape on which optimizers tend to stagnate. This exercises the SWAP and injection safeguards.
-- **Standard mode** (used for UPGS-120 and `main.py`): the same 3-fold stratified CV and model rules as §3.2.
-- **`fast_mode`** (used for UPGS-2500): one stratified 75/25 split made once in `__init__`. It is about 15× faster than 3-fold CV and brought a 2,500-evaluation study down from roughly 13 hours to roughly 90 minutes.
-- As in §3.2, ExtraTrees falls into the RandomForest branch and `fe_strategy` is ignored. In this setting the "ExtraTrees" architecture reported in UPGS results therefore means a RandomForest.
-
-### 3.4 `CovertypeEvaluator(subsample_size=20000)` (`covtype_evaluator.py`), the real-world benchmark
-
-- **Data:** `sklearn.datasets.fetch_covtype(data_home="<repo>/.data")`, cached as `.data/covertype/samples_py3` and `targets_py3`.
+- **Data:** `sklearn.datasets.fetch_covtype(data_home="<repo>/.data")`, cached as `.data/covertype/samples_py3` and `targets_py3` (git-ignored).
   - 581,012 rows, 54 features: 10 continuous cartographic features plus 4 wilderness and 40 soil-type binary indicators. 7 classes.
-  - `X` is cast to float32 and `y = target − 1` (classes 0..6).
+  - `X` is cast to float32 and `y = target − 1` (classes 0..6; `datasets.covertype.label_offset`).
 - **Search subsample:** a stratified `train_test_split(train_size=subsample_size, random_state=42)`, giving 20,000 rows. Class counts in the subsample:
   - 0: 7,292
   - 1: 9,752
@@ -113,7 +98,7 @@ score = max(0, 100 − error)
   - 4: 327
   - 5: 598
   - 6: 706
-- **Protocol:** `StratifiedKFold(2, shuffle=True, random_state=42)`. The feature engineer is **fit on the training fold and applied to the validation fold**, which avoids leakage.
+- **Protocol:** `StratifiedKFold(evaluation.cv_folds = 2, shuffle=True, random_state=42)`. The feature engineer is **fit on the training fold and applied to the validation fold**, which avoids leakage.
 - **Models by `model_type`:**
 
 | Choice | Construction during search |
@@ -123,13 +108,15 @@ score = max(0, 100 − error)
 | ExtraTrees | `ExtraTreesClassifier(n_estimators=min(n,150), max_depth = depth·3 if depth<10 else None, max_features=colsample, n_jobs=1)` |
 | RandomForest | Same rules as ExtraTrees, using `RandomForestClassifier` |
 
-- **Failure handling:** any exception scores that fold 0.5, i.e. 50% accuracy.
+- **Failure handling:** any exception scores that fold `evaluation.failed_fold_score` = 0.5 (changed to 0 in Phase 3).
 - **Score:** mean of the 2 fold accuracies × 100.
 
-### 3.5 `ImageCNNEvaluator(space=None, epochs=3, batch_size=64, device="cpu")` (`image_evaluator.py`), NAS
+### 3.3 `ImageCNNEvaluator(space=None, epochs=None, batch_size=None, device=None)` (`image.py`), NAS
+
+Defaults come from `[experiments.nas]`: 2 epochs, batch size 64, CPU.
 
 - **Data:** `sklearn.datasets.load_digits`, 1,797 grayscale 8×8 images in 10 classes, scaled to `[0,1]` (divided by 16) and shaped `(N, 1, 8, 8)`. A stratified 75/25 train/validation split (`random_state=42`) is wrapped in DataLoaders, with the training loader shuffled.
-- **`DynamicCNN`:**
+- **`DynamicCNN`** (`src/evosynth/models/cnn.py`):
 
 ```
 Conv2d(1 → conv1, 3×3, pad 1) → BatchNorm2d → act → MaxPool2d(2)
@@ -140,15 +127,14 @@ act = ReLU or LeakyReLU
 
 - **Training:** CrossEntropyLoss for a fixed number of epochs.
   - Optimiser: Adam, RMSprop, or SGD with momentum 0.9.
-  - The run script uses `epochs = 2`.
   - CUDA is used only if it is requested and available.
 - **Score:** validation accuracy × 100.
 
 ---
 
-## 4. `GenericFeatureEngineer(strategy, max_interaction_features=6)`
+## 4. `GenericFeatureEngineer(strategy, max_interaction_features=6)` (`src/evosynth/features/generic.py`)
 
-This is a dataset-agnostic feature engineer: it uses no column names and no domain rules.
+This is a dataset-agnostic feature engineer: it uses no column names and no domain rules. Its thresholds come from `[features]` in `settings/evaluation.toml`.
 
 **`fit(X)`:**
 - `none`: does nothing.
@@ -180,7 +166,7 @@ On Covertype, the 10 cartographic columns are continuous:
 - **Boosted models:** XGBoost and LightGBM stop after 10 rounds without improvement on the validation fold (`early_stopping_rounds=10` or `lgb.early_stopping(10)`). Poor configurations are cut short. (Early stopping on the same fold that is then scored makes those scores slightly optimistic. The same protocol is used for every candidate.)
 - **Bagging models:** RF and ET are capped at 150 trees during search, which keeps evaluation cost bounded.
 - **Thread-pool parallelism:** see [02-architecture.md](02-architecture.md) §5.
-- **Covertype multi-fidelity:** the search uses 20k rows with 2-fold CV, about 10k training rows per fold. The single winner is then refit on 60k rows and tested on 20k unseen rows ([07-experiments.md](07-experiments.md) §4).
+- **Covertype multi-fidelity:** the search uses 20k rows with 2-fold CV, about 10k training rows per fold. The single winner is then refit on 60k rows and tested on 20k unseen rows ([07-experiments.md](07-experiments.md) E1).
 
 ---
 
@@ -210,7 +196,7 @@ class MyEvaluator:
         cfg = Configuration(self.space, vector=v)
         return float(train_and_score(cfg, self.X, self.y))           # higher is better, e.g. %
 
-from automl_engine.engine.controller import DynamicOptimizer
+from evosynth.engine.controller import DynamicOptimizer
 best = DynamicOptimizer(search_space=MyEvaluator().space, evaluator=MyEvaluator(),
                         budget=500, pop_size=40, t1_iters=5, k_iters=3).run()
 ```

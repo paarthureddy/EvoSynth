@@ -27,10 +27,9 @@
     * 4.6 Asynchronous Parallel Batching & Early Stopping
   5. [Comprehensive Comparison Matrix](#5-comprehensive-comparison-matrix)
   6. [Empirical Benchmark Evidence & Stress Tests](#6-empirical-benchmark-evidence--stress-tests)
-    * 6.1 Pathological Noisy Landscape (30% Label Noise)
-    * 6.2 Tabular Multi-Model CASH Selection
-    * 6.3 Deep Learning Vision NAS (PyTorch CNN)
-    * 6.4 Scalability on Big Datasets (50,000+ Samples)
+    * 6.1 Real-World Benchmark: UCI Forest Covertype Dataset
+    * 6.2 Deep Learning Vision NAS (PyTorch CNN)
+    * 6.3 Scalability on Big Datasets (50,000+ Samples)
   7. [Objective Self-Awareness: Strengths, Limitations, and Trade-offs](#7-objective-self-awareness-strengths-limitations-and-trade-offs)
   8. [Professor & Evaluation Panel Defense Guide](#8-professor--evaluation-panel-defense-guide)
 
@@ -304,33 +303,7 @@
 
   ---
 
-  ### 6.2 Pathological Noisy Landscape (30% Label Noise)
-  * **Dataset:** 2,000 samples, 20 features (5 informative, 10 redundant, 5 noise), 30% asymmetric label flip (`flip_y=0.30`).
-  * **Objective:** Stress-test whether the optimizer gets trapped in noisy, deceptive local optima.
-
-  ```
-  Accuracy (%) on Pathological Noisy Landscape (Higher is Better)
-  ┌─────────────────────────────────────────────────────────────┐
-  │ EvoSynth (Dynamic Meta-Optimizer)                 79.40%    │
-  │ Standalone PSO (Premature Convergence)            76.85%    │
-  │ Microsoft FLAML (Trapped in Noise)                76.10%    │
-  │ Random Search Baseline (Blind Stochastic)         74.50%    │
-  │ Default Untuned XGBoost                           74.20%    │
-  └─────────────────────────────────────────────────────────────┘
-  ```
-
-  * **Empirical Analysis:** Microsoft FLAML's greedy hill-climbing and standalone PSO plateaued around 76% accuracy because the 30% label noise created false local gradients. In EvoSynth, when the Stagnation Detector flagged zero trend ($\Delta T = 0$), UCB1 increased the exploration bonus, promoted Particle Swarm with refreshed seeds from Differential Evolution, and injected random latent vectors, successfully escaping the local basin to achieve **79.40% validation accuracy**.
-
-  ### 6.2 Tabular Multi-Model CASH Selection
-  * **Dataset:** Wisconsin Breast Cancer (569 samples, 30 features, binary classification).
-  * **Search Space:** 8 dimensions (`model_type`, `learning_rate`, `n_estimators`, `max_depth`, `subsample`, `booster`, `colsample_bytree`, `reg_alpha`).
-  * **Results:**
-    * **Selected Architecture:** `XGBoost` (selected over `LightGBM` and `RandomForest`).
-    * **Discovered Parameters:** `learning_rate=0.0163`, `n_estimators=327`, `max_depth=6`, `reg_alpha=7.5669`, `subsample=0.9797`.
-    * **Cross-Validation Accuracy:** **79.40%** (on noisy split) / **96.49%** (on standard clean split).
-    * **Search Wall-Clock Time:** **63.9 seconds** (120 evaluations across 8 worker threads with early stopping).
-
-  ### 6.3 Deep Learning Vision NAS (PyTorch CNN)
+  ### 6.2 Deep Learning Vision NAS (PyTorch CNN)
   * **Dataset:** Handwritten Digits (1,797 $8\times8$ grayscale images, 10 classes).
   * **Search Space:** 7 dimensions (`conv1_channels`, `conv2_channels`, `fc_units`, `dropout_rate`, `learning_rate`, `optimizer`, `activation`).
   * **Results:**
@@ -339,7 +312,7 @@
     * **Validation Accuracy:** **95.33%**.
     * **Discovered Topology:** `Conv1=16`, `Conv2=64`, `FC=64`, `Dropout=0.0107`, `Activation=LeakyReLU`, `Optimizer=Adam (lr=0.0309)`.
 
-  ### 6.4 Scalability on Big Datasets (50,000+ Samples)
+  ### 6.3 Scalability on Big Datasets (50,000+ Samples)
   * **Dataset:** Synthetic Scalable Classification (50,000 rows, 25 features).
   * **Parallel Execution Mode:** 8 CPU threads via `ThreadPoolExecutor`.
   * **Execution Time Comparison:**

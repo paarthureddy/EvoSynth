@@ -4,7 +4,7 @@
 
 CMA-ES is widely regarded as the gold standard for difficult, continuous black-box optimization problems.
 
-* **Implementation:** [`automl_engine/optimizers/cmaes.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/optimizers/cmaes.py)
+* **Implementation:** [`src/evosynth/optimizers/cmaes.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/optimizers/cmaes.py) (constants in [`settings/optimizers.toml`](https://github.com/paarthureddy/EvoSynth/blob/main/settings/optimizers.toml))
 * **Primary Role:** Second-order curvature learning and covariance estimation across non-convex continuous hyperparameter landscapes.
 
 ---

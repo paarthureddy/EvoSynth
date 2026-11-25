@@ -49,7 +49,7 @@ class CustomModelEvaluator:
 Pass your custom evaluator into `DynamicOptimizer`:
 
 ```python
-from automl_engine.engine.controller import DynamicOptimizer
+from evosynth.engine.controller import DynamicOptimizer
 
 evaluator = CustomModelEvaluator()
 optimizer = DynamicOptimizer(

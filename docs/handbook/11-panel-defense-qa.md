@@ -164,16 +164,14 @@ On this space, the good region (ExtraTrees with interactions) is broad and easy 
 The honest conclusion is that Covertype did not strongly separate the search strategies, while feature engineering and model choice mattered most.
 
 **Q22. In the ablations, an isolated optimizer sometimes beat EvoSynth. Why?**
-The results:
-- UPGS-120: EvoSynth +0.10 points;
-- UPGS-2500: PSO alone +0.60;
-- CVGS-300: −0.06;
+The results on Covertype:
+- CVGS-300: −0.06 points against the best isolated optimizer;
 - CVGS-500: about equal.
 
-You only know *which* single optimizer wins after the run, and it differs by landscape: DE won UPGS-120 and PSO won UPGS-2500. EvoSynth tracks the best of the four without that hindsight. The margins are small on these flat landscapes, and the results come from single runs.
+You only know *which* single optimizer wins after the run, and it differs by landscape and budget. EvoSynth tracks the best of the four without that hindsight. The margins are small on these flat landscapes, and the results come from single runs.
 
 **Q23. The ablation tables show EvoSynth diversity 0.500 / 0.450. Are those measured?**
-No. In the ablation scripts, EvoSynth's diversity, composite and UCB entries are fixed constants. Only its accuracy, winner, hyperparameters and runtime are measured. Inside real runs, diversity is std/spread of fitness, and with two-member islands it is always exactly 0.5 (or 0). So diversity-based claims should rely on the live logs, not on those ablation columns.
+No. In the ablation code, EvoSynth's diversity, composite and UCB entries are fixed constants. Only its accuracy, winner, hyperparameters and runtime are measured. Inside real runs, diversity is std/spread of fitness, and with two-member islands it is always exactly 0.5 (or 0). So diversity-based claims should rely on the live logs, not on those ablation columns.
 
 **Q24. Is the UCB1Bandit class actually used?**
 The promotion and swap decisions use the controller's inline formula, composite plus `0.1·sqrt(ln N / n_i)`. The `UCB1Bandit` class records rewards at promotion, but its `select_next` method is not called. The "bandit" behaviour is the UCB-scored promotion and swapping.

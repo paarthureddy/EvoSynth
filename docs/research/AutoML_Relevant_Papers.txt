@@ -78,7 +78,7 @@ MEDIUM RELEVANCE (16)
     Search for Image Classification
     What it does : Cheaper evolutionary NAS using fast proxies and better
                    initialization.
-    Relation     : Directly comparable to run_vision_nas.py. Cite it, or use as
+    Relation     : Directly comparable to the NAS demo (evosynth nas). Cite it, or use as
                    the baseline if the NAS branch is kept.
 
 11. The Ranking Trick: A Simple and Robust Alternative to Score-Based

@@ -4,7 +4,7 @@
 
 Particle Swarm Optimization mimics flocking birds or schooling fish. Each particle maintains a position vector $\mathbf{x}_i \in [0, 1]^d$ and a velocity vector $\mathbf{v}_i \in \mathbb{R}^d$.
 
-* **Implementation:** [`automl_engine/optimizers/pso.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/optimizers/pso.py)
+* **Implementation:** [`src/evosynth/optimizers/pso.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/optimizers/pso.py) (constants in [`settings/optimizers.toml`](https://github.com/paarthureddy/EvoSynth/blob/main/settings/optimizers.toml))
 * **Primary Role:** Aggressive exploitation and high-speed gradient descent towards promising attractor basins.
 
 ---

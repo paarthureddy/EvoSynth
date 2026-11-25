@@ -35,10 +35,10 @@ class CustomOptimizer:
 
 ## Registering in the Controller
 
-1. Save your optimizer in `automl_engine/optimizers/custom_opt.py`.
-2. In [`automl_engine/engine/controller.py`](file:///c:/Users/siddh/Desktop/College/EvoSynth/automl_engine/engine/controller.py):
+1. Save your optimizer in `src/evosynth/optimizers/custom_opt.py` (put its constants in `settings/optimizers.toml`).
+2. In [`src/evosynth/engine/controller.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/engine/controller.py):
    ```python
-   from automl_engine.optimizers.custom_opt import CustomOptimizer
+   from evosynth.optimizers.custom_opt import CustomOptimizer
 
    def _make_optimizer(algo_key, space, pop_size):
        if algo_key == 'GA': return GeneticAlgorithm(space, pop_size)

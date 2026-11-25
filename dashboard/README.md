@@ -36,7 +36,7 @@ The **EvoSynth Dashboard** is a real-time, glass-box telemetry interface built w
 
 In the root `EvoSynth/` directory:
 ```bash
-python api_server.py
+evosynth serve        # or: python -m evosynth serve
 ```
 This boots the FastAPI SSE server at `http://localhost:8000`.
 

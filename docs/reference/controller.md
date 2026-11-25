@@ -5,7 +5,7 @@
 The primary engine class coordinating the multi-algorithm optimization loop.
 
 ```python
-from automl_engine.engine.controller import DynamicOptimizer
+from evosynth.engine.controller import DynamicOptimizer
 
 optimizer = DynamicOptimizer(
     search_space,
@@ -18,13 +18,17 @@ optimizer = DynamicOptimizer(
     stagnation_limit=3,
     elite_pct=0.20,
     inject_pct=0.20,
-    max_workers=None
+    max_workers=None,
+    population_csv=None,
 )
 ```
 
 ---
 
 ## Parameters
+
+Every argument left as `None` takes its value from the active settings
+(`[engine]`, `[safeguards]`, `[run]` in [`settings/`](https://github.com/paarthureddy/EvoSynth/tree/main/settings)); the defaults below are those settings.
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -37,7 +41,8 @@ optimizer = DynamicOptimizer(
 | `stagnation_limit` | `int` | `3` | Consecutive intervals of zero improvement before random injection. |
 | `elite_pct` | `float` | `0.20` | Fraction of top solutions shared between Tier 2 islands. |
 | `inject_pct` | `float` | `0.20` | Fraction of stagnant population replaced by random vectors. |
-| `max_workers` | `int` or `None` | `None` | Max CPU threads for asynchronous parallel evaluations (defaults to `min(8, os.cpu_count())`). |
+| `max_workers` | `int` or `None` | `None` | Max CPU threads for asynchronous parallel evaluations (`run.max_workers = 0` means `min(8, os.cpu_count())`). |
+| `population_csv` | `str` or `None` | `None` | If given, one CSV row per evaluation is written there (the commands pass the run folder's `population.csv`). |
 
 ---
 

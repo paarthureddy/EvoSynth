@@ -28,11 +28,11 @@ A model's performance depends heavily on hyperparameters that gradient descent c
 
 | Title component | What it means in the system | Implemented in |
 |---|---|---|
-| **Dynamic** | The allocation of budget among optimizers changes during the run through promotion, SWAP, rollback and injection. | `automl_engine/engine/controller.py` |
-| **Multi-Armed Bandit** | Each optimizer is an "arm". Its reward is the composite score, and a UCB1 exploration bonus `c·sqrt(ln N / n_i)` favours under-used arms. | `controller.py` (`_compute_composite`), `ucb1.py` |
+| **Dynamic** | The allocation of budget among optimizers changes during the run through promotion, SWAP, rollback and injection. | `src/evosynth/engine/controller.py` |
+| **Multi-Armed Bandit** | Each optimizer is an "arm". Its reward is the composite score, and a UCB1 exploration bonus `c·sqrt(ln N / n_i)` favours under-used arms. | `controller.py` (`_compute_composite`), `engine/bandit.py` |
 | **Meta-Optimizer** | It optimises *which optimizer* gets budget, over a portfolio of GA, PSO, DE and CMA-ES arranged in a two-tier island model. | `controller.py`, `optimizers/` |
-| **Automated Model Selection** | The model family is one latent dimension (`model_type` ∈ XGBoost / RandomForest / LightGBM / ExtraTrees), so the family is chosen inside the same search loop. | `core/search_space.py`, evaluators |
-| **Hyperparameter Tuning** | Continuous, integer and categorical hyperparameters, plus the feature-engineering gene, are searched together. Evaluation runs in parallel, with early stopping for boosted trees. | `core/evaluator.py`, `core/covtype_evaluator.py` |
+| **Automated Model Selection** | The model family is one latent dimension (`model_type` ∈ XGBoost / RandomForest / LightGBM / ExtraTrees), so the family is chosen inside the same search loop. | `search_spaces/tabular.py`, `evaluators/` |
+| **Hyperparameter Tuning** | Continuous, integer and categorical hyperparameters, plus the feature-engineering gene, are searched together. Evaluation runs in parallel, with early stopping for boosted trees. | `evaluators/tabular.py`, `models/factory.py`, `features/generic.py` |
 
 ```
 [ EvoSynth ]
@@ -118,7 +118,7 @@ flowchart TD
     end
 ```
 
-## 7. The architecture figure (`assets/arch.png`), described
+## 7. The architecture figure (`docs/public/arch.png`), described
 
 The figure reads left to right in seven coloured blocks, with a control loop drawn underneath:
 
