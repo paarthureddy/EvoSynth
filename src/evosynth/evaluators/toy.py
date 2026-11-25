@@ -1,7 +1,7 @@
 import numpy as np
 import ConfigSpace.hyperparameters as CSH
 from ConfigSpace import Configuration
-from .search_space import get_dummy_search_space
+from evosynth.core.search_space import get_dummy_search_space
 
 
 class DummyObjectiveFunction:

@@ -6,21 +6,13 @@ PyTorch Convolutional Neural Network topology and hyperparameters for image data
 import os
 import sys
 
-# Ensure project root is in sys.path
-_current = os.path.abspath(os.path.dirname(__file__))
-while _current and not os.path.exists(os.path.join(_current, 'automl_engine')):
-    _parent = os.path.dirname(_current)
-    if _parent == _current:
-        break
-    _current = _parent
-_ROOT_DIR = _current
-if _ROOT_DIR not in sys.path:
-    sys.path.insert(0, _ROOT_DIR)
+from evosynth.paths import PROJECT_ROOT
+_ROOT_DIR = str(PROJECT_ROOT)
 
 
-from automl_engine.core.search_space import get_image_nas_search_space
-from automl_engine.core.image_evaluator import ImageCNNEvaluator
-from automl_engine.engine.controller import DynamicOptimizer
+from evosynth.core.search_space import get_image_nas_search_space
+from evosynth.evaluators.image import ImageCNNEvaluator
+from evosynth.engine.controller import DynamicOptimizer
 
 def main():
     print("=" * 60)

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evosynth"
+version = "2.0.0.dev0"
+description = "Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Model Selection and Hyperparameter Tuning"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"          # tomllib (master config) is built in from 3.11
+authors = [{ name = "Group G002" }]
+
+# Pinned to the versions the project was last run with (Python 3.14, Nov 2026).
+dependencies = [
+    "numpy==2.4.2",
+    "scipy==1.17.0",
+    "pandas==3.0.0",
+    "scikit-learn==1.8.0",
+    "ConfigSpace==1.2.2",
+    "xgboost==3.4.1",
+    "lightgbm==4.7.0",
+    "cma==4.5.0",
+    "requests==2.32.5",
+    "fastapi==0.138.2",
+    "uvicorn==0.49.0",
+]
+
+[project.optional-dependencies]
+nas       = ["torch==2.14.1", "torchvision==0.29.1"]   # CNN architecture search
+baselines = ["optuna==5.1.0", "flaml==2.8.0"]          # competitor baselines
+dev       = ["pytest"]
+all       = ["evosynth[nas,baselines,dev]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

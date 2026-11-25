@@ -14,8 +14,8 @@ import numpy as np
 import warnings
 import ConfigSpace.hyperparameters as CSH
 from ConfigSpace import Configuration
-from .search_space import get_xgboost_search_space
-from .generic_feature_engineer import GenericFeatureEngineer
+from evosynth.core.search_space import get_xgboost_search_space
+from evosynth.features.generic import GenericFeatureEngineer
 
 warnings.filterwarnings("ignore")
 
@@ -35,7 +35,8 @@ class CovertypeEvaluator:
 
         print(f"  [DATASET] Loading UCI Forest Covertype (581,012 samples, 54 features, 7 classes)...")
         import os
-        _data_home = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".data")
+        from evosynth.paths import DATA_DIR
+        _data_home = str(DATA_DIR)
         data = fetch_covtype(data_home=_data_home)
         X_full = data.data.astype(np.float32)
         y_full = data.target.astype(int) - 1  # 0-indexed: [0, 6] for XGBoost/LightGBM compatibility

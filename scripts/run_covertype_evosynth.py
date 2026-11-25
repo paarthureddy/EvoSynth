@@ -17,21 +17,14 @@ import json
 import argparse
 import numpy as np
 
-# Ensure project root is in sys.path
-_current = os.path.abspath(os.path.dirname(__file__))
-while _current and not os.path.exists(os.path.join(_current, 'automl_engine')):
-    _parent = os.path.dirname(_current)
-    if _parent == _current:
-        break
-    _current = _parent
-_ROOT_DIR = _current
-if _ROOT_DIR not in sys.path:
-    sys.path.insert(0, _ROOT_DIR)
+from evosynth.paths import PROJECT_ROOT
+_ROOT_DIR = str(PROJECT_ROOT)
 
 
-from automl_engine.core.search_space import get_xgboost_search_space
-from automl_engine.core.covtype_evaluator import CovertypeEvaluator
-from automl_engine.engine.controller import DynamicOptimizer
+from evosynth.core.search_space import get_xgboost_search_space
+from evosynth.evaluators.covtype import CovertypeEvaluator
+from evosynth.engine.controller import DynamicOptimizer
+from evosynth.core.decoding import decode_vector_to_dict
 from ConfigSpace import Configuration
 import ConfigSpace.hyperparameters as CSH
 
@@ -68,17 +61,6 @@ def save_atomic_checkpoint(checkpoint_path, data):
         os.rename(tmp_path, checkpoint_path)
 
 
-def decode_vector_to_dict(vector, space):
-    valid_vec = np.copy(vector)
-    for i, hp_name in enumerate(list(space.keys())):
-        hp = space.get_hyperparameter(hp_name)
-        if isinstance(hp, CSH.CategoricalHyperparameter):
-            num_choices = len(hp.choices)
-            idx = int(np.floor(valid_vec[i] * num_choices))
-            idx = min(idx, num_choices - 1)
-            valid_vec[i] = float(idx)
-    cfg = Configuration(space, vector=valid_vec)
-    return {k: cfg[k] for k in list(space.keys())}
 
 
 def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=10, run_name=None, output_dir=None):
@@ -164,7 +146,7 @@ def run_benchmark(budget=300, pop_size=30, subsample=20000, checkpoint_interval=
         from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
         import xgboost as xgb
         import lightgbm as lgb
-        from automl_engine.core.generic_feature_engineer import GenericFeatureEngineer
+        from evosynth.features.generic import GenericFeatureEngineer
 
         _data_home = os.path.join(_ROOT_DIR, ".data")
         data = fetch_covtype(data_home=_data_home)

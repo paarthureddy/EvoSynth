@@ -4,21 +4,20 @@ import time
 import sys
 import threading
 import requests
-from automl_engine.engine.tier_manager import TierManager
-from automl_engine.engine.composite import CompositeScoringEngine
-from automl_engine.engine.ucb1 import UCB1Bandit
-from automl_engine.optimizers.ga import GeneticAlgorithm
-from automl_engine.optimizers.pso import ParticleSwarm
-from automl_engine.optimizers.de import DifferentialEvolution
-from automl_engine.optimizers.cmaes import CMAESOptimizer
-from automl_engine.core.individual import Individual
+from evosynth.engine.tiers import TierManager
+from evosynth.engine.scoring import CompositeScoringEngine
+from evosynth.engine.bandit import UCB1Bandit
+from evosynth.optimizers.ga import GeneticAlgorithm
+from evosynth.optimizers.pso import ParticleSwarm
+from evosynth.optimizers.de import DifferentialEvolution
+from evosynth.optimizers.cmaes import CMAESOptimizer
+from evosynth.core.individual import Individual
 
 # ------------------------------------------------------------------
 # Global Results Directory Resolution
 # ------------------------------------------------------------------
-_ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
-_ROOT_DIR = os.path.abspath(os.path.join(_ENGINE_DIR, "..", ".."))
-_RESULTS_DIR = os.path.join(_ROOT_DIR, "results")
+from evosynth.paths import RESULTS_DIR as _RESULTS_PATH
+_RESULTS_DIR = str(_RESULTS_PATH)
 _CSV_DIR = os.path.join(_RESULTS_DIR, "csv")
 os.makedirs(_RESULTS_DIR, exist_ok=True)
 os.makedirs(_CSV_DIR, exist_ok=True)

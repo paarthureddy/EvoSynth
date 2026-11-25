@@ -17,16 +17,8 @@ import json
 import argparse
 import numpy as np
 
-# Ensure project root is in sys.path
-_current = os.path.abspath(os.path.dirname(__file__))
-while _current and not os.path.exists(os.path.join(_current, 'automl_engine')):
-    _parent = os.path.dirname(_current)
-    if _parent == _current:
-        break
-    _current = _parent
-_ROOT_DIR = _current
-if _ROOT_DIR not in sys.path:
-    sys.path.insert(0, _ROOT_DIR)
+from evosynth.paths import PROJECT_ROOT
+_ROOT_DIR = str(PROJECT_ROOT)
 
 
 from sklearn.datasets import fetch_covtype
@@ -83,9 +75,9 @@ def run_random_search(out_dir, n_trials=120):
     print(f" RUNNING BASELINE 2: RANDOM SEARCH ({n_trials} EVALUATIONS)")
     print("=" * 70)
 
-    from automl_engine.core.search_space import get_xgboost_search_space
-    from automl_engine.core.covtype_evaluator import CovertypeEvaluator
-    from automl_engine.core.individual import Individual
+    from evosynth.core.search_space import get_xgboost_search_space
+    from evosynth.evaluators.covtype import CovertypeEvaluator
+    from evosynth.core.individual import Individual
 
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
     evaluator = CovertypeEvaluator(subsample_size=20000)
@@ -107,8 +99,8 @@ def run_random_search(out_dir, n_trials=120):
 
     # Refit winning vector on 60k/20k
     X_tr, X_te, y_tr, y_te = load_covertype_splits()
-    from scripts.run_covertype_evosynth import decode_vector_to_dict
-    from automl_engine.core.generic_feature_engineer import GenericFeatureEngineer
+    from evosynth.core.decoding import decode_vector_to_dict
+    from evosynth.features.generic import GenericFeatureEngineer
     import xgboost as xgb
     import lightgbm as lgb
 
@@ -163,9 +155,9 @@ def run_optuna_baseline(out_dir, n_trials=120):
         return None
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    from automl_engine.core.covtype_evaluator import CovertypeEvaluator
-    from automl_engine.core.search_space import get_xgboost_search_space
-    from automl_engine.core.individual import Individual
+    from evosynth.evaluators.covtype import CovertypeEvaluator
+    from evosynth.core.search_space import get_xgboost_search_space
+    from evosynth.core.individual import Individual
 
     evaluator = CovertypeEvaluator(subsample_size=20000)
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
@@ -197,8 +189,8 @@ def run_optuna_baseline(out_dir, n_trials=120):
     best_cv = study.best_value
     best_vec = np.array([study.best_params[f"x_{i}"] for i in range(dims)])
 
-    from scripts.run_covertype_evosynth import decode_vector_to_dict
-    from automl_engine.core.generic_feature_engineer import GenericFeatureEngineer
+    from evosynth.core.decoding import decode_vector_to_dict
+    from evosynth.features.generic import GenericFeatureEngineer
     import xgboost as xgb
     import lightgbm as lgb
 

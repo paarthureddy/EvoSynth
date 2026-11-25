@@ -12,21 +12,13 @@ import os
 import sys
 import argparse
 
-# Ensure project root is in sys.path
-_current = os.path.abspath(os.path.dirname(__file__))
-while _current and not os.path.exists(os.path.join(_current, 'automl_engine')):
-    _parent = os.path.dirname(_current)
-    if _parent == _current:
-        break
-    _current = _parent
-_ROOT_DIR = _current
-if _ROOT_DIR not in sys.path:
-    sys.path.insert(0, _ROOT_DIR)
+from evosynth.paths import PROJECT_ROOT
+_ROOT_DIR = str(PROJECT_ROOT)
 
 
-from automl_engine.core.search_space import get_xgboost_search_space
-from automl_engine.core.covtype_evaluator import CovertypeEvaluator
-from automl_engine.engine.controller import DynamicOptimizer
+from evosynth.core.search_space import get_xgboost_search_space
+from evosynth.evaluators.covtype import CovertypeEvaluator
+from evosynth.engine.controller import DynamicOptimizer
 
 
 def main():
@@ -86,7 +78,7 @@ def main():
         import ConfigSpace.hyperparameters as CSH
         import numpy as np
 
-        _data_home = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".data")
+        _data_home = os.path.join(_ROOT_DIR, ".data")
         data = fetch_covtype(data_home=_data_home)
         X_full = data.data.astype(np.float32)
         y_full = data.target.astype(int) - 1
@@ -115,7 +107,7 @@ def main():
         colsample = cfg.get("colsample_bytree", 0.8)
         reg_alpha = cfg.get("reg_alpha", 0.0)
 
-        from automl_engine.core.generic_feature_engineer import GenericFeatureEngineer
+        from evosynth.features.generic import GenericFeatureEngineer
         fe = GenericFeatureEngineer(strategy=fe_strat)
         if fe_strat != "none":
             print(f"  [FE] Applying winning feature engineering strategy: '{fe_strat}'")

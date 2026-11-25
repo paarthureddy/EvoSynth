@@ -5,7 +5,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import ConfigSpace.hyperparameters as CSH
 from ConfigSpace import Configuration
-from .search_space import get_image_nas_search_space
+from evosynth.core.search_space import get_image_nas_search_space
 
 
 class DynamicCNN(nn.Module):

@@ -1,0 +1,494 @@
+# =====================================================================================
+#  EvoSynth — MASTER SETTINGS FILE
+# =====================================================================================
+#  Every tunable constant of the project lives here. Change a value, re-run, done.
+#
+#  How settings are resolved (later wins):
+#      this file  →  the [experiments.<name>] preset being run  →  command-line overrides
+#  Every run saves the fully resolved settings in its manifest.json, so old results
+#  always record exactly which values produced them.
+#
+#  Loaded and validated by:  src/evosynth/config.py → load_config()
+#
+#  Comment format for each setting:
+#      <what it controls>
+#      Used in: <file> → <function>  (paths relative to the repo root)
+#      Range: <valid values / typical range>
+#
+#  ── RESTRUCTURING STATUS (R2) ─────────────────────────────────────────────────────
+#  The values below mirror the constants currently hard-coded in the listed functions,
+#  so the file already documents the exact current behaviour. The code switches from
+#  its hard-coded copy to reading this file during R3–R4; "Used in" lines are updated
+#  as code moves. Settings introduced by the later fix phases (seeding, trend window,
+#  minimum island size, stratified split, confirm-before-select, new datasets, ...)
+#  are added to this file in the phase that implements them.
+# =====================================================================================
+
+
+# -------------------------------------------------------------------------------------
+[run]
+# -------------------------------------------------------------------------------------
+
+# Fixed random_state for every sklearn split, CV shuffler and model (not yet a global seed;
+# Phase 0 replaces it with a run-wide `seed` that also drives the optimizers).
+# Used in: src/evosynth/evaluators/covtype.py → CovertypeEvaluator.__init__ (subsample split),
+#          CovertypeEvaluator.evaluate (StratifiedKFold + every model);
+#          src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__ (train/val split);
+#          scripts/run_covertype.py → main (refit split + refit model);
+#          scripts/run_covertype_evosynth.py → run_benchmark (refit split + refit model);
+#          scripts/run_baselines_forest.py → load_covertype_splits, run_default_extratrees,
+#          run_random_search, run_optuna_baseline (TPESampler seed), run_flaml_baseline (seed)
+# Range: any integer
+random_state = 42
+
+# Parallel evaluation threads. 0 = automatic = min(8, CPU count).
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (max_workers),
+#          DynamicOptimizer._evaluate_batch (ThreadPoolExecutor size),
+#          DynamicOptimizer.run (Step 1 chunk size = 2 × workers)
+# Range: 0 (auto) or 1–64
+max_workers = 0
+
+
+# -------------------------------------------------------------------------------------
+[engine]
+# DynamicOptimizer defaults. The [experiments.*] presets below override budget / pop_size /
+# t1_iters / k_iters for each kind of run.
+# -------------------------------------------------------------------------------------
+
+# Total number of model evaluations for one run (shared by all four optimizers).
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (budget),
+#          DynamicOptimizer._evaluate_batch (truncates batches to remaining budget),
+#          DynamicOptimizer.run (loop termination)
+# Range: ≥ pop_size + 4·t1_iters·(island size); typically 120–2500
+budget = 2000
+
+# Size N of the initial random population.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 1 generation,
+#          Step 2 tier split, T2 island sizes)
+# Range: ≥ 20 (so each Tier 1 island has ≥ 2 members); recommended ≥ 40
+pop_size = 100
+
+# Number of Tier 1 tournament iterations before the top optimizers are promoted.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 3 loop)
+# Range: ≥ 1; typically 3–30
+t1_iters = 30
+
+# Checkpoint interval k: every k iterations scoring, SWAP, stagnation injection and elite
+# sharing are evaluated. Also sets the cooldown (= cooldown_multiplier · k).
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 3 T1 stagnation
+#          check, Step 5 switching checkpoint, cooldowns after SWAP / rollback)
+# Range: ≥ 1; must be small enough that Tier 2 reaches ≥ 1 checkpoint within the budget
+k_iters = 10
+
+# Fraction of the (sorted) initial population that seeds Tier 1; the rest is the Tier 2 reserve.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 2: t1_count = int(pop_size·0.4));
+#          src/evosynth/engine/tiers.py → TierManager.__init__ (t1_ratio, class not yet used)
+# Range: 0.1–0.9
+t1_fraction = 0.40
+
+# How many Tier 1 optimizers are promoted to Tier 2 after the tournament.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.run (Step 4: top2 = sorted[:2],
+#          reserve split in halves). Currently structural: only 2 is supported.
+# Range: 2 (fixed until the tier logic is generalised)
+n_promoted = 2
+
+
+# -------------------------------------------------------------------------------------
+[bandit]
+# UCB1 exploration bonus added to each optimizer's composite score:
+#     UCB = composite + c · sqrt( ln(total evaluations) / evaluations of this optimizer )
+# -------------------------------------------------------------------------------------
+
+# Exploration constant c used for promotion and SWAP decisions.
+# Used in: src/evosynth/engine/controller.py → DynamicOptimizer.__init__ (self.c),
+#          DynamicOptimizer._compute_composite (exploration_bonus).
+#          (src/evosynth/engine/bandit.py → UCB1Bandit.__init__ has its own default c=1.414,
+#          which does not affect decisions today; Phase 1.1 makes UCB1Bandit use this value.)
+# Range: 0.0 (no exploration) – 2.0; typical 0.05–0.5
+c = 0.1
+
+
+# -------------------------------------------------------------------------------------
+[composite]
+# Composite score = Σ weight · (min-max normalised metric across the islands being compared).
+# The five weights must sum to 1.0.
+# Used in: src/evosynth/engine/scoring.py → CompositeScoringEngine.__init__ (self.weights),
+#          CompositeScoringEngine.calculate_scores (weighted sum);
+#          scripts/run_ablation_study_forest.py → _compute_passive_metrics (same weights, passive only)
+# -------------------------------------------------------------------------------------
+
+# Weight of the island's best fitness (accuracy).          Range: 0–1
+fitness = 0.30
+# Weight of speed (improvement since last scoring call).  Range: 0–1
+speed = 0.25
+# Weight of efficiency (currently a constant 1.0 for every island → no effect until Phase 1.2).  Range: 0–1
+efficiency = 0.15
+# Weight of population diversity.                          Range: 0–1
+diversity = 0.15
+# Weight of trend (currently identical to speed until Phase 1.3).  Range: 0–1
+trend = 0.15
+
+# Value given to a metric when every island has the same value (no spread to normalise).
+# Used in: src/evosynth/engine/scoring.py → CompositeScoringEngine.calculate_scores
+# Range: 0–1
+tie_value = 0.5
+
+
+# -------------------------------------------------------------------------------------
+[safeguards]
+# SWAP / grace period / rollback / cooldown / stagnation injection / elite sharing.
+# All used in src/evosynth/engine/controller.py → DynamicOptimizer.run (Steps 3 and 5)
+# unless stated otherwise.
+# -------------------------------------------------------------------------------------
+
+# Additive UCB margin: SWAP happens when UCB(best Tier 1) > UCB(worst Tier 2) + swap_margin.
+# Used in: DynamicOptimizer.__init__ (swap_threshold), DynamicOptimizer.run (Step 5 "a) Swap")
+# Range: 0.0–0.5
+swap_margin = 0.10
+
+# Iterations a newly swapped-in optimizer has to improve the global best before rollback.
+# Used in: DynamicOptimizer.run (Step 5: active_grace_period['iters_left'])
+# Range: ≥ 1
+grace_iters = 5
+
+# Cooldown after a SWAP (demoted optimizer) or rollback (failed challenger) = multiplier · k_iters.
+# Used in: DynamicOptimizer.run (Step 5: cooldowns[...] = 2 * self.k)
+# Range: ≥ 0
+cooldown_multiplier = 2
+
+# Consecutive zero-trend checkpoints before a Tier 2 island gets random injection.
+# Used in: DynamicOptimizer.__init__ (stagnation_limit), DynamicOptimizer.run (Step 5 "b) Stagnation")
+# Range: ≥ 1
+stagnation_limit = 3
+
+# Fraction of a stagnant Tier 1 island replaced by fresh random vectors (at any zero-trend checkpoint).
+# Used in: DynamicOptimizer.run (Step 3: _random_inject(opt, 0.50, ...)), DynamicOptimizer._random_inject
+# Range: 0–1
+t1_inject_pct = 0.50
+
+# Fraction of a stagnant Tier 2 island replaced by fresh random vectors.
+# Used in: DynamicOptimizer.__init__ (inject_pct), DynamicOptimizer.run (Step 5), DynamicOptimizer._random_inject
+# Range: 0–1
+t2_inject_pct = 0.20
+
+# Fraction of each Tier 2 island exchanged at every checkpoint (elite sharing).
+# Used in: DynamicOptimizer.__init__ (elite_pct), DynamicOptimizer.run (Step 5 "c) Elite Sharing");
+#          src/evosynth/engine/tiers.py → TierManager.share_elites (top_pct, class not yet used)
+# Range: 0–0.5
+elite_pct = 0.20
+
+
+# -------------------------------------------------------------------------------------
+[optimizers.ga]
+# Genetic Algorithm — src/evosynth/optimizers/ga.py
+# -------------------------------------------------------------------------------------
+
+# Per-gene probability of Gaussian mutation.
+# Used in: GeneticAlgorithm.__init__ (mutation_rate), GeneticAlgorithm.ask
+# Range: 0–1
+mutation_rate = 0.1
+
+# Standard deviation of the Gaussian mutation noise (latent units).
+# Used in: GeneticAlgorithm.ask (np.random.normal(0, 0.1))
+# Range: 0.01–0.5
+mutation_sigma = 0.1
+
+# Number of random candidates per parent tournament.
+# Used in: GeneticAlgorithm.ask (random.sample(population, 2))
+# Range: ≥ 1
+tournament_size = 2
+
+
+# -------------------------------------------------------------------------------------
+[optimizers.pso]
+# Particle Swarm Optimization — src/evosynth/optimizers/pso.py
+#   v ← w·v + c1·r1·(pbest − x) + c2·r2·(gbest − x)
+# -------------------------------------------------------------------------------------
+
+# Inertia weight w.                     Used in: ParticleSwarm.__init__ (self.w), ParticleSwarm.ask   Range: 0.3–1.0
+w = 0.5
+# Cognitive coefficient c1 (pull to personal best).  Used in: ParticleSwarm.__init__, ParticleSwarm.ask   Range: 0–3
+c1 = 1.5
+# Social coefficient c2 (pull to global best).       Used in: ParticleSwarm.__init__, ParticleSwarm.ask   Range: 0–3
+c2 = 1.5
+# Initial velocities are drawn from U(−init_velocity, +init_velocity).
+# Used in: ParticleSwarm._seed_particles_from_population, ParticleSwarm.ask (cold start)   Range: 0–0.5
+init_velocity = 0.1
+
+
+# -------------------------------------------------------------------------------------
+[optimizers.de]
+# Differential Evolution (DE/rand/1/bin) — src/evosynth/optimizers/de.py
+# -------------------------------------------------------------------------------------
+
+# Mutation (differential weight) F:  donor = a + F·(b − c).   Used in: DifferentialEvolution.__init__, .ask   Range: 0.4–1.0
+F = 0.8
+# Binomial crossover rate CR.                                 Used in: DifferentialEvolution.__init__, .ask   Range: 0–1
+CR = 0.7
+
+
+# -------------------------------------------------------------------------------------
+[optimizers.cmaes]
+# CMA-ES (wraps the `cma` library) — src/evosynth/optimizers/cmaes.py
+# -------------------------------------------------------------------------------------
+
+# Initial step size σ0 in latent units.            Used in: CMAESOptimizer.ask (CMAEvolutionStrategy init)   Range: 0.05–0.5
+sigma0 = 0.25
+# Minimum CMA population per generation (popsize = max(min_popsize, island size)).
+# Used in: CMAESOptimizer.ask   Range: ≥ 2
+min_popsize = 4
+# Start mean used when the optimizer has no seed population (every latent coordinate).
+# Used in: CMAESOptimizer.ask   Range: 0–1
+default_mean = 0.5
+
+
+# -------------------------------------------------------------------------------------
+[search_space.tabular]
+# The 9-dimensional tabular search space (model family + FE strategy + 7 hyperparameters).
+# Used in: src/evosynth/core/search_space.py → get_xgboost_search_space
+# Ranges are {low, high} (inclusive); log = true means log-uniform scaling.
+# -------------------------------------------------------------------------------------
+
+model_types      = ["XGBoost", "RandomForest", "LightGBM", "ExtraTrees"]   # categorical, order = latent bins
+fe_strategies    = ["none", "stats", "interactions"]                        # categorical (see [features])
+boosters         = ["gbtree", "dart"]                                       # XGBoost only
+learning_rate    = { low = 0.01, high = 0.3, log = true }                   # XGBoost / LightGBM
+n_estimators     = { low = 50,   high = 500 }                               # integer, all models
+max_depth        = { low = 3,    high = 10 }                                # integer, all models
+subsample        = { low = 0.5,  high = 1.0 }                               # XGBoost / LightGBM
+colsample_bytree = { low = 0.3,  high = 1.0 }                               # XGB/LGBM; max_features for RF/ET
+reg_alpha        = { low = 0.0,  high = 10.0 }                              # XGBoost / LightGBM (L1)
+
+
+# -------------------------------------------------------------------------------------
+[search_space.nas]
+# CNN architecture search space.
+# Used in: src/evosynth/core/search_space.py → get_image_nas_search_space
+# -------------------------------------------------------------------------------------
+
+conv1_channels = [16, 32, 64]
+conv2_channels = [32, 64, 128]
+fc_units       = [64, 128, 256]
+optimizers     = ["Adam", "SGD", "RMSprop"]
+activations    = ["relu", "leaky_relu"]
+dropout_rate   = { low = 0.0,    high = 0.5 }
+learning_rate  = { low = 0.0001, high = 0.1, log = true }
+
+
+# -------------------------------------------------------------------------------------
+[search_space.toy]
+# 4-D test space for the DummyObjectiveFunction (unit tests only; no dataset).
+# Used in: src/evosynth/core/search_space.py → get_dummy_search_space
+# -------------------------------------------------------------------------------------
+
+learning_rate = { low = 0.001, high = 0.3, log = true }
+num_layers    = { low = 1,     high = 10 }
+optimizers    = ["Adam", "SGD", "RMSprop"]
+dropout       = { low = 0.0,   high = 0.5 }
+
+
+# -------------------------------------------------------------------------------------
+[evaluation]
+# How a candidate configuration is scored during search (tabular).
+# All used in src/evosynth/evaluators/covtype.py unless stated otherwise.
+# -------------------------------------------------------------------------------------
+
+# Cross-validation folds (StratifiedKFold, shuffled).
+# Used in: CovertypeEvaluator.evaluate      Range: 2–10
+cv_folds = 2
+
+# Boosted models stop after this many rounds without validation improvement.
+# Used in: CovertypeEvaluator.evaluate (XGBoost early_stopping_rounds, LightGBM early_stopping callback)
+# Range: 5–50
+early_stopping_rounds = 10
+
+# RandomForest / ExtraTrees are capped at this many trees during search (n_estimators = min(n, cap)).
+# Used in: CovertypeEvaluator.evaluate      Range: ≥ 10
+search_tree_cap = 150
+
+# RF/ET depth = max_depth × multiplier, or unlimited when max_depth is at its upper bound.
+# Used in: CovertypeEvaluator.evaluate (search);
+#          scripts/run_covertype.py → main and scripts/run_covertype_evosynth.py → run_benchmark (refit)
+# Range: ≥ 1
+bagging_depth_multiplier = 3
+
+# Score recorded for a CV fold whose model raised an exception (fraction, 0.5 = 50%).
+# Used in: CovertypeEvaluator.evaluate (except branch). Phase 3.4 changes this to 0.0 + logging.
+# Range: 0–1
+failed_fold_score = 0.5
+
+# Threads per individual model during search (parallelism comes from max_workers instead).
+# Used in: CovertypeEvaluator.evaluate (n_jobs=1 for every model)
+# Range: 1
+model_n_jobs = 1
+
+
+# -------------------------------------------------------------------------------------
+[features]
+# Dataset-agnostic feature engineering (`fe_strategy` gene).
+# Used in: src/evosynth/features/generic.py → GenericFeatureEngineer
+# -------------------------------------------------------------------------------------
+
+# A column counts as continuous if it has more unique values than this (in the sample below).
+# Used in: GenericFeatureEngineer.fit      Range: ≥ 2
+continuous_unique_threshold = 15
+
+# Number of leading rows inspected to detect continuous columns.
+# Used in: GenericFeatureEngineer.fit      Range: ≥ 100
+detection_sample_rows = 2000
+
+# 'interactions' uses the top-N continuous columns by variance (N·(N−1)/2 pairs × 2 features).
+# Used in: GenericFeatureEngineer.__init__ (max_interaction_features), GenericFeatureEngineer.fit
+# Range: 2–15
+max_interaction_features = 6
+
+
+# -------------------------------------------------------------------------------------
+[refit]
+# Post-search generalisation refit of the winning configuration (held-out test).
+# Used in: scripts/run_covertype.py → main ("STEP 6") and
+#          scripts/run_covertype_evosynth.py → run_benchmark ("STEP 6")
+# -------------------------------------------------------------------------------------
+
+# Rows used to train / test the winner (stratified split of the full dataset).
+# Also used by every baseline: scripts/run_baselines_forest.py → load_covertype_splits
+train_rows = 60000
+test_rows  = 20000
+
+# Minimum trees in the refit model: n_estimators = max(tuned value, minimum).
+min_trees_bagging = 150   # RandomForest / ExtraTrees
+min_trees_lgbm    = 250   # LightGBM
+min_trees_xgb     = 200   # XGBoost
+
+# Threads per model at refit time (-1 = all cores).
+model_n_jobs = -1
+
+
+# -------------------------------------------------------------------------------------
+[datasets.covertype]
+# UCI Forest Covertype — 581,012 rows × 54 features, 7 classes.
+# Used in: src/evosynth/evaluators/covtype.py → CovertypeEvaluator.__init__;
+#          scripts/run_covertype.py → main; scripts/run_covertype_evosynth.py → run_benchmark;
+#          scripts/run_baselines_forest.py → load_covertype_splits
+# More datasets (HIGGS via OpenML, Adult, Airlines, Poker Hand, MiniBooNE, Jannis,
+# Fashion-MNIST) are added here in Phase 3.
+# -------------------------------------------------------------------------------------
+
+source = "sklearn.fetch_covtype"     # cached under .data/ (src/evosynth/paths.py → DATA_DIR)
+search_subsample = 20000             # stratified rows used during search (CovertypeEvaluator subsample_size)
+label_offset = 1                     # labels are 1..7 in the source; y − 1 gives 0..6 for XGBoost/LightGBM
+metric = "accuracy"
+
+
+# -------------------------------------------------------------------------------------
+[telemetry]
+# Live dashboard plumbing (engine → FastAPI → React).
+# -------------------------------------------------------------------------------------
+
+# Where the telemetry server listens.
+# Used in: scripts/api_server.py → __main__ block and api_server.py (root) → __main__ (uvicorn.run)
+server_host = "0.0.0.0"
+server_port = 8000
+
+# Where the engine sends events / probes for the server.
+# Used in: src/evosynth/engine/controller.py → EventReporter.__init__ (url, probe of /docs),
+#          EventReporter.emit
+# The dashboard's address is set separately in dashboard/src/App.jsx (EventSource URL).
+reporter_url = "http://localhost:8000"
+
+# Seconds to wait for the server probe at start-up / for each event POST.
+# Used in: EventReporter.__init__ (probe timeout), EventReporter.emit (post timeout)
+probe_timeout = 0.5
+post_timeout  = 1.0
+
+
+# =====================================================================================
+#  EXPERIMENT PRESETS
+#  Each preset overrides [engine] (and other sections) for one kind of run.
+# =====================================================================================
+
+# -------------------------------------------------------------------------------------
+[experiments.search_demo]
+# Quick Covertype run + refit (default of scripts/run_covertype.py → main / root run_covertype.py).
+# -------------------------------------------------------------------------------------
+budget = 120
+pop_size = 20
+t1_iters = 3
+k_iters = 2
+
+# -------------------------------------------------------------------------------------
+[experiments.search_full]
+# `--full` mode of scripts/run_covertype.py → main.
+# -------------------------------------------------------------------------------------
+budget = 500
+pop_size = 40
+t1_iters = 5
+k_iters = 3
+
+# -------------------------------------------------------------------------------------
+[experiments.scaling]
+# Budget-scaling runs with checkpointing — scripts/run_covertype_evosynth.py → main / run_benchmark.
+# t1_iters = max(t1_iters_min, int(t1_iters_fraction · budget)); k_iters likewise.
+# -------------------------------------------------------------------------------------
+budgets = [120, 300, 500, 1000]   # allowed --budget values (argparse choices in main)
+default_budget = 300
+pop_size = 30
+t1_iters_fraction = 0.03
+t1_iters_min = 3
+k_iters_fraction = 0.02
+k_iters_min = 2
+checkpoint_interval = 10          # write checkpoint JSON every N evaluations (monitored_evaluate)
+
+# -------------------------------------------------------------------------------------
+[experiments.ablation]
+# Isolated optimizers vs EvoSynth — scripts/run_ablation_study_forest.py.
+# -------------------------------------------------------------------------------------
+setups = { "CVGS-300" = 300, "CVGS-500" = 500 }   # setup name → budget (main)
+pop_size = 30                      # main (--pop_size default)
+max_workers = 2                    # main (--max_workers default; low to limit RAM)
+checkpoint_interval = 10           # run_isolated_optimizer (resume checkpoint every N evals)
+share_checkpoint_fraction = 0.25   # main: checkpoint_eval = int(budget · 0.25) ("25% budget share")
+batch_min = 5                      # run_isolated_optimizer: batch = max(batch_min, min(batch_max, pop // batch_divisor))
+batch_max = 10
+batch_divisor = 3
+t1_iters_fraction = 0.04           # run_benchmark_setup: EvoSynth t1_iters = max(3, int(0.04 · budget))
+t1_iters_min = 3
+k_iters_fraction = 0.02            # run_benchmark_setup: EvoSynth k_iters = max(2, int(0.02 · budget))
+k_iters_min = 2
+
+[experiments.ablation.passive_telemetry]
+# Constants of the passive (decision-free) metrics logged for isolated optimizers.
+# Used in: scripts/run_ablation_study_forest.py → _compute_passive_metrics.
+# Phase 4.2 replaces these with the controller's own scoring formulas, then this table is removed.
+c = 0.5
+fitness_scale = 100.0
+speed_scale = 10.0
+efficiency_scale = 100.0
+trend_scale = 10.0
+
+# -------------------------------------------------------------------------------------
+[experiments.baselines]
+# Competitor and floor baselines — scripts/run_baselines_forest.py.
+# -------------------------------------------------------------------------------------
+default_extratrees_trees = 100     # run_default_extratrees (untuned floor)
+random_search_trials = 120         # run_random_search (main --trials)
+optuna_trials = 120                # run_optuna_baseline (main --trials)
+flaml_time_budget = 585            # seconds; run_flaml_baseline (main --time_budget)
+flaml_metric = "accuracy"          # run_flaml_baseline
+flaml_estimators = ["lgbm", "rf", "extra_tree", "xgboost"]   # run_flaml_baseline
+refit_trees = 150                  # run_random_search / run_optuna_baseline refit (Phase 4.4 unifies refits)
+
+# -------------------------------------------------------------------------------------
+[experiments.nas]
+# CNN architecture search — scripts/run_vision_nas.py → main and
+# src/evosynth/evaluators/image.py → ImageCNNEvaluator.
+# -------------------------------------------------------------------------------------
+budget = 80
+pop_size = 20
+t1_iters = 3
+k_iters = 2
+epochs = 2                 # main passes 2 (ImageCNNEvaluator.__init__ default is 3)
+batch_size = 64            # ImageCNNEvaluator.__init__
+validation_fraction = 0.25 # ImageCNNEvaluator.__init__ (train/val split)
+sgd_momentum = 0.9         # ImageCNNEvaluator.evaluate (when optimizer = SGD)
+device = "cpu"             # ImageCNNEvaluator.__init__ ("cuda" used only if available)

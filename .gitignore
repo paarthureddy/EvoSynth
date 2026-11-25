@@ -45,3 +45,7 @@ results_forest/**/checkpoints/
 
 # VitePress build cache
 docs/.vitepress/cache/
+
+# Python packaging (editable install metadata)
+*.egg-info/
+build/

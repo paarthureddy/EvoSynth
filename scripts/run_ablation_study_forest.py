@@ -26,26 +26,18 @@ import concurrent.futures
 from ConfigSpace import Configuration
 import ConfigSpace.hyperparameters as CSH
 
-# Ensure project root is in sys.path
-_current = os.path.abspath(os.path.dirname(__file__))
-while _current and not os.path.exists(os.path.join(_current, 'automl_engine')):
-    _parent = os.path.dirname(_current)
-    if _parent == _current:
-        break
-    _current = _parent
-_ROOT_DIR = _current
-if _ROOT_DIR not in sys.path:
-    sys.path.insert(0, _ROOT_DIR)
+from evosynth.paths import PROJECT_ROOT
+_ROOT_DIR = str(PROJECT_ROOT)
 
 
-from automl_engine.core.search_space import get_xgboost_search_space
-from automl_engine.core.covtype_evaluator import CovertypeEvaluator
-from automl_engine.core.individual import Individual
-from automl_engine.engine.controller import DynamicOptimizer
-from automl_engine.optimizers.ga import GeneticAlgorithm
-from automl_engine.optimizers.pso import ParticleSwarm
-from automl_engine.optimizers.de import DifferentialEvolution
-from automl_engine.optimizers.cmaes import CMAESOptimizer
+from evosynth.core.search_space import get_xgboost_search_space
+from evosynth.evaluators.covtype import CovertypeEvaluator
+from evosynth.core.individual import Individual
+from evosynth.engine.controller import DynamicOptimizer
+from evosynth.optimizers.ga import GeneticAlgorithm
+from evosynth.optimizers.pso import ParticleSwarm
+from evosynth.optimizers.de import DifferentialEvolution
+from evosynth.optimizers.cmaes import CMAESOptimizer
 
 
 # -----------------------------------------------------------------------------
