@@ -82,7 +82,7 @@
 \noindent
 Automated Machine Learning (AutoML) seeks to remove manual trial-and-error by automatically searching for optimal machine learning pipelines. However, contemporary frameworks (e.g., Optuna, FLAML, and H2O AutoML) rely on a single, fixed search algorithm throughout the optimization lifetime. As established by the No Free Lunch theorem, no single optimization heuristic consistently dominates across complex, rugged, and non-convex hyperparameter landscapes, causing static systems to stagnate. Furthermore, post-hoc ensembling methods achieve high accuracy only by stacking numerous large models, resulting in prohibitively high inference latencies and severe cloud memory footprints. 
 
-To overcome these fundamental challenges, this research presents \textbf{EvoSynth}, a dynamic multi-armed bandit meta-optimizer for automated model selection and hyperparameter optimization. EvoSynth maps mixed continuous, discrete, and categorical hyperparameters into a unified mathematical latent space $[0,1]^d$. It concurrently coordinates four diverse evolutionary and metaheuristic optimizers: Genetic Algorithms (GA), Particle Swarm Optimization (PSO), Differential Evolution (DE), and Covariance Matrix Adaptation Evolution Strategy (CMA-ES). A UCB1 multi-armed bandit meta-engine monitors a 5-metric composite reward (fitness, speed, efficiency, population diversity, and improvement trend) to dynamically allocate evaluations and execute live tier promotion, demotion (SWAPs), and rollback safeguards across a two-tier island topology. Validated on the challenging 54-dimensional UCI Forest Covertype benchmark (581,012 samples across 7 imbalanced classes), EvoSynth achieved \textbf{93.47\% classification accuracy} with an end-to-end runtime of 9 minutes and 44 seconds, representing a \textbf{64.6\% relative error reduction} over untuned baselines. Crucially, EvoSynth yields a single lightweight deployable model ($\sim$2\,ms latency, $\sim$150\,MB RAM), attaining ensemble-grade accuracy without ensemble deployment overhead.
+To overcome these fundamental challenges, this research presents \textbf{EvoSynth}, a dynamic multi-armed bandit meta-optimizer for automated model selection and hyperparameter optimization. EvoSynth maps mixed continuous, discrete, and categorical hyperparameters into a unified mathematical latent space $[0,1]^d$. It concurrently coordinates four diverse evolutionary and metaheuristic optimizers: Genetic Algorithms (GA), Particle Swarm Optimization (PSO), Differential Evolution (DE), and Covariance Matrix Adaptation Evolution Strategy (CMA-ES). A UCB1 multi-armed bandit meta-engine monitors a 5-metric composite reward (fitness, speed, efficiency, population diversity, and improvement trend) to dynamically allocate evaluations and execute live tier promotion, demotion (SWAPs), and rollback safeguards across a two-tier island topology. After the search, the five best distinct configurations are re-scored with 5-fold cross-validation and the selected one is refitted once and scored once on held-out test rows. Under an identical protocol on UCI Covertype (581,012 samples, 7 classes) and Adult (48,842 samples, binary), EvoSynth reached \textbf{93.89\% test accuracy} and \textbf{92.96 ROC AUC} with 500 evaluations, level with Random Search and Optuna TPE (within 0.03 points), 1.4 points above FLAML on Covertype and 0.17 below it on Adult, while selecting a different model family for each dataset (ExtraTrees with interaction features, and XGBoost). In an optimizer ablation it matched the best single optimizer without knowing in advance which one that would be, and parallel evaluation gave a measured \textbf{6.1$\times$} speed-up. EvoSynth delivers a single model, whose serving cost is that of the selected family (0.26\,ms per row for the Adult XGBoost, 12.5\,ms for the Covertype ExtraTrees).
 
 % --- 2. PROBLEM DEFINITION, MOTIVATION & LITERATURE SURVEY ---
 \section{Problem Definition, Research Motivation \& Literature Review}
@@ -95,7 +95,7 @@ To overcome these fundamental challenges, this research presents \textbf{EvoSynt
     \begin{enumerate}[noitemsep, topsep=2pt]
         \item \textbf{Dynamic Multi-Armed Bandit Allocation:} Formulate a UCB1 meta-engine capable of dynamically scoring and allocating computational budget across competing optimization heuristics.
         \item \textbf{Stagnation-Resilient Two-Tier Architecture:} Implement an adaptive island model with automated promotion, live demotion (SWAP), rollback safeguards, and diversity injection to escape deceptive search landscapes.
-        \item \textbf{Single-Model Pareto Advantage:} Demonstrate ensemble-grade predictive performance ($\ge 90\%$) on real-world benchmarks while strictly producing a single deployable model with millisecond inference latency.
+        \item \textbf{Fair, Reproducible Evaluation:} Compare against untuned models, Random Search, Optuna and FLAML on real datasets with fixed held-out test rows and an identical selection and refit, delivering a single deployable model with measured inference cost.
     \end{enumerate}
 \end{itemize}
 
@@ -217,61 +217,80 @@ EvoSynth adopts a fully decoupled architecture separating search heuristics from
 
 \subsection{Quantitative Evaluation \& Baseline Comparison}
 \noindent
-EvoSynth was verified on the published UCI Forest Covertype dataset (581,012 samples, 54 cartographic features, 7 imbalanced forest cover classes). The optimization search budget was capped at 120 evaluations with a population size of 30.
+Protocol: test rows are split off first (Covertype 20,000; Adult 12,000) and scored once at the end; searches use a fixed 10,000-row subset of the search rows with 2-fold CV; the selected configuration is refitted on the train rows (Covertype 60,000; Adult 36,000). EvoSynth, Random Search and Optuna TPE each have 500 evaluations and the same confirm-and-refit; FLAML gets the wall time EvoSynth used. All results are from one seed (42), so differences of a few hundredths between tuned methods are ties.
 
 \begin{table}[H]
     \centering
     \footnotesize
     \renewcommand{\arraystretch}{1.25}
-    \begin{tabular}{|p{5.5cm}|p{3.5cm}|c|c|}
+    \begin{tabular}{|p{3.6cm}|c|c|c|c|p{3.2cm}|}
         \hline
-        \textbf{Method / Configuration} & \textbf{Winning Model Architecture} & \textbf{Wall-Clock Time} & \textbf{Classification Accuracy} \\
+        \multirow{2}{*}{\textbf{Method}} & \multicolumn{2}{c|}{\textbf{Covertype (accuracy \%)}} & \multicolumn{2}{c|}{\textbf{Adult (ROC AUC \%)}} & \multirow{2}{*}{\textbf{Selected model}} \\
+        \cline{2-5}
+         & \textbf{Test} & \textbf{Search time} & \textbf{Test} & \textbf{Search time} & \\
         \hline
-        Default Baseline 1 (Untuned) & XGBoost (Default parameters) & 2.1\,s & 80.97\% \\
+        Untuned XGBoost & 85.58 & -- & 92.70 & -- & \\
         \hline
-        Default Baseline 2 (Untuned) & LightGBM (Default parameters) & 1.4\,s & 81.07\% \\
+        Untuned LightGBM & 84.69 & -- & 92.92 & -- & \\
         \hline
-        Default Baseline 3 (Untuned) & RandomForest (Default parameters) & 3.2\,s & 81.48\% \\
+        Untuned RandomForest & 89.09 & -- & 90.74 & -- & \\
         \hline
-        EvoSynth Search CV Phase (20k Subsample) & ExtraTrees (\texttt{fe: interactions}) & 8m 30s & 86.39\% \\
+        Untuned ExtraTrees & 89.77 & -- & 89.15 & -- & \\
         \hline
-        \textbf{EvoSynth Final Test (Phase 2 Refit)} & \textbf{ExtraTrees (334 trees, depth 8)} & \textbf{9m 44s} & \textbf{93.47\%} \\
+        FLAML (same wall time) & 92.53 & 13.0 min & \textbf{93.13} & 3.0 min & LightGBM / XGBoost \\
+        \hline
+        Random Search (500) & \textbf{93.89} & 42.4 min & 92.98 & 19.1 min & ExtraTrees / XGBoost \\
+        \hline
+        Optuna TPE (500) & 93.87 & 49.8 min & 92.95 & 3.3 min & ExtraTrees / XGBoost \\
+        \hline
+        \textbf{EvoSynth (500)} & \textbf{93.89} & \textbf{12.2 min} & 92.96 & \textbf{3.0 min} & ExtraTrees + interactions / XGBoost \\
         \hline
     \end{tabular}
-    \caption{Comparative Experimental Evaluation on UCI Forest Covertype Benchmark}
+    \caption{Held-out test scores on Covertype and Adult under an identical protocol}
 \end{table}
 
 \noindent
-\textbf{Quantitative Findings:} EvoSynth reduced classification error from 18.52\% (best default baseline) down to 6.53\%, representing a \textbf{64.6\% relative error reduction}. Crucially, meta-optimizer computational overhead consumed less than 0.05\% of the total 9m 44s execution time, with 99.95\% spent strictly on model fitting.
+\textbf{Quantitative Findings:}
+\begin{itemize}[noitemsep, topsep=2pt]
+    \item EvoSynth ties Random Search and Optuna on both datasets (within 0.03 points) and selected the right model family for each. Tuning with model selection is worth 4.1 points over the best untuned model on Covertype but only 0.06 on Adult.
+    \item FLAML trails by 1.4 points on Covertype and is best on Adult (+0.17).
+    \item EvoSynth's search was 3.5--4$\times$ faster than the sequential baselines on Covertype because it evaluates candidates in parallel; a separate benchmark measured a \textbf{6.1$\times$} speed-up on 12 threads, almost all from parallelism (early stopping alone: 1.17$\times$).
+    \item On Covertype the five best configurations decode to the same effective model (trees capped at 150 during the search), so every competent search reaches the same 82.35\% CV plateau; this explains the ties.
+\end{itemize}
+
+\subsection{Optimizer Ablation (Covertype, 500 evaluations)}
+\noindent
+Each optimizer was also run alone with the full budget. Best search CV accuracy at 125 / 500 evaluations: GA 81.53 / 82.21, PSO 82.35 / 82.35, DE 82.13 / 82.34, CMA-ES 81.89 / 82.35, \textbf{EvoSynth 82.08 / 82.35}. EvoSynth matched the best single optimizer at the full budget. The best single optimizer differs between runs (CMA-ES and DE in the earlier ablation, PSO here), so the portfolio's value is reaching the best score without that choice being made in advance.
 
 \subsection{Verification of Core Hypothesis: Live Dynamic SWAP}
 \noindent
-During execution of the benchmark on the Forest Covertype dataset, the internal decision telemetry demonstrated empirical proof of dynamic strategy switching under stagnation:
+The Covertype search log shows the meta-decisions working as designed:
 \begin{itemize}[noitemsep, topsep=2pt]
-    \item \textbf{Iteration 1 (Tournament Promotion):} Initial tournament evaluation ranked Genetic Algorithm (GA) and Particle Swarm Optimization (PSO) as top performers, promoting them to Tier 2.
-    \item \textbf{Iteration 2 (Stagnation \& SWAP Event):} GA in Tier 2 experienced premature convergence and diversity collapse ($D_{\text{GA}} = 0.450$, $UCB = 0.547$). Simultaneously, PSO in Tier 1 maintained exploration diversity ($D_{\text{PSO}} = 0.500$, $UCB = 0.720$). The performance spread exceeded the 10\% threshold ($0.720 \text{ vs } 0.547 = +31.6\%$), triggering an immediate live SWAP: GA was demoted to Tier 1, and PSO was promoted to lead Tier 2.
-    \item \textbf{Outcome:} The promoted PSO strategy located the optimal ExtraTrees configuration with feature interactions, verifying that adaptive optimizer migration escapes stagnation traps.
+    \item \textbf{Promotion:} after 5 Tier 1 iterations, DE (composite 0.961, UCB 1.010) and CMA-ES (UCB 0.466) were promoted. DE had a lower best than CMA-ES but was still improving and had the most diverse island.
+    \item \textbf{SWAP:} at the first checkpoint GA, improving quickly from a low score, displaced DE (UCB 0.592 vs 0.369, margin above 0.10); the two Tier 2 islands then traded their top 20\%.
+    \item \textbf{Rollback:} GA reached the 82.35\% plateau through CMA-ES's shared elites but did not improve the global best within its 5-iteration grace period, so DE was restored.
+    \item \textbf{Outcome:} CMA-ES found the winning ExtraTrees configuration (82.35\% search CV, 84.84\% confirmed, 93.89\% test). On Adult, GA and PSO were promoted, two SWAPs followed, and PSO found the winner.
 \end{itemize}
 
 \subsection{Cross-Domain Generality: Vision NAS Demo}
 \noindent
-To confirm algorithmic generality beyond tabular datasets, EvoSynth was evaluated on Neural Architecture Search (NAS) for image classification (PyTorch CNN on Handwritten Digits). Within 80 evaluations (17.7 seconds), EvoSynth discovered a high-performing architecture reaching \textbf{95.78\% test accuracy}, confirming domain-agnostic search capability.
+The same engine searched CNN architectures on Fashion-MNIST (channels, fully connected units, dropout, activation, optimizer, learning rate), training each candidate for 2 epochs on 10,000 images. With 160 evaluations it reached \textbf{81.8\% validation accuracy}, found by PSO in Tier 2, with no changes to the engine.
 
 % --- 6. TECHNICAL KNOWLEDGE & DESIGN JUSTIFICATION ---
 \section{Technical Justification, Design Trade-offs \& Insights}
 \begin{itemize}[noitemsep, topsep=2pt]
     \item \textbf{Algorithmic \& Theoretical Justification:} In hyperparameter optimization, the fitness surface is non-stationary and non-differentiable. While local optimizers often become trapped in local basins, evolutionary methods preserve diverse candidate pools. Coupling them through a multi-armed bandit provides formal regret bounds, allocating evaluations where empirical progress is greatest.
     \item \textbf{Computational Complexity \& Trade-offs:} Mapping parameters to a continuous latent space incurs negligible mathematical decoding cost ($\mathcal{O}(d)$ per candidate), while allowing continuous optimizers (PSO, CMA-ES) to seamlessly tune discrete architectures. Performing meta-optimization entirely offline during search ensures zero latency penalty during model inference.
-    \item \textbf{The Pareto Advantage (Zero Ensemble Overhead):} While frameworks like H2O AutoML stack 10 or more diverse models to achieve $\sim 93\%$ accuracy, EvoSynth achieves 93.47\% accuracy using a single standalone ExtraTrees model. In production, this yields an inference latency of approximately 2\,ms per sample and a memory footprint under 150\,MB, contrasting with the $\ge 50$\,ms latencies and multi-gigabyte footprints typical of large stacked ensembles.
-    \item \textbf{Handling Edge Cases \& Boundary Conditions:} The framework integrates two fail-safe mechanisms: (1) \textit{Rollback Guard}, which reverts any swapped strategy that fails to improve the global best fitness within 5 iterations, and (2) \textit{Stagnation Rescue Injection}, which randomly injects mutated individuals into stagnant islands when population diversity drops below threshold $\delta$.
+    \item \textbf{Single Model, Measured Cost:} Stacked ensembles such as H2O AutoML run every query through 10 or more models. EvoSynth delivers one model, so serving costs exactly what that model costs, and this is now measured rather than assumed: the Adult XGBoost takes 0.26\,ms per row and 0.4\,MB, while the Covertype ExtraTrees with interaction features takes 12.5\,ms and 470\,MB. The search does not yet trade accuracy for size or latency; a latency-aware objective is future work.
+    \item \textbf{Handling Edge Cases \& Boundary Conditions:} (1) \textit{Rollback Guard} reverts a swapped strategy that fails to improve the global best within 5 iterations; (2) \textit{Stagnation Injection} replaces 50\% of a Tier 1 island (immediately) or 20\% of a Tier 2 island (after 3 stagnant checkpoints) with random vectors; (3) \textit{Confirm Before Select} re-scores the top 5 configurations with 5-fold CV, because the maximum of many noisy 2-fold scores is biased upwards; (4) failed CV folds score 0 and are counted, so a crashing configuration can never be selected.
 \end{itemize}
 
 % --- 7. CONCLUSION, LIMITATIONS & FUTURE SCOPE ---
 \section{Conclusion, Limitations \& Future Scope}
 \begin{itemize}[noitemsep, topsep=2pt]
-    \item \textbf{Conclusion:} EvoSynth successfully establishes that dynamic multi-armed bandit coordination of heterogeneous evolutionary optimizers outperforms static single-optimizer AutoML pipelines. Through live strategy switching, automated feature engineering, and decoupled latent space translation, EvoSynth attained 93.47\% accuracy on a challenging real-world benchmark while delivering a single lean, production-ready model.
-    \item \textbf{Current Limitations:} The present implementation executes on single multi-core workstations without distributed network scaling (e.g., Ray or Dask clusters). Additionally, feature engineering strategies are tailored for tabular matrices and do not currently generate automated embeddings for unstructured audio or video.
-    \item \textbf{Future Scope:} Planned extensions include: (1) integrating distributed ray-based parallel execution for cluster scaling, (2) incorporating warm-start meta-learning to transfer latent priors across related datasets, and (3) expanding search space dimensionality to encompass full Transformer and deep neural architecture topologies.
+    \item \textbf{Conclusion:} EvoSynth coordinates four evolutionary and swarm optimizers through a two-tier island model and a UCB1 bandit, searching model family, feature engineering and hyperparameters together. Under an identical held-out protocol it matched Random Search and Optuna on Covertype (93.89\%) and Adult (92.96 ROC AUC), chose the right model family for each, matched the best single optimizer in the ablation without knowing it in advance, and was the fastest tuned search on Covertype.
+    \item \textbf{Current Limitations:} On these datasets EvoSynth does not beat strong baselines, and FLAML was best on Adult; the results are from a single seed; the Covertype search space has a plateau that every competent method reaches; execution is on a single machine.
+    \item \textbf{Future Scope:} (1) multi-seed runs on harder datasets (HIGGS, Poker Hand); (2) comparison with portfolio baselines such as Nevergrad's NGOpt on surrogate benchmarks with many tasks; (3) rank-normalised bandit rewards and a latency-aware objective; (4) distributed workers via Ray.
 \end{itemize}
 
 % --- 8. DELIVERABLES & TECHNICAL ENRICHMENT SUMMARY ---

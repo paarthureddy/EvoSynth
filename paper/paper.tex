@@ -32,286 +32,201 @@ Email: project.g002@college.edu}
 \maketitle
 
 \begin{abstract}
-Hyperparameter tuning is one of the most critical and time-consuming steps in developing high-performing machine learning models. Traditional tuning approaches, such as grid search, random search, or using a single optimization algorithm (such as standard Bayesian Optimization or basic Genetic Algorithms), suffer from a major practical drawback: a single search algorithm easily gets trapped in local minima or wastes evaluations on flat areas of the search space. Furthermore, ensembling multiple models at prediction time creates heavy inference latency and high memory costs. To address these problems directly, this paper presents \textbf{EvoSynth}, an automated machine learning (AutoML) framework designed around a dynamic multi-algorithm meta-optimization workflow. EvoSynth deploys four diverse optimization algorithms simultaneously---Differential Evolution (DE), Particle Swarm Optimization (PSO), Covariance Matrix Adaptation (CMA-ES), and Genetic Algorithms (GA)---and dynamically manages them using a two-tier island model controlled by an Upper Confidence Bound (UCB1) Multi-Armed Bandit. The system workflow operates in distinct stages: (1) mapping all hyperparameters and model choices into a continuous $[0, 1]^d$ latent space; (2) dividing the initial population into a 40\% Tier-1 competition arena and 60\% reserved capacity; (3) running an exploration tournament across all four algorithms; (4) scoring each algorithm using a four-pillar composite metric (accuracy, speed, population diversity, and improvement trend); (5) promoting the top-performing algorithms to Tier-2 exploitation swarms using UCB1 exploration bonuses; (6) periodically sharing elite solutions between winning islands; and (7) automatically injecting random diversity whenever an algorithm stagnates. To prevent long execution runtimes, candidate configurations are evaluated in parallel across CPU cores with early stopping on gradient boosted trees. Experimental tests show an 11.5$\times$ speedup during population evaluation, successful recovery from deceptive noisy local minima, dynamic model switching across XGBoost, LightGBM, and Random Forest, and extension to deep learning Convolutional Neural Network (CNN) architecture tuning with 95.33\% accuracy.
+No single hyperparameter optimizer performs best on every problem, yet most tuners commit their whole budget to one search algorithm chosen in advance. This paper presents \textbf{EvoSynth}, an AutoML meta-optimizer that runs a portfolio of four population-based optimizers---Genetic Algorithm (GA), Particle Swarm Optimization (PSO), Differential Evolution (DE) and CMA-ES---in a two-tier island model and reallocates the budget among them online with a UCB1 multi-armed bandit. Model family, feature-engineering strategy and hyperparameters are encoded together in one continuous latent space $[0,1]^d$, so every optimizer searches the combined model-selection and tuning problem. A five-term composite score (fitness, speed, efficiency, diversity, trend) drives promotion of the two strongest optimizers, live swaps with rollback, elite sharing between families and diversity injection on stagnation. After the search, the five best distinct configurations are re-scored with 5-fold cross-validation, and the selected one is refitted once and scored once on held-out test rows. We evaluate EvoSynth against untuned models, Random Search, Optuna TPE and FLAML on UCI Covertype and Adult under an identical protocol. With 500 evaluations EvoSynth reached 93.89\% test accuracy on Covertype and 92.96 ROC AUC on Adult, level with Random Search and Optuna (within 0.03 points), 1.4 points above FLAML on Covertype and 0.17 below it on Adult, while selecting a different model family for each dataset. In an ablation it matched the best of the four optimizers run alone without knowing in advance which one that would be. Parallel evaluation gave a measured $6.1\times$ speed-up on 12 threads. The same engine also searches CNN architectures (81.8\% validation accuracy on Fashion-MNIST in 160 evaluations).
 \end{abstract}
 
 \begin{IEEEkeywords}
-Hyperparameter Optimization, Automated Machine Learning, Multi-Armed Bandit, Upper Confidence Bound (UCB1), Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES, Cooperative Co-evolution.
+Hyperparameter Optimization, Automated Machine Learning, Algorithm Selection, Multi-Armed Bandit, UCB1, Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES, Island Model.
 \end{IEEEkeywords}
 
 \section{Introduction}
-In machine learning, model performance depends heavily on choosing the correct hyperparameters. Parameters such as learning rate, tree depth, number of estimators, regularization penalties, and layer dimensions cannot be learned directly by standard gradient descent during training. If hyperparameters are poorly chosen, even the most capable model architectures underperform or overfit drastically \cite{feurer2019hyperparameter}.
+Model performance depends heavily on hyperparameters such as learning rate, tree depth, number of estimators and regularization strength, which are not learned during training \cite{feurer2019hyperparameter}. Choosing the model family and the feature preprocessing is part of the same problem, known as combined algorithm selection and hyperparameter optimization (CASH).
 
-Traditionally, machine learning engineers tune hyperparameters using three conventional approaches:
+Common approaches each have a drawback:
 \begin{enumerate}
-    \item \textbf{Grid Search and Random Search:} Grid search tests an exhaustive combination of user-defined values, which suffers from exponential computational complexity as the number of parameters grows. Random search samples points randomly, but it is blind to previous evaluation feedback and wastes compute on unpromising regions \cite{bergstra2012random}.
-    \item \textbf{Single-Algorithm Heuristic Search:} Tools often rely on a single optimization strategy, such as standard Bayesian Optimization (Gaussian Processes or Tree-structured Parzen Estimators) or a single evolutionary algorithm. While effective on simple convex curves, no single algorithm performs well on every type of dataset. An algorithm that works rapidly on smooth spaces (like Particle Swarm Optimization) easily gets trapped when a dataset has noise or multiple local peaks. Conversely, Genetic Algorithms explore broadly but converge slowly near the peak.
-    \item \textbf{Heavy Model Ensembling:} Some automated tools run multiple models and then average or stack all of them together at inference time. While this can increase accuracy, it creates severe latency in production because every incoming prediction request must pass through ten or more models simultaneously.
+    \item \textbf{Grid and random search} ignore feedback from earlier evaluations; random search is nevertheless a strong baseline in low effective dimensions \cite{bergstra2012random}.
+    \item \textbf{Single-strategy optimizers} (Bayesian optimization with TPE \cite{bergstra2011algorithms} or SMAC \cite{hutter2011sequential}, or one evolutionary algorithm) commit to one search behaviour. By the No Free Lunch theorem \cite{wolpert1997no}, no single strategy is best on every landscape, and the best one for a given dataset is not known in advance.
+    \item \textbf{Post-hoc ensembles} (H2O AutoML \cite{ledell2020h2o}, AutoGluon) combine many trained models at prediction time, which multiplies inference latency and memory.
 \end{enumerate}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{arch.png}
-\caption{The Complete System Architecture and Operational Workflow of EvoSynth: (1) Input Layer defining search bounds across any dataset; (2) Parallel Initialization & 40\%/60\% population split; (3) Tier 1 Competition Arena where DE, PSO, CMA-ES, and GA compete; (4) Composite Scoring Engine measuring Fitness, Speed, Diversity, and Trend; (5) Control Layer containing Tier Comparator, Stagnation Detector, UCB1 Bandit, and Promotion/Demotion engine; (6) Tier 2 Working Population with periodic elite sharing; (7) Diversity Injection Engine triggering targeted resets; and (8) Output Layer delivering a single, optimal standalone model.}
+\caption{EvoSynth architecture for a population of $N$: (1) input layer and latent space; (2) parallel evaluation of the initial population and a stratified split into Tier 1 (40\%, four islands of $N/10$) and a reserve (60\%, two groups); (3) Tier 1 competition of GA, PSO, DE and CMA-ES; (4) composite scoring; (5) control layer with UCB1 bandit, promotion, SWAP and rollback; (6) Tier 2 working population with pairwise elite sharing; (7) diversity injection; (8) output: confirm before select, one refit, and a single model scored on held-out test rows.}
 \label{fig:architecture}
 \end{figure*}
 
 \subsection{The EvoSynth Approach}
-To solve these challenges without relying on complex, unexplainable black-boxes, this project designs and implements \textbf{EvoSynth}. Instead of relying on a single optimizer, EvoSynth operates as a **Meta-Optimizer**---an optimizer that manages a portfolio of four well-known, complementary optimization algorithms:
+EvoSynth treats the choice of search algorithm as an online decision. It runs four complementary population-based optimizers:
 \begin{itemize}
-    \item \textbf{Differential Evolution (DE):} Excellent at vector difference exploration on continuous parameter interactions.
-    \item \textbf{Particle Swarm Optimization (PSO):} Fast gradient-free acceleration guided by personal and global best positions.
-    \item \textbf{CMA-ES:} Learns the correlation and covariance between parameters for smooth fine-tuning.
-    \item \textbf{Genetic Algorithm (GA):} Robust global exploration using tournament selection, crossover, and mutation to escape local traps.
+    \item \textbf{GA}: tournament selection, crossover and mutation for broad exploration.
+    \item \textbf{PSO} \cite{kennedy1995particle}: particles pulled toward personal and global bests, fast on smooth regions.
+    \item \textbf{DE} \cite{storn1997differential}: DE/rand/1/bin with one-to-one replacement, robust exploration through difference vectors.
+    \item \textbf{CMA-ES} \cite{hansen2001completely}: adapts a covariance matrix for fine-tuning.
 \end{itemize}
+A UCB1 bandit \cite{auer2002finite} over these families, in the spirit of bandit-based adaptive operator selection \cite{fialho2010analyzing}, gives more of the budget to whichever family is making progress on the current problem, and good solutions are shared between families. The output is a single model, so serving it costs no more than serving that model alone.
 
-By placing these algorithms into a structured, two-tier competition and managing them with an Upper Confidence Bound (UCB1) Multi-Armed Bandit, EvoSynth automatically awards more compute budget to whichever algorithm is making the most progress on the given dataset, while sharing good solutions between them. The final output is a single, lean, optimal model configuration ready for immediate deployment with zero inference delay.
+The contributions of this work are: (i) a two-tier island portfolio of four evolutionary and swarm optimizers controlled by a UCB1 bandit over a five-term composite score; (ii) a single latent encoding of model family, feature engineering and hyperparameters; (iii) an evaluation protocol with fixed held-out test rows, confirm-before-select and an identical refit for every tuned method, published as EvoSynth-Bench v2.0.0; and (iv) a measured comparison with Random Search, Optuna and FLAML, an optimizer ablation, a speed-up benchmark and inference-cost measurements.
 
 \section{System Workflow and Architecture}
+Fig.~\ref{fig:architecture} shows the pipeline. Every random number generator is seeded from one run seed, so a run can be repeated exactly.
 
-The entire operational pipeline of EvoSynth is illustrated in Fig.~\ref{fig:architecture}. The system workflow moves through seven connected modules, designed to be completely modular and dataset-agnostic.
-
-\subsection{Stage 1: Input Layer & Universal Latent Space}
-Machine learning hyperparameter tuning involves mixed data types:
-\begin{itemize}
-    \item \textbf{Continuous:} e.g., learning rate $\in [0.01, 0.30]$, subsample $\in [0.5, 1.0]$.
-    \item \textbf{Integer:} e.g., max depth $\in [3, 10]$, number of estimators $\in [50, 500]$.
-    \item \textbf{Categorical / Architectural:} e.g., model type $\in \{\text{'XGBoost'}, \text{'RandomForest'}, \text{'LightGBM'}\}$.
-\end{itemize}
-
-Mathematical algorithms like PSO and CMA-ES cannot compute velocities directly on categorical strings like ``XGBoost''. To solve this cleanly, EvoSynth introduces a **Universal Latent Space Mapping**. Every parameter dimension $j$ is normalized into a continuous unit range $z_j \in [0, 1]$.
-
-When an individual needs to be evaluated:
-\begin{itemize}
-    \item Continuous parameters are scaled linearly or logarithmically:
-    \begin{equation}
-    x_j = L_j + z_j \cdot (U_j - L_j)
-    \end{equation}
-    \item Discrete and categorical choices with $K$ options are mapped into uniform interval bins:
-    \begin{equation}
-    \text{Index}(z_j) = \min\left(\lfloor z_j \cdot K \rfloor, K - 1\right)
-    \end{equation}
-\end{itemize}
-For example, with three model choices, $z_0 \in [0.00, 0.33) \implies \text{XGBoost}$, $z_0 \in [0.33, 0.66) \implies \text{RandomForest}$, and $z_0 \in [0.66, 1.00] \implies \text{LightGBM}$. This allows all four optimizers to compute continuous mathematical updates without breaking configuration boundaries.
-
-\subsection{Stage 2: Initialization & Population Allocation}
-The workflow begins by generating an initial population of $N$ random individuals ($N = 100$ by default). Each candidate vector is decoded, trained against the dataset using cross-validation, and assigned an initial accuracy score.
-
-The population is then split into two distinct tiers (Fig.~\ref{fig:architecture}):
-\begin{enumerate}
-    \item \textbf{Tier 1 Active Population (40\%):} 40 individuals are divided equally among the four optimizers (10 individuals each for DE, PSO, CMA-ES, and GA).
-    \item \textbf{Tier 2 Reserved Population (60\%):} 60 individuals are held in reserve in memory to expand the swarm capacity of the winning algorithms once the initial competition concludes.
-\end{enumerate}
-
-\subsection{Stage 3: Tier 1 Competition Arena}
-In Tier 1, all four algorithms execute for $T_1$ tournament iterations (typically 10 to 30 iterations). Each optimizer operates under a clean Ask/Tell lifecycle:
-\begin{itemize}
-    \item \texttt{ask(n)}: The optimizer proposes $n$ candidate latent vectors.
-    \item \texttt{tell(evaluated\_batch)}: The optimizer absorbs the validation fitness scores and updates its internal population, velocity, or distribution vectors.
-\end{itemize}
-Because all four algorithms run on identical search space boundaries, their performance directly reflects how well their specific search style matches the target dataset.
-
-\subsection{Stage 4: Composite Scoring Engine}
-Rather than judging algorithms solely on their highest single accuracy value, EvoSynth routes results through a **Composite Scoring Engine**. A single high accuracy spike could be a fluke or an overfitted point with zero diversity. 
-
-The composite engine evaluates each algorithm across four normalized pillars:
+\subsection{Stage 1: Universal Latent Space}
+The tabular search space has eight dimensions: model family (XGBoost \cite{chen2016xgboost}, RandomForest, LightGBM \cite{ke2017lightgbm}, ExtraTrees), feature-engineering strategy (none, row statistics, pairwise interactions), learning rate $[0.01, 0.3]$ (log scale), number of estimators $[50, 500]$, maximum depth $[3, 10]$, subsample $[0.5, 1]$, column-sample ratio $[0.3, 1]$ and L1 regularization $[0, 10]$. Each dimension $j$ is represented by $z_j \in [0, 1]$. Continuous parameters are decoded linearly or logarithmically,
 \begin{equation}
-\text{Composite} = w_f \cdot \text{Fitness} + w_s \cdot \text{Speed} + w_d \cdot \text{Diversity} + w_t \cdot \text{Trend}
+x_j = L_j + z_j (U_j - L_j),
 \end{equation}
-where weights are set to $w_f = 0.40, w_s = 0.20, w_d = 0.20, w_t = 0.20$, and the components are defined as:
-\begin{enumerate}
-    \item \textbf{Fitness ($F$):} The peak validation accuracy achieved by the algorithm's best individual.
-    \item \textbf{Speed ($S$):} The improvement velocity from the previous iteration:
-    \begin{equation}
-    S = \max(\text{Best}_t - \text{Best}_{t-1}, 0.0)
-    \end{equation}
-    \item \textbf{Diversity ($D$):} The standard deviation of fitness across the island divided by the spread:
-    \begin{equation}
-    D = \min\left(\frac{\sigma(\text{fitnesses})}{\max(\text{fitnesses}) - \min(\text{fitnesses}) + \epsilon}, 1.0\right)
-    \end{equation}
-    High diversity means the population is actively exploring diverse areas rather than collapsing into a single point.
-    \item \textbf{Trend ($T$):} A multi-interval moving average tracking whether the algorithm is actively progressing or flattening out into a plateau.
-\end{enumerate}
+and a choice with $K$ options takes the bin
+\begin{equation}
+k = \min(\lfloor z_j K \rfloor, K - 1).
+\end{equation}
+All four optimizers therefore work on the same continuous vectors. Hyperparameters that the decoded model does not use (for example the learning rate for ExtraTrees) are carried but inactive.
 
-\subsection{Stage 5: Control Layer & UCB1 Multi-Armed Bandit}
-The Control Layer processes the composite evaluation data through four sub-components:
-\begin{enumerate}
-    \item \textbf{Tier Performance Comparator:} Compares the composite performance of Tier-1 and Tier-2 algorithms.
-    \item \textbf{Stagnation Detector:} Monitors whether an algorithm exhibits zero improvement trend over consecutive evaluation checkpoints.
-    \item \textbf{UCB1 Bandit Selector:} Algorithm selection is formulated as a Multi-Armed Bandit problem using the Upper Confidence Bound (UCB1) formula:
-    \begin{equation}
-    \text{Score}_i = \text{Composite}_i + c \cdot \sqrt{\frac{\ln N_{\text{total}}}{n_i}}
-    \end{equation}
-    where $N_{\text{total}}$ is total evaluations consumed, $n_i$ is evaluations granted to algorithm $i$, and $c = 0.1$ is the exploration coefficient.
-    The first term (\textbf{Exploitation}) rewards the algorithm with the highest composite score. The second term (\textbf{Exploration}) grows larger for algorithms that have received fewer evaluations, ensuring that dormant strategies are periodically revisited.
-    \item \textbf{Promotion \& Demotion Engine:} Identifies the top two algorithms from Tier 1, promotes them into Tier 2, and allocates the 60\% reserved population individuals to them.
-\end{enumerate}
+\subsection{Stage 2: Initial Population and Tier Split}
+A random population of $N$ vectors (40 in our experiments) is evaluated in parallel. Each candidate is scored by stratified 2-fold cross-validation on the dataset's search rows, in the dataset's metric (accuracy or ROC AUC); gradient-boosted models stop early on a 15\% slice of the training fold. The population is then split by a stratified draw: the ranked population is cut into strata, and each Tier 1 island and reserve group receives members from every stratum. Tier 1 receives 40\% as four equal islands of $N/10$, one per optimizer; the remaining 60\% is held in reserve as two groups.
 
-\subsection{Stage 6: Tier 2 Working Population & Elite Sharing}
-Once in Tier 2, the two winning algorithms become the primary working population. They run with expanded population capacity ($10 + 30 = 40$ individuals each).
+\subsection{Stage 3: Tier 1 Competition}
+The four optimizers run for $T_1$ iterations through an ask/tell interface: \texttt{ask($n$)} proposes $n$ vectors and \texttt{tell($\cdot$)} returns their scores. A Tier 1 island whose best does not improve between iterations has 50\% of its members replaced by random vectors through the optimizer's \texttt{inject} method, which also updates its internal state (velocities, covariance, DE targets).
 
-To combine the strengths of both winning strategies, EvoSynth performs **Periodic Elite Sharing**:
-\begin{itemize}
-    \item Every $k$ iterations (default: $k = 5$ or $10$), the top 20\% elite individuals from both Tier 2 islands are gathered into an elite pool.
-    \item The elite pool is sorted by validation accuracy.
-    \item The top solutions are copied into both islands, replacing their worst individuals.
-\end{itemize}
-This cross-pollinates high-performing hyperparameter solutions across different algorithm families (e.g., sharing a high-performing configuration discovered by DE into the PSO swarm, allowing PSO to accelerate around it).
+\subsection{Stage 4: Composite Scoring}
+Each family $i$ is scored on five terms, each min--max normalised across the competing families:
+\begin{equation}
+C_i = 0.30 F_i + 0.25 S_i + 0.15 E_i + 0.15 D_i + 0.15 T_i,
+\end{equation}
+where $F_i$ is the family's best cross-validated score, $S_i$ (speed) the improvement of that best since the family's previous scoring call, $E_i$ (efficiency) that improvement per second of evaluation time, $D_i$ the mean pairwise distance between the island's latent vectors divided by $\sqrt{d}$, and $T_i$ (trend) the slope of the best score over the last three scoring calls. A family that is still improving can therefore outrank one with a slightly higher but stalled best.
 
-\subsection{Stage 7: Diversity Injection Mechanisms}
-When an algorithm converges on a local peak, simply running more iterations wastes computational evaluations. When the Stagnation Detector flags a plateau, it automatically triggers one of three **Diversity Injections** (Fig.~\ref{fig:architecture}):
-\begin{enumerate}
-    \item \textbf{T1 Batch Refresh:} Replaces the bottom 50\% of a stagnant Tier-1 algorithm with fresh random vectors.
-    \item \textbf{T1 Global Reset:} Retains only the top $x\%$ best solutions and completely re-initializes the remainder of the island.
-    \item \textbf{T2 Island Diversity Injection:} In Tier 2, replaces the bottom 20\% of individuals with fresh random vectors while preserving the top 80\% elites.
-\end{enumerate}
-This forces the algorithm to re-evaluate new areas of the search space, preventing premature convergence.
+\subsection{Stage 5: UCB1 Control Layer}
+The bandit adds an exploration bonus to the composite score:
+\begin{equation}
+U_i = C_i + c\sqrt{\frac{\ln N_{\text{total}}}{n_i}}, \quad c = 0.1,
+\end{equation}
+where $N_{\text{total}}$ is the number of evaluations used and $n_i$ the number used by family $i$. After Tier 1, the two families with the highest $U_i$ are promoted to Tier 2, each taking one reserve group. Every $k$ Tier 2 iterations (a checkpoint; $k$ is chosen automatically so that Tier 2 has at least two checkpoints), the controller compares tiers: if the best Tier 1 family's $U$ exceeds the weaker Tier 2 family's by more than 0.10, the two are swapped. If the promoted family does not improve the global best within a 5-iteration grace period, the swap is rolled back from a saved snapshot, and cooldowns prevent immediate re-swapping. Every promotion, swap, rollback, injection and elite exchange is recorded.
 
-\subsection{Stage 8: Parallel Speed Optimization & Early Stopping}
-Evaluating 2,500 candidate machine learning models sequentially can take 40 minutes or more. EvoSynth implements two acceleration techniques:
-\begin{enumerate}
-    \item \textbf{Asynchronous Worker Threads:} Candidate hyperparameter vectors within a batch are evaluated simultaneously across CPU cores using Python's \texttt{concurrent.futures.ThreadPoolExecutor}. Because C++ gradient boosting libraries release the Global Interpreter Lock (GIL) during training, multi-threading scales linearly across available cores.
-    \item \textbf{Early Stopping Pruning:} During 3-fold cross-validation, gradient boosted models (XGBoost, LightGBM) monitor validation loss. If accuracy does not improve after 10 consecutive trees, training aborts immediately. This avoids wasting CPU cycles training hundreds of trees on obviously poor hyperparameter combinations.
-\end{enumerate}
+\subsection{Stage 6: Tier 2 and Elite Sharing}
+At each checkpoint the two Tier 2 islands trade elites pairwise: the worst 20\% of each island are replaced by the best 20\% of the other. This moves good configurations between algorithm families, for example a region found by CMA-ES into the GA population.
+
+\subsection{Stage 7: Diversity Injection}
+A Tier 2 island that stays stagnant for three consecutive checkpoints has its worst 20\% replaced by random vectors, again through \texttt{inject}.
+
+\subsection{Stage 8: Confirm, Refit and Measure}
+Two-fold scores are noisy, and the maximum of many noisy scores is biased upwards. EvoSynth therefore re-scores the five best distinct configurations with 5-fold CV on the search rows and selects the best confirmed one. That configuration is refitted on the dataset's train rows and scored once on the held-out test rows, which no search or selection step ever sees. Its single-row latency (one thread), batch throughput and serialized size are measured on the test rows.
 
 \begin{algorithm}[t]
-\caption{EvoSynth Complete Optimization Lifecycle}
+\caption{EvoSynth optimization lifecycle}
 \label{alg:evosynth}
 \begin{algorithmic}[1]
-\REQUIRE Search space $\mathcal{S}$, Evaluator $\mathcal{E}$, Budget $B$, Pop size $N$, Tournament iters $T_1$, Sharing interval $k$
-\STATE $\mathcal{P} \leftarrow \text{GenerateRandomPopulation}(N, \mathcal{S})$
-\STATE Evaluate $\mathcal{P}$ in parallel across CPU cores
-\STATE Split $\mathcal{P}$ into $\mathcal{P}_{\text{T1}}$ (40\%) and $\mathcal{P}_{\text{reserve}}$ (60\%)
-\STATE Seed optimizers $\{\text{DE}, \text{PSO}, \text{CMA-ES}, \text{GA}\}$ with $\mathcal{P}_{\text{T1}}$
+\REQUIRE Space $\mathcal{S}$, evaluator $\mathcal{E}$, budget $B$, population $N$, Tier 1 iterations $T_1$, checkpoint interval $k$
+\STATE $\mathcal{P} \leftarrow$ $N$ random vectors; evaluate $\mathcal{P}$ in parallel
+\STATE Stratified split: four Tier 1 islands (40\%) and two reserve groups (60\%)
 \FOR{$t = 1$ \TO $T_1$}
-    \FORALL{$\text{algo} \in \{\text{DE}, \text{PSO}, \text{CMA-ES}, \text{GA}\}$}
-        \STATE $\mathbf{Z} \leftarrow \text{algo.ask}(|\mathcal{P}_{\text{T1}}|/4)$
-        \STATE Evaluate $\mathbf{Z}$ in parallel with Early Stopping
-        \STATE $\text{algo.tell}(\mathbf{Z})$
-    \ENDFOR
+    \STATE Each optimizer: ask, evaluate in parallel, tell; inject 50\% if stagnant
 \ENDFOR
-\STATE $\text{Scores} \leftarrow \text{CompositeScoringEngine}(\text{T1\_Algos})$
-\STATE $\text{Top2}, \text{Bot2} \leftarrow \text{UCB1\_Bandit}(\text{Scores}, c=0.1)$
-\STATE Promote $\text{Top2}$ to Tier 2 and inject $\mathcal{P}_{\text{reserve}}$
-\WHILE{$\text{EvaluationsUsed} < B$}
-    \STATE Execute iteration step for Tier 2 and active Tier 1
-    \IF{$(\text{CurrentIter} \pmod k) == 0$}
-        \STATE Share top 20\% elites between Tier 2 islands
-        \IF{$\text{StagnationDetected}()$}
-            \STATE Inject fresh random vectors into bottom 20\%
-        \ENDIF
+\STATE Score families ($C_i$, $U_i$); promote the top two, each with one reserve group
+\WHILE{evaluations used $< B$}
+    \STATE Step every Tier 2 and Tier 1 optimizer
+    \IF{checkpoint (every $k$ iterations)}
+        \STATE Rescore; SWAP if $U_{\text{T1}} > U_{\text{T2,weak}} + 0.10$
+        \STATE Pairwise elite sharing between the Tier 2 islands
+        \STATE Inject 20\% into Tier 2 islands stagnant for 3 checkpoints
     \ENDIF
+    \STATE Roll back a swap whose grace period ends without a new global best
 \ENDWHILE
-\RETURN Discovered best model architecture and hyperparameters
+\STATE Confirm the top 5 distinct configurations with 5-fold CV; select the best
+\RETURN Refitted model, test score and inference cost
 \end{algorithmic}
 \end{algorithm}
 
-\section{Experimental Evaluation & Results}
+\section{Experimental Evaluation}
 
-\subsection{Experimental Setup}
-All experiments were benchmarked on a standard multi-core machine using the official EvoSynth repository codebase. The test evaluation suite includes:
-\begin{itemize}
-    \item \textbf{Tabular Classification Benchmark:} Wisconsin Breast Cancer dataset (569 samples, 30 features, binary classification).
-    \item \textbf{Pathological Noisy Benchmark:} A synthetic dataset with 2,000 samples, 20 features, and 30\% random label flip noise ($\text{flip\_y}=0.3$) specifically created to test whether an optimizer gets trapped in noisy local minima.
-    \item \textbf{Deep Learning Vision NAS Benchmark:} Handwritten Digits image classification (1,797 $8\times8$ grayscale images) optimizing a dynamic PyTorch Convolutional Neural Network (CNN).
-\end{itemize}
+\subsection{Setup}
+\textbf{Datasets.} UCI Forest Covertype \cite{blackard1999comparative} (581,012 rows, 54 features, 7 imbalanced classes; accuracy) and Adult \cite{kohavi1996scaling} (48,842 rows, 14 features, binary; ROC AUC). Each dataset is split once: test rows are set aside first (Covertype 20,000; Adult 12,000), then search rows and train rows (Covertype 60,000; Adult 36,000) are drawn from the rest. Searches used a fixed 10,000-row subset of the search rows. The exact row indices are published in EvoSynth-Bench v2.0.0 (doi:10.5281/zenodo.23645119).
+
+\textbf{Methods.} EvoSynth (population 40, 500 evaluations, 8 parallel workers); Random Search and Optuna TPE \cite{akiba2019optuna} (500 trials each, same space and evaluator, sequential); FLAML \cite{wang2021flaml} with the wall time EvoSynth used, searching on the train rows with its own holdout and fitting its own final model; and each model family with library defaults. EvoSynth, Random Search and Optuna use the same confirm-before-select step and the same refit, so their test scores are directly comparable.
+
+\textbf{Hardware and seeds.} One 12-thread laptop CPU. All results are from seed 42; differences of a few tenths of a point between tuned methods should be read as ties until repeated over seeds.
+
+\subsection{Main Comparison}
+Table~\ref{tab:main} gives the held-out test scores. On both datasets EvoSynth, Random Search and Optuna finish within 0.03 points of each other and choose the same model family: ExtraTrees with interaction features on Covertype and XGBoost on Adult. Tuning with model selection is worth 4.1 points over the best untuned model on Covertype but only 0.06 on Adult, where default LightGBM is already near the top. FLAML is 1.4 points lower on Covertype and best on Adult (+0.17). EvoSynth's search took 12 minutes on Covertype against 42--50 minutes for the sequential baselines; on Adult, where an evaluation takes about a second, Optuna was about as fast (3.3 against 3.0 minutes).
 
 \begin{table}[htbp]
-\caption{Speedup via Parallel Evaluation and Early Stopping}
-\label{tab:speedup}
+\caption{Held-out test score (seed 42; 500 evaluations for tuned searches)}
+\label{tab:main}
 \centering
-\begin{tabular}{lccc}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
 \toprule
-\textbf{Execution Mode} & \textbf{Cores / Threads} & \textbf{Initial Pop (s)} & \textbf{Total Time (s)} \\
+ & \multicolumn{2}{c}{\textbf{Covertype (acc.\,\%)}} & \multicolumn{2}{c}{\textbf{Adult (AUC\,\%)}} \\
+\textbf{Method} & \textbf{Test} & \textbf{Time} & \textbf{Test} & \textbf{Time} \\
 \midrule
-Sequential (Old Baseline) & 1 Core (Serial) & 44.8 & 392.4 \\
-Parallel Batching & 8 Threads & 5.1 & 78.2 \\
-\textbf{EvoSynth (Parallel + Early Stop)} & \textbf{8 Threads} & \textbf{3.9} & \textbf{63.9} \\
+Untuned XGBoost & 85.58 & -- & 92.70 & -- \\
+Untuned LightGBM & 84.69 & -- & 92.92 & -- \\
+Untuned RandomForest & 89.09 & -- & 90.74 & -- \\
+Untuned ExtraTrees & 89.77 & -- & 89.15 & -- \\
+FLAML & 92.53 & 13.0\,m & \textbf{93.13} & 3.0\,m \\
+Random Search & \textbf{93.89} & 42.4\,m & 92.98 & 19.1\,m \\
+Optuna TPE & 93.87 & 49.8\,m & 92.95 & 3.3\,m \\
+\textbf{EvoSynth} & \textbf{93.89} & 12.2\,m & 92.96 & 3.0\,m \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Speedup Benchmark Results}
-Table~\ref{tab:speedup} shows the execution time improvements achieved by parallelizing batch evaluation and adding early stopping. Evaluating the 100-individual initial population dropped from 44.8 seconds down to 3.9 seconds---an **$11.5\times$ speedup**. For a full 120-evaluation multi-model optimization run, total runtime was reduced from over 6.5 minutes to just 63.9 seconds, successfully solving the computational bottleneck critique.
+Test scores exceed search scores on Covertype (82.35\% with 2-fold CV on 10,000 rows, 84.84\% after 5-fold confirmation) because the refit trains on 60,000 rows; the test rows are never seen before the final score.
 
-\subsection{Real-World Benchmark: UCI Forest Covertype}
-To rigorously validate EvoSynth on large-scale real-world data beyond synthetic environments, we evaluated the system on the published \textbf{UCI Forest Covertype} benchmark ($581,012$ instances, $54$ cartographic features, $7$ tree cover classes). 
+\textbf{A plateau in the search space.} The five best Covertype configurations scored exactly 82.35\% in search and 84.84\% in confirmation. During the search, forests are capped at 150 trees, depth is mapped to three times the gene value, and the column-sample ratio is rounded to a whole number of features, so these different vectors build the same model. Every competent method reaches this plateau, which explains the ties on Covertype; datasets where continuous boosting hyperparameters matter are better suited to separating optimizers.
 
-A standard challenge on this dataset is severe class imbalance: Class 1 and Class 2 constitute over $84\%$ of all instances, enabling default untuned models to achieve $\sim 81\%$ accuracy merely by exploiting majority classes while failing on minority categories (Table~\ref{tab:covtype}).
+\subsection{Optimizer Ablation}
+Each optimizer was run alone with the full 500-evaluation budget and population 40, and EvoSynth was run once with the same budget; all five were scored by the same composite engine at fixed marks (Table~\ref{tab:ablation}). EvoSynth matched the best single optimizer at the full budget (82.35\%, tied with PSO and CMA-ES) and trailed PSO by 0.27 points at the 25\% mark. The best single optimizer differs between runs (CMA-ES and DE in our earlier ablations, PSO here), so the portfolio's value is that it reaches the best score without that choice being made in advance. GA alone collapsed (diversity 0.085) and was the weakest; inside EvoSynth, GA produced the winning configuration after receiving CMA-ES's elites.
 
 \begin{table}[htbp]
-\caption{Real-World Benchmark Comparison on UCI Forest Covertype}
-\label{tab:covtype}
+\caption{Ablation on Covertype: best search CV accuracy (\%)}
+\label{tab:ablation}
 \centering
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Method / Configuration} & \textbf{Model Architecture} & \textbf{FE Strategy} & \textbf{Search Time} & \textbf{Test Accuracy (\%)} \\
+\textbf{Method} & \textbf{@125} & \textbf{@500} & \textbf{Diversity} & \textbf{Time} \\
 \midrule
-Default Baseline 1 & Untuned XGBoost & None (Raw 54) & 2.1\,s & 80.97\% \\
-Default Baseline 2 & Untuned LightGBM & None (Raw 54) & 1.2\,s & 81.07\% \\
-Default Baseline 3 & Untuned RandomForest & None (Raw 54) & 3.4\,s & 81.48\% \\
-\midrule
-EvoSynth (Raw Features) & XGBoost (DART, Depth 10) & None & 6m 14s & 82.73\% \\
-EvoSynth (Search Phase CV) & ExtraTrees ($N=334$, Depth 8) & Interactions & 8m 30s & 86.39\% \\
-\textbf{EvoSynth (Generalization)} & \textbf{ExtraTrees (60k train / 20k test)} & \textbf{Interactions} & \textbf{1m 14s} & \textbf{93.47\%} \\
+GA alone & 81.53 & 82.21 & 0.085 & 14.9\,m \\
+PSO alone & 82.35 & 82.35 & 0.093 & 10.7\,m \\
+DE alone & 82.13 & 82.34 & 0.363 & 9.8\,m \\
+CMA-ES alone & 81.89 & 82.35 & 0.227 & 10.5\,m \\
+\textbf{EvoSynth} & 82.08 & \textbf{82.35} & 0.206 & 14.9\,m \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-EvoSynth searched across four model architectures (\texttt{XGBoost}, \texttt{LightGBM}, \texttt{RandomForest}, \texttt{ExtraTrees}) and three dataset-agnostic feature engineering strategies (\texttt{none}, \texttt{stats}, \texttt{interactions}) in a 9-dimensional latent space. The system dynamically discovered that continuous pairwise interactions ($c_i - c_j$ and $\sqrt{c_i^2 + c_j^2}$) combined with \textbf{ExtraTrees} reduced classification error from $19.0\%$ down to $6.53\%$---a **$64.6\%$ relative error reduction**---while executing the entire 120-evaluation search and final 60k refit in just **9 minutes 44 seconds**.
+\subsection{Meta-Decisions in Practice}
+In the Covertype search, DE and CMA-ES were promoted after Tier 1. DE had a lower best score than CMA-ES but the highest composite score, because it was still improving and had the most diverse island. At the first checkpoint GA, which was improving quickly from a low score, displaced DE by a SWAP (UCB 0.592 against 0.369). GA reached the 82.35\% plateau through CMA-ES's shared elites but did not improve the global best in its grace period, so the swap was rolled back and DE restored. CMA-ES found the winning configuration. In the Adult search GA and PSO were promoted, two swaps followed, and PSO found the winner. The family that produced the winner differed in every run (CMA-ES, PSO, and GA in the ablation).
 
-Crucially, this run demonstrated EvoSynth's dynamic tier reallocation in real time: at the Step 5 switching checkpoint, Genetic Algorithm diversity collapsed to $0.450$, causing its UCB score to drop to $0.547$. Concurrently, Particle Swarm Optimization in Tier 1 maintained maximal swarm diversity ($0.500$) and reached a UCB score of $0.720$. EvoSynth automatically triggered a \textbf{live SWAP event}, promoting PSO to Tier 2 and demoting GA, enabling the promoted swarm to converge on the global optimum.
-
-\subsection{Overcoming Local Minima on Noisy Datasets}
-On the pathological dataset with 30\% label noise, single static algorithms like PSO and local hill-climbing search plateaued around 76\% accuracy because the label noise created false local gradients (Table~\ref{tab:pathological}). 
-
-In EvoSynth, when the Stagnation Detector flagged zero trend ($\Delta T = 0$), the UCB1 controller increased the exploration bonus, promoted Particle Swarm with refreshed seeds from the elite pool, and replaced the bottom 20\% with fresh random vectors. This diversity injection enabled the swarm to break out of the local trap and reach **79.40\% validation accuracy**.
+\subsection{Speed-Up}
+The same 40 random Covertype configurations were evaluated under four conditions (Table~\ref{tab:speedup}). Parallel evaluation on 12 threads gave $5.85\times$; early stopping added little ($1.17\times$ alone, $6.10\times$ combined) and lowered the mean CV score by 0.37 points. Parallel evaluation is available to other tuners as well, so this is an engineering gain rather than a property of the search method.
 
 \begin{table}[htbp]
-\caption{Multi-Model Architecture and Hyperparameter Output}
-\label{tab:cash}
+\caption{Time to evaluate 40 Covertype configurations}
+\label{tab:speedup}
 \centering
-\begin{tabular}{llc}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Parameter Name} & \textbf{Configured Range} & \textbf{Final Selected Value} \\
+\textbf{Condition} & \textbf{Time (s)} & \textbf{Speed-up} \\
 \midrule
-Model Architecture & XGBoost, LightGBM, RF & \textbf{XGBoost} \\
-Learning Rate & $[0.01, 0.3]$ (log scale) & 0.0163 \\
-Number of Estimators & $[50, 500]$ & 327 \\
-Max Tree Depth & $[3, 10]$ & 6 \\
-Subsample Ratio & $[0.5, 1.0]$ & 0.9797 \\
-Colsample by Tree & $[0.3, 1.0]$ & 0.9270 \\
-L1 Regularization ($\alpha$) & $[0.0, 10.0]$ & 7.5669 \\
-Booster Type & gbtree, dart & gbtree \\
+Sequential & 255.6 & 1.00$\times$ \\
+Sequential + early stopping & 219.0 & 1.17$\times$ \\
+Parallel, 12 threads & 43.7 & 5.85$\times$ \\
+\textbf{Parallel + early stopping} & \textbf{41.9} & \textbf{6.10$\times$} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Multi-Model Architecture Switching}
-Table~\ref{tab:cash} displays the final architecture and hyperparameters discovered by EvoSynth. The system evaluated configurations across all three model types (Random Forest, LightGBM, and XGBoost) in the same run. Because the dataset contained high label noise, EvoSynth dynamically converged on **XGBoost** paired with heavy L1 regularization ($\alpha = 7.5669$) and subsampling ($0.9797$), which effectively suppressed overfitting to the noisy labels.
+\subsection{Inference Cost}
+The cost of the delivered model depends on the family selected. The Covertype winner, a 232-tree ExtraTrees with interaction features, takes 12.5\,ms per row on one thread and occupies 470\,MB; the Adult winner, an XGBoost, takes 0.26\,ms and 0.4\,MB. A single model avoids the multiplication of cost that a stacked ensemble incurs, but EvoSynth does not currently trade accuracy for size or latency.
 
-\subsection{Deep Learning Neural Architecture Search (Vision NAS)}
-To prove that EvoSynth is not restricted to tabular data, we tested the engine using \texttt{ImageCNNEvaluator} on image data. The latent space mapped convolutional layers, filter channels, fully connected units, dropout rates, activation functions, and optimizer choices. 
-
-Within just 80 evaluations (taking 14.6 seconds total), EvoSynth achieved **95.33\% validation accuracy**, discovering the following optimal CNN architecture:
-\begin{itemize}
-    \item \texttt{conv1\_channels}: 16
-    \item \texttt{conv2\_channels}: 64
-    \item \texttt{fc\_units}: 64
-    \item \texttt{dropout\_rate}: 0.0107
-    \item \texttt{activation}: LeakyReLU
-    \item \texttt{optimizer}: Adam (\texttt{learning\_rate} = 0.0309)
-\end{itemize}
+\subsection{Neural Architecture Search}
+As in neural architecture search \cite{zoph2016neural, real2019regularized}, the same engine searched a CNN space (channel counts, fully connected units, dropout, activation, optimizer and learning rate) on Fashion-MNIST \cite{xiao2017fashion}, training each candidate for two epochs on 10,000 images. With 160 evaluations it reached 81.8\% validation accuracy (conv 16--128, fc 256, ReLU, Adam), found by PSO in Tier 2, with no code changes to the engine.
 
 \section{Real-Time Glass-Box Telemetry Dashboard}
-Traditional AutoML systems print confusing terminal lines or operate as opaque black boxes. To provide complete visibility, EvoSynth includes a real-time telemetry dashboard (Fig.~\ref{fig:architecture}):
-\begin{itemize}
-    \item \textbf{FastAPI Server-Sent Events (SSE):} The optimization controller emits structured JSON events over an SSE channel (\texttt{/stream}) as evaluations take place. Event types include \texttt{metric} (new accuracy records), \texttt{composite} (UCB1 and diversity scores), \texttt{tier\_state} (active Tier-1 and Tier-2 lists), and \texttt{switch} (elite migrations and stagnation resets).
-    \item \textbf{React Web Dashboard:} Built with React, Vite, and Tailwind CSS. It connects to the SSE stream to display live accuracy curves, current Tier 1 and Tier 2 algorithm assignments, composite score breakdowns, and mirrored terminal logs in real time without refreshing the page.
-\end{itemize}
+The controller emits structured events over Server-Sent Events from a FastAPI server: evaluation metrics, composite and UCB scores, tier assignments, and every meta-decision (promotion, swap, rollback, injection, elite sharing). A React dashboard displays live score curves, tier membership, composite breakdowns and the decision log, so a user can see why the budget moved between optimizers.
 
 \section{Conclusion}
-This paper presented EvoSynth, an automated machine learning framework designed around a dynamic multi-algorithm meta-optimization workflow. By projecting mixed hyperparameters into a Universal Latent Space and managing a portfolio of four complementary optimization algorithms (DE, PSO, CMA-ES, GA) through a two-tier island model governed by UCB1 composite scoring, EvoSynth systematically overcomes local minima without multiplying production inference latency. The implementation includes asynchronous parallel worker evaluation, early stopping on gradient boosted trees, automatic diversity injection on stagnation, and support for both tabular model switching and vision Neural Architecture Search. Experimental results confirm an $11.5\times$ speedup, robust escape from deceptive noisy local optima, and clear real-time visibility through a dedicated telemetry dashboard.
+EvoSynth coordinates four evolutionary and swarm optimizers through a two-tier island model and a UCB1 bandit over a composite score, searching model family, feature engineering and hyperparameters in one latent space and delivering a single model. Under an identical protocol with held-out test rows, it matched Random Search and Optuna on Covertype and Adult, selected the right model family for each, and matched the best single optimizer in an ablation without knowing which one that would be; parallel evaluation made it the fastest tuned search on Covertype. The results also show its limits: on these datasets it does not beat strong baselines, FLAML was best on Adult, and the Covertype search space contains a plateau that every competent method reaches. Future work will repeat the experiments over multiple seeds and harder datasets (HIGGS, Poker Hand), compare against portfolio baselines such as Nevergrad's NGOpt on surrogate benchmarks with many tasks, use rank-normalised rewards, and add size- and latency-aware objectives.
 
 \begin{thebibliography}{00}
 \bibitem{feurer2019hyperparameter} M. Feurer and F. Hutter, ``Hyperparameter optimization,'' in \textit{Automated Machine Learning}, Springer, Cham, 2019, pp. 3--33.
@@ -329,6 +244,11 @@ This paper presented EvoSynth, an automated machine learning framework designed 
 \bibitem{zoph2016neural} B. Zoph and Q. V. Le, ``Neural architecture search with reinforcement learning,'' in \textit{International Conference on Learning Representations (ICLR)}, 2017.
 \bibitem{real2019regularized} E. Real, A. Aggarwal, Y. Huang, and Q. V. Le, ``Regularized evolution for image classifier architecture search,'' in \textit{AAAI Conference on Artificial Intelligence}, vol. 33, 2019, pp. 4780--4789.
 \bibitem{hutter2011sequential} F. Hutter, H. H. Hoos, and K. Leyton-Brown, ``Sequential model-based optimization for general algorithm configuration,'' in \textit{International Conference on Learning and Intelligent Optimization}, Springer, 2011, pp. 507--523.
+\bibitem{wolpert1997no} D. H. Wolpert and W. G. Macready, ``No free lunch theorems for optimization,'' \textit{IEEE Transactions on Evolutionary Computation}, vol. 1, no. 1, pp. 67--82, 1997.
+\bibitem{akiba2019optuna} T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama, ``Optuna: A next-generation hyperparameter optimization framework,'' in \textit{Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, 2019, pp. 2623--2631.
+\bibitem{blackard1999comparative} J. A. Blackard and D. J. Dean, ``Comparative accuracies of artificial neural networks and discriminant analysis in predicting forest cover types from cartographic variables,'' \textit{Computers and Electronics in Agriculture}, vol. 24, no. 3, pp. 131--151, 1999.
+\bibitem{kohavi1996scaling} R. Kohavi, ``Scaling up the accuracy of naive-Bayes classifiers: A decision-tree hybrid,'' in \textit{Proceedings of the Second International Conference on Knowledge Discovery and Data Mining (KDD)}, 1996, pp. 202--207.
+\bibitem{xiao2017fashion} H. Xiao, K. Rasul, and R. Vollgraf, ``Fashion-MNIST: A novel image dataset for benchmarking machine learning algorithms,'' \textit{arXiv preprint arXiv:1708.07747}, 2017.
 \end{thebibliography}
 
 \end{document}

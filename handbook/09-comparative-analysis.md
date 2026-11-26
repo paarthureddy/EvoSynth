@@ -1,6 +1,6 @@
 # 09 — Comparative Analysis
 
-This file positions EvoSynth against existing AutoML/HPO tools and against ensembling, and lists the related research. It condenses `docs/comparative_analysis.md` and the README and slide comparisons, and adds the measured Covertype comparison.
+This file positions EvoSynth against existing AutoML/HPO tools and against ensembling, and lists the related research. It condenses `docs/research/comparative_analysis.md` and the README and slide comparisons, and adds the measured comparisons from [08](08-results.md) (Phase 5 smoke run, seed 42, Covertype and Adult).
 
 ---
 
@@ -28,7 +28,10 @@ This file positions EvoSynth against existing AutoML/HPO tools and against ensem
 - **Limitations claimed by the project:**
   - it assumes a fairly smooth landscape, so greedy steps can stall in the nearest basin on noisy or multi-modal problems;
   - it runs a single search topology with no concurrent heuristics and no sharing between populations.
-- **Measured on Covertype:** 92.44% test accuracy in 585 s with ExtraTrees, against EvoSynth's 94.05% at 500 evaluations. Both independently chose ExtraTrees.
+- **Measured** with the same wall time as EvoSynth:
+  - Covertype: 92.53% test accuracy with a large LightGBM (128 MB), 1.4 points below EvoSynth, Random Search and Optuna (93.87–93.89);
+  - Adult: 93.13 ROC AUC with a 1,861-tree XGBoost, **0.17 above EvoSynth** (92.96) and the best result on that dataset.
+- FLAML searches on the full train rows with its own holdout, which is part of its design and an advantage on easy datasets.
 
 ### Amazon AutoGluon
 
@@ -55,7 +58,7 @@ This file positions EvoSynth against existing AutoML/HPO tools and against ensem
 - **Limitations:**
   - a `Study` commits to **one sampler**, with no portfolio and no budget reallocation between algorithms;
   - trials are independent, with no co-evolving population.
-- **Measured on Covertype:** 84.61% CV and 89.80% test with 120 TPE trials (chose XGBoost with interactions).
+- **Measured** with 500 trials and the same confirm-and-refit as EvoSynth: Covertype 93.87% (ExtraTrees with interactions, 50 min), Adult 92.95 ROC AUC (XGBoost, 3.3 min). Level with EvoSynth on both. (The v1 figure of 89.80% came from a refit that discarded Optuna's tuned hyperparameters.)
 
 ### Auto-sklearn 2.0 (SMAC3)
 
@@ -69,7 +72,7 @@ This file positions EvoSynth against existing AutoML/HPO tools and against ensem
 ### Random Search (baseline)
 
 - **Approach:** samples blindly with no feedback.
-- **Measured on Covertype:** strong, at 86.33% CV and 93.92% test with 120 evaluations. It is a reminder that the 9-D space has a broad, easy-to-find good region (ExtraTrees with interactions).
+- **Measured** with 500 evaluations: Covertype 93.89% (tied with EvoSynth), Adult 92.98 ROC AUC. It is a reminder that the 8-dimensional space has a broad, easy-to-find good region; on Covertype every competent search reaches the same plateau model ([08](08-results.md) §3).
 
 ---
 
@@ -91,8 +94,10 @@ They work because, by Condorcet-style arguments, models with uncorrelated errors
 Illustrative pipeline used in the docs:
 
 ```
-Ensemble:  x → XGB 1.8ms, LGBM 1.2ms, CatBoost 3.5ms, RF 4.1ms, NN 64ms → GLM 0.5ms  ≈ 75 ms, 3.2 GB
-EvoSynth:  x → single optimal model (e.g. LightGBM 1.2 ms)                            ≈ 1.2 ms, 18 MB
+Ensemble:  x → XGB 1.8ms, LGBM 1.2ms, CatBoost 3.5ms, RF 4.1ms, NN 64ms → GLM 0.5ms  ≈ 75 ms, 3.2 GB   (illustrative)
+EvoSynth:  x → the one selected model                                               (measured, one thread)
+             Adult:     XGBoost                              0.26 ms,   0.4 MB
+             Covertype: ExtraTrees + interactions           12.5  ms, 470   MB
 ```
 
 | Dimension | Ensembles (AutoGluon, H2O) | EvoSynth |
@@ -100,16 +105,18 @@ EvoSynth:  x → single optimal model (e.g. LightGBM 1.2 ms)                    
 | When the multiplicity is used | At inference time | Offline, during search |
 | Mechanism | Aggregates M models' predictions | Coordinates 4 search algorithms |
 | Deliverable | M models | 1 model (or 1 CNN) |
-| Latency | 50–200 ms | 1–3 ms (about 2 ms is the headline claim) |
-| Memory | 1–8 GB | 10–50 MB per the comparative doc; about 150 MB per README and slides |
+| Latency | 50–200 ms | That of the selected model: 0.26 ms (Adult XGBoost) to 12.5 ms (Covertype ExtraTrees), measured |
+| Memory | 1–8 GB | 0.4 MB (Adult) to 470 MB (Covertype), measured. The old "about 150 MB" claim was never measured |
 | Search-space discovery | None (models trained independently) | Co-evolution explores non-convex landscapes |
 | Edge deployment | Impractical | Straightforward |
 
-**Pareto framing ("is the advantage time or accuracy?").** EvoSynth claims Pareto efficiency: accuracy close to an ensemble, at the compute and latency cost of one model. The positions on the accuracy-versus-cost plane, as the project describes them:
-- default models: about 81% in seconds;
-- single optimizers: about 86–89%;
-- EvoSynth: about 93–94% in under 40 minutes, with one model;
-- heavy ensembles: about 94–96%, but over hours and with 10–15 models.
+**Pareto framing ("is the advantage time or accuracy?").** The measured positions on Covertype:
+- untuned models: 84.7–89.8% in seconds;
+- FLAML: 92.5% in 13 minutes;
+- EvoSynth, Random Search and Optuna (500 evaluations, one model): 93.9%, in 12 minutes for EvoSynth (parallel) and 42–50 minutes for the sequential baselines;
+- heavy ensembles: not measured in this project.
+
+So the honest answer is **time, not accuracy**: EvoSynth reaches the same accuracy as the strong single-model searches, faster because it evaluates in parallel, and without having to choose an optimizer in advance. Whether a stacked ensemble would be more accurate on these splits is untested.
 
 ---
 
@@ -119,7 +126,7 @@ EvoSynth:  x → single optimal model (e.g. LightGBM 1.2 ms)                    
 |---|---|---|---|---|---|---|---|
 | Search strategy | None (post-hoc) | CFO local search | Random/Bayes + stacking | TPE / CMA-ES | Random grid + stacking | BOHB/SMAC + meta-learning | **UCB-scored dynamic meta-optimizer** |
 | Concurrent heuristics | — | 1 | 1 | 1 sampler per study | 1 | 1 surrogate | **4 (GA, PSO, DE, CMA-ES)** |
-| Live strategy switching | — | No | No | No | No | No | **Yes: tier SWAPs with grace and rollback** |
+| Live strategy switching | — | No | No | No | No | No | **Yes: tier SWAPs with grace and rollback (observed in both search runs)** |
 | Diversity safeguard | — | No | No | No | No | No | **Diversity in score, plus stagnation injection** |
 | Knowledge sharing across algorithms | — | No | No | No | No | No | **Top-20% elite migration between T2 islands** |
 | Search-space representation | Native | Native | Native | Define-by-run | Native | Native | **Universal latent `[0,1]^d`** |
@@ -128,7 +135,8 @@ EvoSynth:  x → single optimal model (e.g. LightGBM 1.2 ms)                    
 | NAS | No | No | Limited | Custom objective | No | No | **Native PyTorch CNN search** |
 | Stagnation handling | — | Blind restart | — | Pruning | Wait for budget | — | **Trend tracking + random latent injection** |
 | Deliverable | 10–30 models | 1 model | 15–50 models | 1 model | 10–30 models | Ensemble | **1 model** |
-| Inference latency | 50–200 ms | 1–2 ms | 50–250 ms | 1–2 ms | 50–200 ms | Ensemble | **About 1–3 ms** |
+| Inference latency | 50–200 ms | Model-dependent (1.5–5 ms measured) | 50–250 ms | Model-dependent | 50–200 ms | Ensemble | **Model-dependent (0.26–12.5 ms measured)** |
+| Measured test score (Covertype / Adult) | — | 92.53 / 93.13 | — | 93.87 / 92.95 | — | — | **93.89 / 92.96** |
 | Observability | Opaque | Terminal logs | Static leaderboard | Optuna dashboard (polling) | Static UI | Tables | **Live SSE glass-box dashboard** |
 
 Note that EvoSynth's latency is simply that of its chosen model family. The advantage comes from not being an ensemble, not from anything EvoSynth does at inference time.
@@ -144,7 +152,8 @@ Note that EvoSynth's latency is simply that of its chosen model family. The adva
 4. **The universal latent space** lets continuous optimizers handle categorical choices and model families.
 5. **Dataset-agnostic feature engineering** uses row statistics and interactions with no column knowledge.
 6. **Real-time observability** of every meta-decision.
-7. **CPU-only throughput:** thread parallelism plus early stopping gives more than 10× speed-up without a GPU.
+7. **CPU-only throughput:** parallel evaluation gives about 6× on 12 threads (measured); early stopping adds a little.
+8. **Robust without prior choice:** it matched the best single optimizer in the ablation, and the best single optimizer changes from run to run.
 
 **Limitations:**
 1. **Modalities.** It handles tabular data and small CNNs only. There is no native NLP or audio support.
@@ -152,12 +161,15 @@ Note that EvoSynth's latency is simply that of its chosen model family. The adva
 3. **Single node.** It uses `ThreadPoolExecutor` on one machine, with no Ray or Kubernetes distribution.
 4. **Inactive dimensions.** Boosting-only genes drift when RF/ET is selected.
 5. **Evidence from the results** ([08](08-results.md)):
-   - the margins over the best isolated optimizer are small or negative in some ablations;
-   - Random Search is competitive on Covertype;
-   - all results come from single runs without repeated seeds.
-6. **Possible overtuning.** Picking the maximum of noisy 2-fold CV scores on a 20k subsample may favour configurations that look good only because of noise. This motivates the research directions in §6.
+   - EvoSynth ties Random Search and Optuna under the same protocol; it does not beat them;
+   - it matches but does not beat the best single optimizer in the ablation;
+   - FLAML won Adult;
+   - the Covertype search space has a plateau that every competent method reaches;
+   - the smoke run is a single seed on two datasets.
+6. **Overtuning.** Picking the maximum of noisy 2-fold CV scores can favour configurations that look good only because of noise. Confirm before select (5-fold re-scoring of the top 5) now reduces this, but its benefit has not yet been measured.
+7. **Inference cost depends on the winner.** On Covertype the most accurate model is a 470 MB forest; the search does not trade accuracy for size or latency.
 
-**Future scope** (from the slides): distributed workers through Ray, warm-start meta-learning across datasets, and fuller deep-learning pipeline NAS.
+**Future scope:** the multi-seed `lean` plan; an NGOpt (Nevergrad) portfolio baseline and surrogate benchmarks (YAHPO, HPO-B) so the portfolio can be compared on many tasks with many seeds; rank-normalised rewards; a size- or latency-aware objective; distributed workers through Ray; warm-start meta-learning across datasets. These are listed with their reasons in the project's To-do page.
 
 ---
 
@@ -187,7 +199,7 @@ This list was compiled from the AutoML 2025 and 2026 accepted-paper lists: 21 of
 | MLJAR AutoML | Overlaps the glass-box observability claim |
 | Rashomon sets in AutoML | The final population is a Rashomon set worth analysing |
 | Algorithm Selection with Zero Domain Knowledge via Text Embeddings | Choose the initial bandit prior |
-| Predicting Hyperparameter Importance from Meta-Features | Shrink or reweight the 9-D space per dataset |
+| Predicting Hyperparameter Importance from Meta-Features | Shrink or reweight the 8-dimensional space per dataset |
 | Dynamic Priors in BO | Conceptually close to the adaptive bandit |
 | Efficient ensemble inference | Keeps a zero-penalty claim if the population is ensembled |
 | MOEns | Multi-objective post-hoc selection |
@@ -208,4 +220,50 @@ This list was compiled from the AutoML 2025 and 2026 accepted-paper lists: 21 of
 - Wang et al. 2021 (FLAML)
 - LeDell & Poirier 2020 (H2O)
 - Zoph & Le 2017, Real et al. 2019 (NAS)
-- Blackard & Dean 1999 (Covertype)
+- Blackard & Dean 1999 (Covertype); Kohavi 1996 (Adult)
+
+---
+
+## Quiz
+
+**1.** What is the main difference between how EvoSynth and an ensemble tool such as AutoGluon use "many models"?
+
+<details><summary>Answer</summary>
+
+EvoSynth uses many *search algorithms* offline and ships one model, so serving costs whatever that one model costs. An ensemble combines many *trained models* at prediction time, so every prediction runs all of them.
+</details>
+
+**2.** Based on the measurements, is EvoSynth's advantage over Optuna accuracy or time?
+
+<details><summary>Answer</summary>
+
+Time. Under the same confirm-and-refit protocol they tie on test score (93.89 vs 93.87 on Covertype, 92.96 vs 92.95 on Adult). EvoSynth was 4× faster on Covertype because it evaluates candidates in parallel; on Adult the two took about the same time.
+</details>
+
+**3.** Why did the v1 comparison show EvoSynth 4.25 points ahead of Optuna, while the new one shows a tie?
+
+<details><summary>Answer</summary>
+
+v1 refitted Optuna's chosen model family with default hyperparameters and 150 trees, throwing away its tuned values. Now every tuned method goes through the same confirmation and refit.
+</details>
+
+**4.** Which tool won Adult, and what does that suggest?
+
+<details><summary>Answer</summary>
+
+FLAML (93.13 vs 92.96). On an easy dataset where boosting with defaults is already near the top, a cost-frugal tool that searches on all the training rows does at least as well as a population-based portfolio. EvoSynth's design aims at harder, multi-modal landscapes.
+</details>
+
+**5.** Name two rows of the comparison matrix where EvoSynth is genuinely different from every other tool, and one claim the measurements weakened.
+
+<details><summary>Answer</summary>
+
+Different: four concurrent optimizers with live SWAP and rollback; elite migration between algorithm families; model family and feature engineering as genes of one latent space; a live dashboard of the meta-decisions. Weakened: the "about 2 ms / 150 MB" inference claim. The Covertype winner is 12.5 ms and 470 MB, and latency depends on the model family selected.
+</details>
+
+**6.** What is "overtuning", and which EvoSynth feature addresses it?
+
+<details><summary>Answer</summary>
+
+Selecting a configuration because its noisy validation score is high by chance, so it generalises worse than its score suggests. Confirm before select (re-scoring the top 5 distinct configurations with 5-fold CV) reduces it.
+</details>

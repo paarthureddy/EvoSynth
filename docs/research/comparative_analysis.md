@@ -266,60 +266,66 @@
   | **Neural Architecture Search (NAS)** | No | No | Limited / Add-on | Yes (Custom objectives) | No | **Native PyTorch Dynamic CNN Search** |
   | **Stagnation Handling** | None | Blind restart | None | Prunes unpromising trials | Waits for budget expiration | **Trend tracking + Random Latent Injection** |
   | **Production Deliverable** | 10–30 Models stacked | 1 Single Model | 15–50 Models stacked | 1 Single Model | 10–30 Models stacked | **1 Single Standalone Model or CNN** |
-  | **Production Inference Latency** | 50 ms – 200 ms | 1 ms – 2 ms | 50 ms – 250 ms | 1 ms – 2 ms | 50 ms – 200 ms | **1 ms – 3 ms ($50\times$ faster than ensembles)** |
-  | **Memory / RAM Footprint** | 2 GB – 8 GB | < 50 MB | 1 GB – 5 GB | < 50 MB | 2 GB – 8 GB (+ Java JVM) | **10 MB – 50 MB (Lightweight Python)** |
+  | **Production Inference Latency** | 50 ms – 200 ms | Model-dependent (1.5–5.1 ms measured) | 50 ms – 250 ms | Model-dependent | 50 ms – 200 ms | **That of the selected model: 0.26 ms (Adult XGBoost) – 12.5 ms (Covertype ExtraTrees), measured** |
+  | **Model Size** | 2 GB – 8 GB | 6.8–128 MB measured | 1 GB – 5 GB | Model-dependent | 2 GB – 8 GB (+ Java JVM) | **0.4 MB (Adult) – 470 MB (Covertype), measured** |
+  | **Measured Test Score (Covertype / Adult)** | – | 92.53% / 93.13 | – | 93.87% / 92.95 | – | **93.89% / 92.96** |
   | **Real-Time Observability** | Opaque | Terminal text logs | Static leaderboard tables | Web Dashboard (Optuna Dashboard) | Static web UI | **Live Glass-Box SSE Dashboard (React + FastAPI)** |
 
   ---
 
-  ## 6. Empirical Benchmark Evidence & Stress Tests
+  ## 6. Empirical Benchmark Evidence (Phase 5 smoke run, seed 42)
 
-  ### 6.1 Real-World Benchmark: UCI Forest Covertype Dataset
-  * **Dataset Specifications:** 581,012 instances, 54 cartographic features, 7 forest tree cover classes.
-  * **Core Challenge:** Severe class imbalance (Class 1 & 2 comprise >84% of data) and non-linear geographical interactions.
-  * **Evaluation Setup:** Multi-fidelity search phase (20,000 stratified samples, 2-fold CV, 120 evaluations) followed by generalization refit on 60,000 train / 20,000 unseen test samples.
+  Full tables, charts and caveats are in [handbook/08-results.md](../../handbook/08-results.md); the raw files are in `results/`.
 
-  ```text
-  +-----------------------------------------------------------------------------------------------+
-  | UCI FOREST COVERTYPE BENCHMARK PROGRESSION                                                    |
-  +-----------------------------------+--------------------+------------------+-------------------+
-  | Configuration / Stage             | Winning Model      | FE Strategy      | Accuracy / Error  |
-  +-----------------------------------+--------------------+------------------+-------------------+
-  | Default Baseline 1 (Untuned)      | XGBoost            | Raw (54 feats)   | 80.97% (19.03% e) |
-  | Default Baseline 2 (Untuned)      | LightGBM           | Raw (54 feats)   | 81.07% (18.93% e) |
-  | Default Baseline 3 (Untuned)      | RandomForest       | Raw (54 feats)   | 81.48% (18.52% e) |
-  | EvoSynth (Raw Features Search)    | XGBoost (DART)     | None             | 82.73% (17.27% e) |
-  | EvoSynth (Generic FE Search CV)   | ExtraTrees         | Interactions     | 86.39% (13.61% e) |
-  | EvoSynth (Final Generalization)   | ExtraTrees         | Interactions     | 93.47% ( 6.53% e) |
-  +-----------------------------------+--------------------+------------------+-------------------+
-  * Relative Error Reduction: 64.6% reduction in classification error (19.0% -> 6.53%).
-  * Total Runtime: 9 minutes 44 seconds (Search Phase: 8m 30s | Generalization Refit: 1m 14s).
-  ```
+  ### 6.1 Protocol
+  * **Datasets:** UCI Covertype (581,012 rows, 54 features, 7 classes; accuracy) and Adult (48,842 rows, 14 features, binary; ROC AUC). Fixed splits published in EvoSynth-Bench v2.0.0.
+  * **Test rows** are split off first (Covertype 20,000; Adult 12,000) and scored once. Searches use a fixed 10,000-row subset of the search rows with 2-fold CV. The selected configuration is refitted on the train rows (60,000; 36,000).
+  * **Equal treatment:** EvoSynth, Random Search and Optuna TPE get 500 evaluations each and the same confirm-before-select (top 5, 5-fold CV) and refit. FLAML gets the same wall time as EvoSynth and trains its own final model.
 
-  #### Verification of Novel Meta-Optimizer Dynamics:
-  1. **Dynamic SWAP Event:** In Step 4 of the Covertype run, Genetic Algorithm reached 86.21% but its population diversity dropped to 0.450. In Step 5, Particle Swarm Optimization in Tier 1 maintained full diversity (0.500) and climbed to 85.20% (UCB score = 0.720). Because $UCB_{\text{PSO}} > 1.10 \times UCB_{\text{GA}}$ ($0.720 > 0.547$), the system triggered a **live SWAP event**, demoting GA and promoting PSO to Tier 2. PSO went on to win the search phase.
-  2. **Automated Feature Engineering Discovery:** Without any column names or domain rules, EvoSynth's `GenericFeatureEngineer` generated continuous pairwise differences ($c_i - c_j$) and Euclidean norms ($\sqrt{c_i^2 + c_j^2}$), automatically selecting `'interactions'` over `'none'` and `'stats'` to unlock 93.47% accuracy.
+  ### 6.2 Held-out test scores
 
-  ---
+  | Method | Covertype accuracy | Search time | Adult ROC AUC | Search time |
+  | :--- | :---: | :---: | :---: | :---: |
+  | Untuned XGBoost / LightGBM / RF / ExtraTrees | 85.58 / 84.69 / 89.09 / 89.77 | – | 92.70 / 92.92 / 90.74 / 89.15 | – |
+  | FLAML | 92.53 | 13.0 min | **93.13** | 3.0 min |
+  | Random Search | **93.89** | 42.4 min | 92.98 | 19.1 min |
+  | Optuna TPE | 93.87 | 49.8 min | 92.95 | 3.3 min |
+  | **EvoSynth** | **93.89** | **12.2 min** | 92.96 | **3.0 min** |
 
-  ### 6.2 Deep Learning Vision NAS (PyTorch CNN)
-  * **Dataset:** Handwritten Digits (1,797 $8\times8$ grayscale images, 10 classes).
-  * **Search Space:** 7 dimensions (`conv1_channels`, `conv2_channels`, `fc_units`, `dropout_rate`, `learning_rate`, `optimizer`, `activation`).
-  * **Results:**
-    * **Total Evaluations:** 80 evaluations.
-    * **Total Search Time:** **14.6 seconds**.
-    * **Validation Accuracy:** **95.33%**.
-    * **Discovered Topology:** `Conv1=16`, `Conv2=64`, `FC=64`, `Dropout=0.0107`, `Activation=LeakyReLU`, `Optimizer=Adam (lr=0.0309)`.
+  * EvoSynth, Random Search and Optuna tie (within 0.03 points) and choose the same family: ExtraTrees with interaction features on Covertype, XGBoost on Adult. FLAML is 1.4 points lower on Covertype and best on Adult.
+  * On Covertype the five best configurations build the same effective model (forests are capped at 150 trees during the search), so every competent search reaches the same 82.35% CV plateau.
+  * EvoSynth's shorter wall time comes from parallel evaluation, not from the search method.
 
-  ### 6.3 Scalability on Big Datasets (50,000+ Samples)
-  * **Dataset:** Synthetic Scalable Classification (50,000 rows, 25 features).
-  * **Parallel Execution Mode:** 8 CPU threads via `ThreadPoolExecutor`.
-  * **Execution Time Comparison:**
-    | Search Mode | Cores / Threads | Initial 100 Pop (s) | 120 Evaluations Total (s) |
-    | :--- | :--- | :--- | :--- |
-    | Serial Execution (Old Baseline) | 1 Core | 44.8 s | 392.4 s (6.5 min) |
-    | Parallel Worker Batching | 8 Threads | 5.1 s | 78.2 s |
-    | **EvoSynth (Parallel + Early Stopping)** | **8 Threads** | **3.9 s** ($11.5\times$ speedup) | **63.9 s** |
+  ### 6.3 Optimizer ablation (Covertype, 500 evaluations each)
+
+  | Method | Best CV @125 | Best CV @500 | Diversity @500 |
+  | :--- | :---: | :---: | :---: |
+  | GA alone | 81.53 | 82.21 | 0.085 |
+  | PSO alone | 82.35 | 82.35 | 0.093 |
+  | DE alone | 82.13 | 82.34 | 0.363 |
+  | CMA-ES alone | 81.89 | 82.35 | 0.227 |
+  | **EvoSynth** | 82.08 | **82.35** | 0.206 |
+
+  EvoSynth matches the best single optimizer without knowing in advance which one it is (PSO here; CMA-ES and DE in the v1 ablations).
+
+  #### Meta-optimizer dynamics (Covertype search log)
+  DE and CMA-ES were promoted after Tier 1 (DE had the lower best score but the highest composite: still improving, most diverse). At the first checkpoint GA displaced DE by a SWAP (UCB 0.592 vs 0.369, margin > 0.10). GA did not improve the global best in its 5-iteration grace period, so the swap was rolled back. CMA-ES found the winning configuration.
+
+  ### 6.4 Vision NAS (Fashion-MNIST)
+  * **Search space:** 7 dimensions (`conv1_channels`, `conv2_channels`, `fc_units`, `dropout_rate`, `learning_rate`, `optimizer`, `activation`).
+  * **Budget:** 160 evaluations, each CNN trained for 2 epochs on 10,000 images, on CPU (15 min).
+  * **Best validation accuracy:** **81.8%** (conv 16 → 128, fc 256, ReLU, Adam, lr 0.009), found by T2_PSO.
+
+  ### 6.5 Speed-up (`evosynth speedup`, 40 Covertype configurations, 12 threads)
+
+  | Condition | Time | Speed-up |
+  | :--- | :---: | :---: |
+  | Sequential | 255.6 s | 1.00× |
+  | Sequential + early stopping | 219.0 s | 1.17× |
+  | Parallel | 43.7 s | 5.85× |
+  | **Parallel + early stopping** | **41.9 s** | **6.10×** |
+
+  The 11.5× figure quoted in earlier versions was never measured by code in the repository.
 
   ---
 
@@ -329,8 +335,8 @@
 
   ### Strengths & Genuine Novelties
   1. **Dynamic Meta-Optimization over a Portfolio:** Treats diverse heuristics as arms in a Multi-Armed Bandit rather than committing to a single search strategy.
-  2. **Cooperative Co-evolution & Live SWAPs:** Real-time tier swapping ($>10\%$ UCB delta) and elite migration allow knowledge sharing and stagnation escape across divergent algorithm families.
-  3. **Zero Inference Latency Penalty:** Produces a single lean model (~2ms latency) suitable for real-time production APIs, edge devices, and microservices, avoiding heavy 10-model ensemble stacks.
+  2. **Cooperative Co-evolution & Live SWAPs:** Real-time tier swapping (UCB margin 0.10, with rollback) and pairwise elite migration share knowledge across algorithm families.
+  3. **Single Model:** Serving cost is that of the one selected model (0.26 ms/row for the Adult XGBoost; 12.5 ms/row and 470 MB for the Covertype ExtraTrees), with no ensemble multiplication.
   4. **Universal Latent Space:** Eliminates categorical crashes in continuous mathematical optimizers (PSO, CMA-ES) across mixed discrete, continuous, and architecture parameters.
   5. **Dataset-Agnostic Automated Feature Engineering:** Discovers continuous feature interactions and row-level summary statistics without manual domain rules.
   6. **Real-time Glass-Box Telemetry:** Full visibility into UCB1 decisions, active tiers, and population diversity via SSE.
@@ -339,4 +345,6 @@
   1. **Unstructured Modalities (NLP/Audio):** EvoSynth focuses on mixed tabular matrices and computer vision CNN topologies; it does not currently natively handle raw unstructured natural language tokens or raw audio streams (unlike specialized enterprise multimodal suites).
   2. **Lack of Multi-Fidelity Scheduling (ASHA/Hyperband):** While EvoSynth implements early stopping on gradient boosted trees, it does not currently use successive halving across data subsamples (e.g., evaluating candidates on 10% data before promoting to 100%).
   3. **Single-Node Execution:** Parallelization runs across local CPU cores via `ThreadPoolExecutor`; it does not natively distribute evaluations across a cluster of independent cloud servers (unlike Ray Tune or enterprise H2O).
-  4. **Inactive Dimensions on Simpler Models:** When `RandomForest` is selected in the latent vector, boosting-specific hyperparameters (`learning_rate`, `booster`, `reg_alpha`) remain inactive, introducing minor neutral drift in the latent space.
+  4. **Inactive Dimensions on Simpler Models:** When `RandomForest` is selected in the latent vector, boosting-specific hyperparameters (`learning_rate`, `subsample`, `reg_alpha`) remain inactive, introducing minor neutral drift in the latent space.
+  5. **Measured accuracy:** EvoSynth ties Random Search and Optuna and does not beat them on Covertype or Adult; FLAML was best on Adult; results are from one seed.
+  6. **Inference cost follows the winner:** the search optimises accuracy only, so on Covertype it selects a large forest; a latency- or size-aware objective is future work.

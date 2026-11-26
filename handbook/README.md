@@ -8,7 +8,7 @@
 
 This folder (`handbook/`, outside the official docs site) describes the whole EvoSynth project: its idea, design, code, experiments, results, paper and defence material. It is written so that someone can understand, explain, reproduce or rebuild the project from these files alone, without opening the repository.
 
-It describes the code after the fix plan (Phases 0–5: reproducible seeding, engine and optimizer fixes, real datasets with held-out test rows, one refit for every method). If you are new to machine learning or evolutionary algorithms, start with the three prerequisite chapters (00a–00c). Every chapter ends with a quiz. Chapters 08–11 are being updated with the Phase 5 re-runs; until then they show the panel-review (v1) results, archived in `results/archive/2026-11-19_covertype_v1/`.
+It describes the code after the fix plan (Phases 0–5: reproducible seeding, engine and optimizer fixes, real datasets with held-out test rows, one refit for every method). If you are new to machine learning or evolutionary algorithms, start with the three prerequisite chapters (00a–00c). Every chapter ends with a quiz. Chapters 08–11 report the Phase 5 smoke run (Covertype and Adult, seed 42); the panel-review (v1) results are archived in `results/archive/2026-11-19_covertype_v1/`.
 
 ---
 
@@ -38,7 +38,17 @@ How it works, in short:
 
 Every step is streamed live to a FastAPI server-sent-events (SSE) server and shown on a React dashboard (the "glass box").
 
-**Results.** The panel-review (v1) runs reported 93.47–94.05% Covertype test accuracy; those runs had engine bugs and test rows that overlapped the search sample, so they are not comparable with the fixed version. The Phase 5 re-runs (Covertype and Adult, Random Search, Optuna, FLAML, untuned models, ablation, speed-up and NAS) are reported in [08-results.md](08-results.md).
+**Results (Phase 5 smoke run, seed 42, 500 evaluations).** Every method is scored once on held-out test rows:
+
+| Method | Covertype test accuracy | Adult test ROC AUC |
+|---|---|---|
+| Best untuned model | 89.77 | 92.92 |
+| FLAML (same wall time) | 92.53 | **93.13** |
+| Random Search | **93.89** | 92.98 |
+| Optuna TPE | 93.87 | 92.95 |
+| **EvoSynth** | **93.89** (12 min, the fastest) | 92.96 |
+
+EvoSynth ties the strongest tuned baselines, picks the right model family for each dataset (ExtraTrees with interactions, XGBoost), and matches the best single optimizer in the ablation without knowing in advance which one it is. Parallel evaluation gives a measured 6.1× speed-up. The v1 numbers (up to 94.05%) came from runs with engine bugs and an unfair refit and are not comparable.
 
 The full tables and their caveats are in [08-results.md](08-results.md).
 
@@ -59,15 +69,14 @@ The full tables and their caveats are in [08-results.md](08-results.md).
 | [05-search-space-and-evaluators.md](05-search-space-and-evaluators.md) | All four ConfigSpace search spaces with ranges. How latent vectors are decoded (categorical binning, log scaling, dimension order). Every evaluator: the toy objective, `TabularEvaluator` (Covertype), and the PyTorch CNN for NAS. Their datasets, CV protocols and model construction rules. The `GenericFeatureEngineer` (`none` / `stats` / `interactions`). Early stopping. How to write a custom evaluator. |
 | [06-api-and-dashboard.md](06-api-and-dashboard.md) | The FastAPI telemetry server (`/event`, `/stream`). The engine-side `EventReporter`. Every SSE event type with its payload and when it is emitted. The React/Vite/Tailwind dashboard: panels, state, what each view means. The VitePress documentation site and its deployment workflow. |
 | [07-experiments.md](07-experiments.md) | Every experiment the project ran: what it tests, its exact configuration, dataset, budgets and protocol, and which command produces it. Covers search with refit, budget scaling (300/500/1000), the baselines (untuned models, Random Search, Optuna, FLAML), the CVGS-500/1000 ablation with the tier-split ablation, Fashion-MNIST NAS, the speed-up benchmark and the summary tables, plus the experiment runner `tools/run_experiments.py` and its plans. |
-| [08-results.md](08-results.md) | Every result in the repository as tables: the Covertype master comparison, the budget-scaling curve, the CVGS ablations, the live SWAP trace, and results reported only in the paper (speed-up, vision NAS, inference footprint). Interpretation of each result, plus notes on where each number comes from and how comparable it is. |
-| [09-comparative-analysis.md](09-comparative-analysis.md) | EvoSynth compared with Optuna, FLAML, H2O AutoML, AutoGluon and Auto-sklearn. The ensembling-versus-search-time argument with its latency and memory reasoning. The full comparison matrix. Strengths and limitations. A list of related AutoML 2025/2026 papers and how each relates to EvoSynth. |
-| [10-paper.md](10-paper.md) | The IEEE-format research paper (`paper/paper.tex`), section by section: abstract, method, algorithm pseudocode, experiments, tables, conclusion and references. The Panel Review slide deck (`paper/slides.tex`), slide by slide, including the team and the default parameter table. |
-| [11-panel-defense-qa.md](11-panel-defense-qa.md) | The 30-second pitch, then likely evaluation and viva questions with answers grounded in the actual code and results. Covers novelty, datasets, mechanics, maths, performance, limitations, and the tricky questions the results invite. |
+| [08-results.md](08-results.md) | The Phase 5 smoke run with charts: held-out test scores of every method on Covertype and Adult, search times, why every search finds the same Covertype model (the plateau), the CVGS-500 ablation, the engine's decisions in each run, the measured speed-up and inference cost, Fashion-MNIST NAS, and what changed since the v1 numbers. |
+| [09-comparative-analysis.md](09-comparative-analysis.md) | EvoSynth compared with Optuna, FLAML, H2O AutoML, AutoGluon and Auto-sklearn, with the measured scores. The ensembling-versus-search-time argument with measured latency and size. The full comparison matrix. Strengths and limitations. Related AutoML 2025/2026 papers and how each relates to EvoSynth. |
+| [10-paper.md](10-paper.md) | The IEEE-format paper (`paper/paper.tex`), the review report (`paper/report.tex`) and the review deck (`paper/slides.tex`), section by section and slide by slide, as updated with the Phase 5 results; how to build them. |
+| [11-panel-defense-qa.md](11-panel-defense-qa.md) | Everything for a review or viva in one place (it absorbs the former "Master Panel Defense Guide"): the pitch, key numbers, why these datasets, the data protocol, 27 questions with honest answers (including "is this overkill?"), the rival battlecard, strengths and limitations to state yourself, and a pre-review checklist. |
 | [12-setup-and-usage.md](12-setup-and-usage.md) | Prerequisites and installation (Python, Node), dependencies, dataset caching, and how to run each `evosynth` command with its flags and `--set` overrides. Expected outputs, files produced and typical runtimes. Running the telemetry server and dashboard. Building the docs site. The experiment runner. Using EvoSynth from Python code. Troubleshooting. |
 | [commands.md](commands.md) | Every command with its options and defaults: setup, `evosynth run / scale / baselines / ablation / nas / speedup / summary / serve / settings / datasets`, the experiment runner, dashboard, docs and tests, and common recipes. |
 | [run-walkthrough.html](run-walkthrough.html) | An interactive, animated walkthrough of one run in 20 steps; at each step that can go wrong you choose success or a failure to see what happens. Open it in a browser. |
 | [figures/](figures/) | The handbook's SVG figures and `make_figures.py`, which regenerates them. |
-| [panel-defense-guide.md](panel-defense-guide.md) | The original Panel Review defence and viva guide (formerly `docs/PANEL_DEFENSE_MASTER_GUIDE.md`): elevator pitch, architecture talking points, formulas and prepared answers, as written before the review. Where it disagrees with the code, [03-engine-internals.md](03-engine-internals.md) §9 lists the differences. |
 
 The files are numbered in reading order. Newcomers read 00a → 00c first. Then 01 → 03 explain the system (with the run walkthrough alongside), 07 → 08 give the evidence, 11 prepares a defence, and 12 plus Commands cover day-to-day use.
 

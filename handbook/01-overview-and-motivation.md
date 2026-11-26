@@ -147,7 +147,7 @@ The figure (also `paper/figures/arch.png`; source `paper/figures/arch_source.htm
 1. **Escape from premature convergence.** On Covertype, GA was promoted to Tier 2 but stalled. PSO, still in Tier 1, overtook it on UCB score (0.720 vs 0.547) and a live SWAP promoted PSO, which then found the winning configuration (see [08-results.md](08-results.md) §5).
 2. **Dataset-agnostic feature engineering.** With no column names, generic row statistics and pairwise interactions lifted Covertype test accuracy into the 93–94% range.
 3. **Pareto efficiency.** Accuracy at ensemble level from a single model and a modest budget.
-4. **Throughput.** The paper reported 11.5× (44.8 s → 3.9 s) on a synthetic 50k × 25 dataset. Re-measured on Covertype with `evosynth speedup` (see [08-results.md](08-results.md)), almost all of the gain comes from parallel threads; early stopping adds little.
+4. **Throughput.** The paper reported 11.5× (44.8 s → 3.9 s) on a synthetic 50k × 25 dataset. Re-measured on Covertype with `evosynth speedup`: **6.1×** on 12 threads, almost all from parallel threads; early stopping adds little (see [08-results.md](08-results.md)).
 5. **Cross-domain.** The same engine performs CNN architecture search. The panel version used 8×8 handwritten digits (95.33% in the paper); it now uses Fashion-MNIST (28×28 images, 10 classes).
 
 Claims 1–3 were measured on one unseeded panel-review run. The fix plan (Phases 0–6) re-runs them with a fixed seed, held-out test rows and equal treatment of every method; [08-results.md](08-results.md) reports what holds.

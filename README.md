@@ -114,7 +114,7 @@ flowchart TD
 ### 1. How EvoSynth Differs from Model Ensembling
 A frequent question in AutoML is: *"Why not just train multiple models and ensemble them (e.g., stacking, blending, or voting)?"*
 * **Inference Overhead:** Model ensembles combine multiple trained estimators at prediction time. Serving an ensemble in production multiplies latency, memory usage, and operational maintenance by the number of models in the ensemble.
-* **Single Optimal Deliverable:** EvoSynth uses dynamic algorithm selection strictly in the **offline search and optimization phase**. The competing evolutionary algorithms work together to discover a **single, lean, optimal model configuration** (or neural architecture) that delivers peak accuracy with zero inference latency overhead.
+* **Single Optimal Deliverable:** EvoSynth uses dynamic algorithm selection strictly in the **offline search and optimization phase**. The competing evolutionary algorithms work together to discover a **single, lean, optimal model configuration** (or neural architecture) that whose serving cost is simply that of the chosen model (measured per run).
 * **Search Diversity vs. Predictive Aggregation:** Ensembles average model predictions to smooth variance. EvoSynth coordinates diverse search strategies to explore complex, multi-modal parameter spaces and locate global optima that individual optimizers fail to find.
 
 ### 2. Theoretical Superiority: The "No Free Lunch" Defense
@@ -140,42 +140,46 @@ EvoSynth overcomes the NFL limitation by maintaining a **dynamic portfolio of co
 
 ---
 
-## 🌲 Real-World Benchmark: UCI Forest Covertype (581,012 Samples)
+## 🌲 Results: Covertype and Adult (Phase 5 smoke run)
 
-To prove practical utility on large-scale real-world data, EvoSynth was evaluated on the **UCI Forest Covertype dataset** (581,012 samples, 54 features, 7 classes):
+Every method is scored once on held-out test rows that no search or selection ever sees. EvoSynth, Random Search and Optuna get 500 evaluations each and go through the same confirm-before-select and refit; FLAML gets the same wall time as EvoSynth. Searches use a fixed 10,000-row subset of each dataset's search rows; the exact splits are published in [EvoSynth-Bench v2.0.0](https://doi.org/10.5281/zenodo.23645119). **One seed (42)**, so differences of a few hundredths between tuned methods are ties.
 
-```text
-+-------------------------------------------------------------------------------+
-| EVO-SYNTH FINAL BENCHMARK SUMMARY (UCI Forest Covertype)                      |
-+-------------------------------------------------------------------------------+
-| Raw Untuned Baseline Accuracy  : 80.97% – 81.48%                             |
-| Search Phase CV Accuracy       : 86.39% (Search Slice)                       |
-| Generalization Test Accuracy   : 93.47% (60,000 Train / 20,000 Unseen Test)  |
-| Relative Error Reduction       : 64.6% (19.0% -> 6.53% error)                |
-| Winning Meta-Optimizer         : T2_PSO (Promoted via Dynamic SWAP)           |
-| Optimal Model Architecture     : ExtraTrees (334 Trees, Depth 8, Colsample 0.43)|
-| Optimal Feature Engineering    : 'interactions' (Dataset-Agnostic Pairwise)  |
-| Total Search & Refit Time      : 9 minutes 44 seconds                         |
-+-------------------------------------------------------------------------------+
-```
+| Method | Covertype test accuracy | Search time | Adult test ROC AUC | Search time |
+| :--- | :---: | :---: | :---: | :---: |
+| Best untuned model | 89.77% (ExtraTrees) | – | 92.92% (LightGBM) | – |
+| FLAML | 92.53% | 13.0 min | **93.13%** | 3.0 min |
+| Random Search | **93.89%** | 42.4 min | 92.98% | 19.1 min |
+| Optuna TPE | 93.87% | 49.8 min | 92.95% | 3.3 min |
+| **EvoSynth** | **93.89%** | **12.2 min** | 92.96% | **3.0 min** |
 
-### Key Empirical Findings:
-1. **Escape from Premature Convergence:** In Step 4, Genetic Algorithm reached 86.21% but its population diversity decayed to 0.450. In Step 5, Particle Swarm in Tier 1 maintained high diversity (0.500) and climbed to 85.20% (UCB = 0.720 vs GA's 0.547). EvoSynth executed a **live SWAP event**, demoting GA and promoting PSO, which went on to discover the optimal configuration.
-2. **Dataset-Agnostic Feature Engineering:** Without using any column names, the system generated continuous pairwise differences ($c_i - c_j$) and Euclidean distances ($\sqrt{c_i^2 + c_j^2}$), boosting accuracy from 81.48% to 93.47%.
-3. **Pareto-Optimal Production Cost:** Delivers ensemble-grade accuracy (93.47% $\rightarrow$ 96%+ on full dataset) with a **single deployable model** executing in ~2ms with a ~150MB RAM footprint, avoiding the latency and hosting costs of 10-model production ensembles.
+### Key Empirical Findings
+1. **Level with the strongest tuned baselines.** EvoSynth ties Random Search and Optuna on both datasets (within 0.03 points) under an identical protocol. FLAML is 1.4 points lower on Covertype and best on Adult.
+2. **Right model family per dataset.** ExtraTrees with automatically generated interaction features on Covertype (4.1 points above the best untuned model), XGBoost with no feature engineering on Adult.
+3. **Matches the best single optimizer without choosing it in advance.** In the CVGS-500 ablation EvoSynth reached 82.35% search CV, tied with PSO and CMA-ES run alone; the best single optimizer changes from run to run.
+4. **Live meta-decisions.** In the Covertype run DE and CMA-ES were promoted, GA was swapped in (UCB 0.592 vs 0.369) and rolled back after its grace period, and CMA-ES found the winner. On Adult, PSO found the winner after two swaps.
+5. **A plateau caps Covertype.** The five best Covertype configurations build the same effective model (forests are capped at 150 trees during the search), so every competent search reaches the same score. Harder datasets and more seeds are needed to separate optimizers.
+6. **Inference cost is that of the chosen model**, measured on one thread: 0.26 ms/row and 0.4 MB for the Adult XGBoost; 12.5 ms/row and 470 MB for the Covertype ExtraTrees.
+7. **Vision NAS:** 81.8% validation accuracy on Fashion-MNIST in 160 evaluations with the same engine.
+
+Full tables, charts and caveats: [handbook/08-results.md](handbook/08-results.md). Reproduce with `py -3.14 tools/run_experiments.py smoke`. The panel-review (v1) numbers are archived in `results/archive/2026-11-19_covertype_v1/`; they had engine bugs and a refit that discarded the baselines' tuned hyperparameters, so they are not comparable.
 
 ---
 
 ## ⚡ Performance & Speed Optimizations
 
-EvoSynth addresses the computational bottleneck of high-budget evolutionary searches (2500+ evaluations) through two architectural optimizations:
+1. **Parallel evaluation:** candidates are evaluated concurrently with `concurrent.futures.ThreadPoolExecutor` (up to 8 workers by default; the model libraries release the GIL while training).
+2. **Early stopping on boosted models:** XGBoost and LightGBM stop after 10 rounds without improvement on a 15% slice of the training fold.
 
-1. **Asynchronous Parallel Worker Architecture:**
-   * Utilizes `concurrent.futures.ThreadPoolExecutor` to dispatch population vector evaluations across all available CPU cores simultaneously.
-   * Decreased initial population warm-up time from ~45 seconds down to **~4 seconds** (over **10x speedup**).
-2. **Early Stopping on Tree-Based Models:**
-   * Aborts training of gradient boosted models (`XGBoost`, `LightGBM`) if validation loss fails to improve after 10 consecutive iterations.
-   * Unpromising candidate hyperparameters are pruned rapidly, preserving compute for competitive regions.
+Measured by `evosynth speedup` on 40 Covertype configurations with 12 threads:
+
+| Condition | Time | Speed-up |
+| :--- | :---: | :---: |
+| Sequential | 255.6 s | 1.00× |
+| Sequential + early stopping | 219.0 s | 1.17× |
+| Parallel (12 threads) | 43.7 s | 5.85× |
+| **Parallel + early stopping** | **41.9 s** | **6.10×** |
+
+Almost all of the gain comes from parallel evaluation. (Earlier versions of this README quoted 11.5×, which was never measured by code in the repository.)
 
 ---
 
@@ -213,7 +217,7 @@ EvoSynth/
 ├── docs/                         # VitePress documentation site
 │   ├── research/                 # Comparative analysis, related papers
 │   └── public/                   # Logo and architecture figure
-├── handbook/                     # Internal project handbook + panel-defense guide (not on the site)
+├── handbook/                     # Internal project handbook, incl. panel defence (not on the site)
 └── paper/                        # Paper and slide sources (LaTeX), figures, links
 ```
 

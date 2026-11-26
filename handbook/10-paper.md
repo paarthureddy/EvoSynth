@@ -1,311 +1,146 @@
-# 10 — Research Paper & Panel Review Deck
+# 10 — Paper, Report & Review Deck
 
 The `paper/` folder holds:
 
 | File | What it is |
 |---|---|
-| `paper.tex` | IEEE conference-format paper (formerly `submission/G002_Paper.tex`) |
-| `slides.tex` | Beamer slide deck for the Panel Review (formerly `submission/maint.tex`) |
-| `figures/` | `arch.png`, `logo.png` (`approval.png` and `arch_updated.png`, used by the slides, are missing) |
+| `paper.tex` | IEEE conference-format research paper |
+| `report.tex` | Project Phase II (External Review) report in the Amrita format |
+| `slides.tex` | Beamer deck for the review |
+| `figures/` | `arch.png` (current architecture, generalised to any population N), `arch_legacy.png` (the panel-review diagram), `arch_source.html` (source of `arch.png`), `logo.png`. The slides also use `approval.png`, which is added fresh for each review and is not tracked |
 | `links.md` | GitHub repository, documentation site, Zenodo dataset (`doi:10.5281/zenodo.23645119`) |
-| `panel_review.pdf` | The rendered review deck (local only, git-ignored) |
+| `panel_review.pdf` | The rendered panel-review deck (local only, git-ignored) |
 
-The Zenodo dataset v1 is "EvoSynth-Bench" (an HPO trajectory CSV and a benchmark CSV). A new Zenodo version follows the re-runs.
+**Status.** All three documents describe the fixed engine (Phases 0–4) and report the Phase 5 smoke run ([08](08-results.md)): Covertype and Adult, one seed. The Wisconsin Breast Cancer and 30%-label-noise experiments of the panel-review paper are gone, as are the unmeasured 11.5× speed-up, the "2 ms / 150 MB" claim, and the v1 accuracy figures. Build any of them with `latexmk -pdf <file>.tex` inside `paper/` (MiKTeX, TeX Live or Tectonic), or upload the folder to Overleaf.
 
-**Status.** This chapter describes the paper and deck **as presented at the Panel Review**. The paper still reports the Wisconsin Breast Cancer and pathological-noise experiments, which the project no longer uses; those parts are rewritten in Phase 6 together with the new results (they are marked "removed in Phase 6" below).
+The Zenodo record (EvoSynth-Bench) is at **v2.0.0**: the eight real datasets' exact test / search / train row indices, a loader, and the v1 files kept for reference.
 
 ---
 
 ## Part A — The paper (`paper/paper.tex`)
 
 **Title:** *EvoSynth: Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Hyperparameter Tuning and Model Selection*
-**Byline:** Group G002, Dept. of CSE (Capstone Engineering Research Project).
-**Keywords:** HPO, AutoML, Multi-Armed Bandit, UCB1, GA, PSO, DE, CMA-ES, Cooperative Co-evolution.
+**Keywords:** HPO, AutoML, algorithm selection, multi-armed bandit, UCB1, GA, PSO, DE, CMA-ES, island model.
 
 ### Abstract (summary)
-
-**Problem:** single-algorithm tuners get trapped in local minima or waste evaluations on flat regions, and ensembles add inference latency and memory.
-
-**Proposal:** EvoSynth runs DE, PSO, CMA-ES and GA at the same time inside a two-tier island model controlled by a UCB1 multi-armed bandit. Its stages are:
-1. map all hyperparameters and model choices into `[0,1]^d`;
-2. split the population into a 40% Tier 1 arena and 60% reserve;
-3. run an exploration tournament;
-4. score optimizers with a composite metric (accuracy, speed, diversity, trend);
-5. promote the top optimizers to Tier 2 using UCB1 exploration bonuses;
-6. share elites periodically;
-7. inject diversity on stagnation.
-
-Evaluation is parallel across CPU cores, with early stopping for boosted trees.
-
-**Reported results:**
-- 11.5× speed-up in population evaluation;
-- recovery from deceptive noisy local minima;
-- dynamic model switching across XGBoost, LightGBM and RandomForest;
-- CNN architecture tuning reaching 95.33%.
+- **Problem:** no single optimizer is best everywhere, yet most tuners commit the whole budget to one.
+- **Method:** a portfolio of GA, PSO, DE and CMA-ES in a two-tier island model, with budget reallocated online by a UCB1 bandit over a five-term composite score; model family, feature engineering and hyperparameters in one latent space; confirm before select, one refit, one score on held-out test rows.
+- **Results:** 93.89% on Covertype and 92.96 ROC AUC on Adult with 500 evaluations, level with Random Search and Optuna; FLAML 1.4 lower on Covertype and 0.17 higher on Adult; matches the best single optimizer in the ablation; 6.1× measured speed-up from parallel evaluation; 81.8% on Fashion-MNIST NAS.
 
 ### I. Introduction
+Hyperparameters and model choice (CASH); the drawbacks of grid/random search, single-strategy optimizers (No Free Lunch) and post-hoc ensembles. **Contributions:** (i) the two-tier bandit-controlled portfolio; (ii) one latent encoding of model, FE and hyperparameters; (iii) a protocol with fixed held-out test rows, confirm-before-select and an identical refit for every tuned method, published as EvoSynth-Bench v2.0.0; (iv) a measured comparison, ablation, speed-up benchmark and inference-cost measurement.
 
-Hyperparameters cannot be learned by gradient descent and strongly affect performance. Three conventional approaches each fall short:
-1. **Grid and random search:** grid search grows exponentially; random search ignores feedback.
-2. **Single-algorithm heuristic search:** no single method suits every dataset.
-3. **Heavy ensembling:** adds production latency.
-
-**The EvoSynth approach.** A meta-optimizer over four complementary algorithms:
-- DE explores through vector differences;
-- PSO accelerates using personal and global bests;
-- CMA-ES learns covariance and fine-tunes;
-- GA explores globally through selection, crossover and mutation.
-
-The UCB1 bandit gives more budget to whichever optimizer is progressing, solutions are shared between optimizers, and the output is one lean model.
-
-### II. System workflow and architecture (Fig. 1 = `arch.png`)
-
+### II. System workflow (Fig. 1 = `arch.png`)
 | Stage | Content |
 |---|---|
-| 1. Input layer and universal latent space | Mixed types are normalised to `z ∈ [0,1]`. Continuous values: `x = L + z(U − L)` (or log scale). Categorical values: `Index = min(⌊zK⌋, K − 1)`. Example with K = 3 for `model_type`: [0, .33) → XGBoost, [.33, .66) → RF, [.66, 1] → LightGBM. |
-| 2. Initialisation and allocation | N = 100 random individuals are evaluated by CV. Tier 1 gets 40 (10 per optimizer) and Tier 2 holds 60 in reserve. |
-| 3. Tier 1 arena | Each optimizer runs `T1` iterations (typically 10–30) under the ask/tell lifecycle. |
-| 4. Composite scoring | `Composite = w_f·Fitness + w_s·Speed + w_d·Diversity + w_t·Trend`, with **w_f = 0.40, w_s = w_d = w_t = 0.20**. Speed = `max(Best_t − Best_{t−1}, 0)`. Diversity = `min(σ/(max − min + ε), 1)`. Trend = a multi-interval moving average. *(The code uses 5 metrics weighted 0.30/0.25/0.15/0.15/0.15; see [03](03-engine-internals.md) §9.)* |
-| 5. Control layer | Tier comparator, stagnation detector, UCB1 selector (`Score_i = Composite_i + c·sqrt(ln N_total / n_i)`, c = 0.1), and a promotion/demotion engine that promotes the top two and gives them the reserve. |
-| 6. Tier 2 and elite sharing | Each island has 10 + 30 = 40 individuals. Every k iterations (5 or 10), the top 20% of both islands are pooled, sorted, and copied over each island's worst individuals. |
-| 7. Diversity injection | T1 batch refresh (bottom 50% replaced), T1 global reset (keep the top x%), T2 island injection (bottom 20% replaced). |
-| 8. Parallelism and early stopping | `ThreadPoolExecutor` (boosting libraries release the GIL); boosted models stop after 10 non-improving rounds. |
+| 1. Latent space | 8 dimensions: model family, FE strategy, learning rate, n_estimators, max_depth, subsample, colsample, L1. Linear/log decoding; categorical bins `min(⌊zK⌋, K−1)`; inactive genes are carried |
+| 2. Population and split | N random vectors evaluated in parallel with 2-fold CV in the dataset's metric; stratified split: 4 Tier 1 islands of N/10 (40%), reserve in 2 groups (60%) |
+| 3. Tier 1 | ask/tell for T₁ iterations; stagnant islands get 50% random members through `inject` |
+| 4. Composite | `C = 0.30F + 0.25S + 0.15E + 0.15D + 0.15T`, each min–max normalised; D = mean latent distance / √d; T = slope over 3 scoring calls |
+| 5. UCB1 control | `U = C + 0.1·sqrt(ln N_total / n_i)`; top 2 promoted; SWAP if a T1 family's U exceeds the weaker T2 family's by > 0.10; rollback after a 5-iteration grace period; cooldowns |
+| 6. Tier 2 | pairwise elite sharing (each island's worst 20% replaced by the other's best 20%) |
+| 7. Injection | 20% into a Tier 2 island stagnant for 3 checkpoints |
+| 8. Confirm, refit, measure | top 5 distinct configurations re-scored with 5-fold CV; one refit on train rows; one test score; latency, throughput and size measured |
 
-**Algorithm 1: EvoSynth lifecycle**
-
-```
-Require: space S, evaluator E, budget B, pop N, T1 iterations, sharing interval k
-P ← random population (N); evaluate in parallel
-split P → P_T1 (40%), P_reserve (60%); seed DE, PSO, CMA-ES, GA with P_T1
-for t = 1..T1: for each algo: Z ← algo.ask(|P_T1|/4); evaluate Z (parallel, early stopping); algo.tell(Z)
-Scores ← CompositeScoringEngine(T1 algos); Top2, Bot2 ← UCB1(Scores, c = 0.1)
-promote Top2 to Tier 2 and inject P_reserve
-while evals < B:
-    step Tier 2 and active Tier 1
-    if iter mod k == 0: share top 20% elites between T2 islands; if stagnation: inject random vectors into bottom 20%
-return best architecture and hyperparameters
-```
+Algorithm 1 gives the lifecycle in pseudocode.
 
 ### III. Experimental evaluation
+| Subsection | Content |
+|---|---|
+| Setup | Covertype and Adult, fixed splits; 10,000 search rows; 500 evaluations for EvoSynth, Random Search, Optuna; FLAML with equal wall time; untuned floors; one 12-thread CPU; seed 42 |
+| Main comparison (Table I) | test score and search time of all eight methods on both datasets; the Covertype plateau explained |
+| Ablation (Table II) | GA, PSO, DE, CMA-ES alone vs EvoSynth at 125 and 500 evaluations |
+| Meta-decisions | promotion of DE + CMA-ES, GA SWAP and rollback on Covertype; two SWAPs on Adult; a different family wins each run |
+| Speed-up (Table III) | 1.00× / 1.17× / 5.85× / 6.10× |
+| Inference cost | 12.5 ms and 470 MB (Covertype ExtraTrees) vs 0.26 ms and 0.4 MB (Adult XGBoost) |
+| NAS | Fashion-MNIST, 160 evaluations, 81.8% validation |
 
-**Setup:**
-- Wisconsin Breast Cancer: 569 × 30, binary (removed in Phase 6).
-- Pathological noisy dataset: 2,000 × 20 with `flip_y = 0.3` (removed in Phase 6).
-- Handwritten digits for NAS: 1,797 images of 8×8.
-
-**Table I — speed-up:**
-
-| Mode | Cores | Initial pop (s) | Total (s) |
-|---|---|---|---|
-| Sequential | 1 | 44.8 | 392.4 |
-| Parallel batching | 8 threads | 5.1 | 78.2 |
-| **EvoSynth (parallel + early stopping)** | 8 threads | **3.9** | **63.9** |
-
-Initial population evaluation is **11.5× faster**. A full 120-evaluation run drops from more than 6.5 min to 63.9 s.
-
-**Table II — UCI Forest Covertype** (581,012 × 54, 7 classes; classes 1 and 2 make up more than 84% of the data, so defaults reach about 81% largely through the majority classes):
-
-| Method | Model | FE | Time | Test accuracy |
-|---|---|---|---|---|
-| Default 1 | XGBoost | none | 2.1 s | 80.97 |
-| Default 2 | LightGBM | none | 1.2 s | 81.07 |
-| Default 3 | RandomForest | none | 3.4 s | 81.48 |
-| EvoSynth (raw features) | XGBoost (DART, depth 10) | none | 6 min 14 s | 82.73 |
-| EvoSynth (search CV) | ExtraTrees (334 trees, depth 8) | interactions | 8 min 30 s | 86.39 |
-| **EvoSynth (generalisation)** | **ExtraTrees (60k / 20k)** | **interactions** | **1 min 14 s** | **93.47** |
-
-- The search covered 4 model families and 3 FE strategies in a 9-D space.
-- The `interactions` features (`c_i − c_j` and `sqrt(c_i² + c_j²)`) combined with ExtraTrees cut error from 19.0% to 6.53%, a 64.6% relative reduction, in 9 min 44 s in total.
-- The paper also describes the **live SWAP**: GA's diversity fell to 0.450 and its UCB to 0.547, while Tier 1 PSO held diversity 0.500 and reached UCB 0.720. PSO was promoted and GA demoted.
-
-**Noisy local minima (removed in Phase 6):**
-- Static PSO and hill-climbing plateaued around 76%.
-- EvoSynth's stagnation detection, exploration bonus, elite reseeding and 20% injection reached **79.40%**.
-
-**Table III — multi-model output on the noisy data (removed in Phase 6):**
-
-| Parameter | Range | Selected |
-|---|---|---|
-| Model | XGB / LGBM / RF | **XGBoost** |
-| learning_rate | [0.01, 0.3] (log) | 0.0163 |
-| n_estimators | [50, 500] | 327 |
-| max_depth | [3, 10] | 6 |
-| subsample | [0.5, 1.0] | 0.9797 |
-| colsample_bytree | [0.3, 1.0] | 0.9270 |
-| reg_alpha | [0, 10] | 7.5669 |
-| booster | gbtree / dart | gbtree |
-
-Strong L1 regularisation together with subsampling suppressed overfitting to the noisy labels.
-
-**Vision NAS** (`ImageCNNEvaluator`):
-- 80 evaluations in 14.6 s reached **95.33%**.
-- Best topology: conv1 = 16, conv2 = 64, fc = 64, dropout 0.0107, LeakyReLU, Adam with lr 0.0309.
-
-### IV. Real-time glass-box dashboard
-
-FastAPI SSE (`/stream`) emits `metric`, `composite`, `tier_state` and `switch` events. A React + Vite + Tailwind dashboard shows the accuracies, the tier assignments, the composite breakdowns and the mirrored logs live.
+### IV. Dashboard
+FastAPI SSE events (metrics, composite and UCB scores, tier assignments, every meta-decision) shown live in a React dashboard.
 
 ### V. Conclusion
+EvoSynth matches strong baselines and the best single optimizer, picks the right model family, and is fastest on Covertype; it does not beat strong baselines on these datasets, FLAML wins Adult, and the Covertype space has a plateau. **Future work:** multiple seeds and harder datasets, NGOpt and surrogate benchmarks, rank-normalised rewards, latency-aware objectives.
 
-EvoSynth projects mixed hyperparameters into a universal latent space and manages DE, PSO, CMA-ES and GA in a two-tier island model governed by UCB1 composite scoring. This lets it overcome local minima without multiplying inference latency. Its features are:
-- parallel evaluation;
-- early stopping;
-- diversity injection;
-- tabular model switching;
-- vision NAS.
-
-**Results:** an 11.5× speed-up, escape from noisy local optima, and full observability.
-
-### References (15)
-
-1. Feurer & Hutter 2019 (HPO chapter)
-2. Bergstra & Bengio 2012
-3. Auer, Cesa-Bianchi & Fischer 2002 (UCB1)
-4. Kennedy & Eberhart 1995
-5. Storn & Price 1997
-6. Hansen & Ostermeier 2001
-7. Chen & Guestrin 2016
-8. Ke et al. 2017
-9. Fialho et al. 2010
-10. Bergstra et al. 2011
-11. Wang et al. 2021 (FLAML)
-12. LeDell & Poirier 2020 (H2O)
-13. Zoph & Le 2017
-14. Real et al. 2019
-15. Hutter, Hoos & Leyton-Brown 2011 (SMAC)
+### References (20)
+Feurer & Hutter 2019; Bergstra & Bengio 2012; Auer et al. 2002; Kennedy & Eberhart 1995; Storn & Price 1997; Hansen & Ostermeier 2001; Chen & Guestrin 2016; Ke et al. 2017; Fialho et al. 2010; Bergstra et al. 2011; Wang et al. 2021 (FLAML); LeDell & Poirier 2020 (H2O); Zoph & Le 2017; Real et al. 2019; Hutter et al. 2011 (SMAC); Wolpert & Macready 1997; Akiba et al. 2019 (Optuna); Blackard & Dean 1999 (Covertype); Kohavi 1996 (Adult); Xiao et al. 2017 (Fashion-MNIST).
 
 ---
 
-## Part B — Panel Review deck (`paper/slides.tex`)
+## Part B — Review deck (`paper/slides.tex`)
 
-**Title slide:**
-- Team (S.No, register number, name):
-  1. CB.SC.U4CSE23445 — Shivam Kharat
-  2. CB.SC.U4CSE23565 — Siddharth Ladda
-  3. CB.SC.U4CSE23627 — Kaushal Loya
-  4. CB.SC.U4CSE23639 — Paarthu Reddy
-  5. CB.SC.U4CSE23642 — Priyansh Narang
-- Guide: **Dr. Thangavelu S.**, Associate Professor, Dept. of CSE.
-- The next slide shows the guide's approval email (`approval.png`).
+**Title slide:** 23CSE498 Project Phase II (External Review), Team 2, Type 1 research project.
+- Team: CB.SC.U4CSE23445 Shivam Kharat; CB.SC.U4CSE23565 Siddharth Ladda; CB.SC.U4CSE23627 Kaushal Loya; CB.SC.U4CSE23639 Paarthu Reddy; CB.SC.U4CSE23642 Priyansh Narang.
+- Guide: **Dr. Thangavelu S.**, Associate Professor, Dept. of CSE. The next slide shows the guide's approval (`approval.png`).
 
-**1. Problem definition and motivation**
-- **Problem:** a single fixed optimizer stagnates on non-convex landscapes.
-- **Context:** the No Free Lunch theorem.
-- **Existing work:**
-  - Optuna: single Bayesian sampler;
-  - FLAML: cost-frugal greedy search;
-  - H2O: sequential Bayesian search plus 10-model stacking.
-- **Gap:** no framework runs concurrent optimizers with live stagnation detection and dynamic swaps while producing a single model.
-- **Objectives:**
-  1. a UCB1 meta-engine;
-  2. live tier SWAPs;
-  3. ensemble-level accuracy (93.47%) from one model (2 ms).
-
-**2. Methodology and workflow**
-- Figure `arch_updated.png`.
-- Summary: encode to `[0,1]^d` → 40% Tier 1 tournament → UCB1 selects the top two → 60% Tier 2 with elite sharing → decode and evaluate (XGB / LGBM / RF / ET + generic FE) → refit on 60k → single model.
-
-**3. Components and formulation**
-- UCB1 meta-engine with a 5-metric composite score.
-- Two-tier island model.
-- Stagnation guard: zero trend triggers injection; a T1 optimizer leading by more than 10% triggers a SWAP.
-- `UCB_i = CS_i + c·sqrt(ln E_total / E_i)` with c = 0.1.
-- `CS = 0.30F + 0.25S + 0.15E + 0.15D + 0.15T`.
-- **Data:** Covertype; 20k search subsample (the deck says 3-fold CV; the code uses 2-fold); 60k/20k refit; FE options none / stats / interactions.
-- **Metrics:** test accuracy, relative error reduction `(e_base − e_ours)/e_base` (64.6%), wall-clock time.
-
-**4. Implementation overview.** All modules are marked 100%:
-
-| Module | Status |
+| Slide | Content |
 |---|---|
-| Latent mapping | Integrated |
-| UCB1 meta-engine (scoring, bonus, promotion, swap + rollback) | Integrated |
-| Ask/tell wrappers for the optimizers | Integrated |
-| Tier manager (40/60, elite sharing, injection) | Integrated |
-| Evaluators (4 families + FE + early stopping) | Functional |
-| Generic feature engineer | Integrated |
-| SSE → React dashboard | Integrated |
-
-- **Environment:** Python 3.14, XGBoost, LightGBM, scikit-learn, PyTorch and React, on a laptop CPU with no GPU.
-- **Repository:** GitHub branch `PostReview2`, plus the docs site and Zenodo.
-
-**5. Core module details.** Control flow: init → Tier 1 for 10 iterations → promotion → live SWAP (lead greater than 10%) → rollback (must beat the global best within 5 iterations) → top-20% elite sharing. FE is a searchable gene that needs no domain knowledge.
-
-Default parameters listed on the slide:
-
-| Parameter | Value |
-|---|---|
-| Evaluation budget | 120 (Covertype) |
-| Population | 30 |
-| Tier 1 / Tier 2 split | 40% / 60% |
-| Tier 1 iterations | 10 |
-| Checkpoint k | 5 |
-| c | 0.1 |
-| Swap threshold | 10% |
-| Rollback grace period | 5 iterations |
-| Elite share | Top 20% |
-| Injection (T1 / T2) | 50% / 20% |
-| Dimensions | 9 |
-| Model families | 4 |
-
-(The actual 120-evaluation run used pop 20, 3 Tier 1 iterations and k = 2.)
-
-**6. Verification and quantitative results**
-
-| Method | Model | Time | Accuracy |
-|---|---|---|---|
-| Default XGBoost | Untuned | 2 s | 80.97 |
-| Default LightGBM | Untuned | 1 s | 81.07 |
-| Default RandomForest | Untuned | 3 s | 81.48 |
-| EvoSynth search (20k) | ExtraTrees + FE | 8 min 30 s | 86.39 |
-| **EvoSynth final (60k/20k refit)** | **ExtraTrees** | **9 min 44 s** | **93.47** |
-
-- This is a 64.6% relative error reduction.
-- **SWAP confirmed:** at iteration 2, T1_PSO (UCB 0.720, diversity 0.500) replaced T2_GA (UCB 0.547, diversity 0.450).
-
-**7. Comparison and demonstration**
-
-| Aspect | Optuna | FLAML | H2O | EvoSynth |
-|---|---|---|---|---|
-| Search paradigm | Bayesian | Cost-frugal | Random/Bayes | UCB1 bandit |
-| Strategies | 1 sampler | 1 greedy search | Sequential | 4 concurrent |
-| Switching | None | None | None | Tier SWAPs |
-| Diversity protection | None | None | None | Diversity in UCB |
-| Feature engineering | Manual | Limited | Fixed | Dataset-agnostic gene |
-| Output | 1 model | 1 model | 10-model stack | 1 model (2 ms, 150 MB) |
-
-- **Pareto advantage:** 93.47% without the cost of an ensemble.
-- **Live demo:** the Covertype run (now `evosynth run`) with the dashboard.
-- **Vision NAS:** **95.78%** in 80 evaluations (17.7 s).
-
-**8. Technical justification and trade-offs**
-- **Justification:** NFL, plus a two-tier separation of exploration and exploitation.
-- **Trade-offs:**
-  - latent decoding adds overhead but makes categoricals tractable for PSO and CMA-ES;
-  - meta-logic overhead is under 0.05% of runtime;
-  - the meta-optimisation is offline, so there is no inference penalty.
-- **Boundary conditions:** the rollback guard, stagnation rescue, and robustness under 30% label noise (about 79.4%).
-- **Limitations:** single machine; FE designed for tabular data.
-- **Future work:** Ray-distributed workers, warm-start meta-learning, deep-learning NAS.
-
-**Technical enrichment (MOOCs, 10 h each):**
-
-| Member | Course | Platform |
-|---|---|---|
-| Kharat, Ladda, Loya | Evolutionary Computation and its Applications | Coursera |
-| Reddy | Front-End Web Development with React (dashboard) | Coursera |
-| Narang | Optimization for ML (mathematical latent space) | NPTEL |
-
-**References (10):**
-1. Scrivano 2025 — AutoML trends
-2. Alcobaça & de Carvalho 2025 — AutoML review
-3. Estevanell-Valladares et al. 2025 — XAutoLM
-4. Borboudakis et al. 2024 — meta-level space reduction
-5. Crepinšek et al. 2025 — MsMA stagnation
-6. Gerber et al. 2025 — online meta-learning AutoML
-7. Auer et al. 2002 — UCB1
-8. Wolpert & Macready 1997 — No Free Lunch
-9. Wang et al. 2021 — FLAML
-10. LeDell & Poirier 2020 — H2O
+| 1. Problem and motivation | single fixed optimizer; No Free Lunch; Optuna / FLAML / H2O; gap; objectives: UCB1 meta-engine, live SWAPs, accuracy level with strong baselines under an identical held-out protocol from one model |
+| 2. Workflow | `arch.png`; encode → stratified 40/60 split → UCB1 promotes top 2 → Tier 2 with pairwise elite sharing, SWAP and rollback → confirm top 5 → one refit → one test score |
+| 3. Components | composite and UCB formulas; stagnation guard; Covertype and Adult; the split protocol; metrics: test score, search time, inference cost, ablation |
+| 4. Implementation | module table including datasets, selection and refit, and the experiment harness |
+| 5. Core modules | control flow; default parameters: budget 500, population 40, T₁ 5, k 3 (auto), c 0.1, swap margin 0.10, grace 5, elite 20%, injection 50% / 20%, 8 dimensions, confirmation top 5 with 5-fold CV |
+| 6. Results | the two-dataset table (best untuned, FLAML, Random Search, Optuna, EvoSynth) and findings: tie with the strong baselines, right family per dataset, ablation, the Covertype SWAP and rollback |
+| 7. Comparison | Optuna / FLAML / H2O / EvoSynth matrix with measured Covertype scores; single-model cost (0.26–12.5 ms); live demo with `evosynth run`; Fashion-MNIST NAS 81.8% |
+| 8. Justification | NFL and the two tiers; latent space; 6.1× from parallel evaluation; rollback, injection and confirm-before-select; limitations (ties rather than wins, one seed, the Covertype plateau, single machine) and future scope |
+| Enrichment | MOOCs: Kharat, Ladda, Loya — *Evolutionary Computation and its Applications* (Coursera); Reddy — *Front-End Web Development with React* (Coursera); Narang — *Optimization for ML* (NPTEL) |
+| References | the ten review references (Scrivano 2025 … LeDell & Poirier 2020) |
 
 The deck ends with "Thank You — Questions & Viva Voce".
+
+---
+
+## Part C — Review report (`paper/report.tex`)
+
+Two to three pages in the Amrita format (maroon headings, team and guide table):
+
+| Section | Content |
+|---|---|
+| Abstract | as the paper, with both datasets and the measured inference cost |
+| 2. Problem, motivation, literature | problem statement; objectives (bandit allocation, two-tier architecture, fair and reproducible evaluation); literature table (Scrivano, Alcobaça & Carvalho, FLAML, H2O, Crepinšek et al.) and the research gap |
+| 3. Methodology | `arch.png`; latent space; composite score; UCB1; tiers, SWAP and rollback; the 8-dimensional search space; confirm before select |
+| 4. Implementation | environment and repository; module table (latent space, optimizers, UCB1 engine, tier manager, feature engineer, datasets and evaluators, selection and refit, experiment harness, telemetry); feature engineering; logging and reproducibility; the held-out workflow |
+| 5. Results | the two-dataset table; findings; ablation; the Covertype SWAP, rollback and winner; Fashion-MNIST NAS |
+| 6. Justification | algorithmic rationale; complexity; single model with measured cost; edge cases (rollback, injection, confirm before select, failed folds) |
+| 7. Conclusion | conclusion, limitations, future scope |
+| 8. Deliverables | repository, docs site, EvoSynth-Bench v2.0.0, individual certifications |
+
+> **Check before submitting:** the certification lists in `report.tex` (Udemy courses) and `slides.tex` (Coursera / NPTEL courses) differ. Make them match whatever each member actually completed.
+
+---
+
+## Quiz
+
+**1.** Which experiments of the panel-review paper were removed, and why?
+
+<details><summary>Answer</summary>
+
+The Wisconsin Breast Cancer and 30%-label-noise synthetic experiments. The project moved to real benchmark datasets with fixed held-out splits (Covertype, Adult and six more), and the code no longer contains those experiments.
+</details>
+
+**2.** What does the paper now claim about EvoSynth's accuracy against Random Search and Optuna?
+
+<details><summary>Answer</summary>
+
+That it is level with them (within 0.03 points on both datasets) under an identical protocol, not better. Its claimed advantages are choosing the right model family, matching the best single optimizer without choosing it in advance, and a shorter wall time from parallel evaluation.
+</details>
+
+**3.** Name the three tables of the paper's evaluation section.
+
+<details><summary>Answer</summary>
+
+Table I, held-out test score and search time of every method on Covertype and Adult; Table II, the optimizer ablation (each optimizer alone vs EvoSynth); Table III, the speed-up benchmark.
+</details>
+
+**4.** Which figure replaced the panel-review architecture diagram, and what changed in it?
+
+<details><summary>Answer</summary>
+
+The new `arch.png`. It is generalised to any population size N (four Tier 1 islands of N/10, a 60% reserve in two groups), shows the stratified split and pairwise elite sharing, and ends with confirm before select, one refit and a held-out test score. The old diagram is kept as `arch_legacy.png`.
+</details>
+
+**5.** What must be checked in the report and slides before the next submission?
+
+<details><summary>Answer</summary>
+
+That the individual certification lists match (the report lists Udemy courses and the slides list Coursera and NPTEL courses), and that `approval.png` for that review is in `paper/figures/`.
+</details>

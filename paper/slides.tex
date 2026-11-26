@@ -126,7 +126,7 @@
             \setlength{\itemsep}{1pt}
             \item \textbf{Objective 1:} UCB1 multi-armed bandit meta-engine routing budget to the best optimizer in real time.
             \item \textbf{Objective 2:} Live strategy switching (tier SWAPs) driven by stagnation and diversity monitoring.
-            \item \textbf{Objective 3:} Ensemble-level accuracy ($93.47\%$) with a single deployable model (zero ensemble overhead, 2\,ms latency).
+            \item \textbf{Objective 3:} Accuracy level with the strongest tuned baselines under an identical held-out protocol, delivered as a single deployable model.
         \end{itemize}
     \end{block}
 \end{frame}
@@ -147,7 +147,7 @@
 
     \begin{block}{Workflow Summary}
         \scriptsize
-        Encode search space to $[0,1]^d$ $\to$ 40\% Tier-1 tournament (GA, PSO, DE, CMA-ES) $\to$ UCB1 selects top-2 $\to$ 60\% Tier-2 exploitation with elite sharing $\to$ Decode \& Evaluate (XGB/LGBM/RF/ExtraTrees + Generic FE) $\to$ Post-search refit on 60k $\to$ Single standalone model.
+        Encode search space to $[0,1]^d$ $\to$ stratified split: 40\% Tier-1 (4 islands of $N/10$: GA, PSO, DE, CMA-ES) $\to$ UCB1 promotes top-2 $\to$ 60\% reserve joins Tier-2, pairwise elite sharing, SWAP/rollback $\to$ confirm top-5 with 5-fold CV $\to$ one refit on train rows $\to$ single model scored once on held-out test rows.
     \end{block}
 \end{frame}
 
@@ -162,7 +162,7 @@
                 \setlength{\itemsep}{1pt}
                 \item \textbf{UCB1 Bandit Meta-Engine:} 5-metric composite rewards performance, diversity, and efficiency.
                 \item \textbf{Two-Tier Island Model:} Tier-1 (40\%) competes 4 optimizers; top-2 promoted to Tier-2 (60\%) with elite sharing.
-                \item \textbf{Stagnation Guard:} Zero-trend triggers random injection; live SWAP if a T1 algo leads T2 by $>10\%$.
+                \item \textbf{Stagnation Guard:} No improvement triggers random injection; live SWAP if a T1 algo's UCB exceeds the weaker T2 algo's by $>0.10$.
             \end{itemize}
         \end{block}
 
@@ -181,8 +181,8 @@
             \scriptsize
             \begin{itemize}
                 \setlength{\itemsep}{1pt}
-                \item \textbf{UCI Forest Covertype:} 581,012 samples, 54 features, 7 classes.
-                \item \textbf{Protocol:} 20k search subsample (3-fold CV); 60k/20k train/test split for post-search generalization refit.
+                \item \textbf{Covertype:} 581,012 rows, 54 features, 7 classes (accuracy). \textbf{Adult:} 48,842 rows, 14 features, binary (ROC AUC). 8 datasets supported.
+                \item \textbf{Protocol:} test rows split off first (20k / 12k); search on 10k rows with 2-fold CV; refit on train rows (60k / 36k); exact splits on Zenodo.
                 \item \textbf{Feature Engineering:} Generic Feature Engineer with searchable strategies: \texttt{none}, \texttt{stats}, \texttt{interactions}.
             \end{itemize}
         \end{block}
@@ -191,9 +191,9 @@
             \scriptsize
             \begin{itemize}
                 \setlength{\itemsep}{1pt}
-                \item \textbf{Accuracy:} Primary metric on held-out 20k test set.
-                \item \textbf{Relative Error Reduction:} $(e_{\text{base}} - e_{\text{ours}}) / e_{\text{base}}$ ($64.6\%$).
-                \item \textbf{Wall-Clock Time:} Total search + refit duration.
+                \item \textbf{Test score:} accuracy or ROC AUC on held-out rows, scored once.
+                \item \textbf{Search wall time} and \textbf{inference cost} (ms/row, model MB).
+                \item \textbf{Ablation:} each optimizer alone vs EvoSynth at equal budget.
             \end{itemize}
         \end{block}
     \end{columns}
@@ -219,8 +219,10 @@
             Latent Space Mapping & Mixed params encoded to $[0,1]^d$; categoricals binned by $\lfloor zK\rfloor$ & 100\% (Integrated) \\
             Meta-Engine (UCB1) & Composite scoring, UCB1 bonus, promotion, swap + rollback & 100\% (Integrated) \\
             Worker Optimizers & Ask/Tell wrappers for GA, PSO, DE, CMA-ES & 100\% (Integrated) \\
-            Tier Manager & 40/60 split, elite sharing, stagnation injection & 100\% (Integrated) \\
-            Evaluators & XGBoost/LightGBM/RF/ExtraTrees + Generic FE + early stopping & 100\% (Functional) \\
+            Tier Manager & Stratified 40/60 split, pairwise elite sharing, stagnation injection & 100\% (Integrated) \\
+            Datasets \& Evaluators & 8 real datasets with fixed splits; 4 tree families + FE + early stopping; CNN for NAS & 100\% (Functional) \\
+            Selection \& Refit & Confirm before select, shared refit, inference measurement & 100\% (Integrated) \\
+            Experiment Harness & Baselines (Random, Optuna, FLAML, defaults), ablation, speed-up, runner & 100\% (Integrated) \\
             Generic Feature Engineer & Dataset-agnostic FE: \texttt{none}/\texttt{stats}/\texttt{interactions} & 100\% (Integrated) \\
             Live Telemetry Dashboard & FastAPI SSE stream into React (Vite + Tailwind) & 100\% (Integrated) \\
             \bottomrule
@@ -247,12 +249,12 @@
             \scriptsize
             \begin{itemize}
                 \setlength{\itemsep}{1pt}
-                \item \textbf{Init:} Population evaluated; 40\% Tier-1 / 60\% Tier-2 reserve.
-                \item \textbf{Tier-1 Tournament:} GA, PSO, DE, CMA-ES compete across 10 iters.
+                \item \textbf{Init:} Population evaluated; stratified 40\% Tier-1 / 60\% reserve.
+                \item \textbf{Tier-1 Tournament:} GA, PSO, DE, CMA-ES compete for $T_1$ iters.
                 \item \textbf{Promotion:} Composite + UCB1 bonus ranks; top-2 move to Tier-2.
-                \item \textbf{Live SWAP:} T1 algo replaces worst T2 one if it leads by $>10\%$.
+                \item \textbf{Live SWAP:} T1 algo replaces weaker T2 one if its UCB leads by $>0.10$.
                 \item \textbf{Rollback:} Must beat global best within 5 iters, else reverted.
-                \item \textbf{Elite Sharing:} Top 20\% of each T2 island pooled and shared.
+                \item \textbf{Elite Sharing:} The two T2 islands trade their top 20\% pairwise.
             \end{itemize}
         \end{block}
 
@@ -277,17 +279,18 @@
                 \toprule
                 \textbf{Parameter} & \textbf{Value} \\
                 \midrule
-                Evaluation budget & 120 (Covertype) \\
-                Population size & 30 \\
+                Evaluation budget & 500 \\
+                Population size & 40 \\
                 Tier-1 / Tier-2 split & 40\% / 60\% \\
-                Tier-1 iterations & 10 \\
-                Checkpoint interval $k$ & 5 \\
+                Tier-1 iterations & 5 \\
+                Checkpoint interval $k$ & 3 (auto) \\
                 Exploration constant $c$ & 0.1 \\
-                Swap threshold & 10\% \\
+                Swap margin (UCB) & 0.10 \\
                 Rollback grace period & 5 iters \\
                 Elite share & top 20\% \\
                 Injection (T1 / T2) & 50\% / 20\% \\
-                Search space dims & 9 (incl.\ model, FE) \\
+                Search space dims & 8 (incl.\ model, FE) \\
+                Confirmation & top 5, 5-fold CV \\
                 Model families & 4 (XGB, LGBM, RF, ET) \\
                 \bottomrule
             \end{tabular}
@@ -302,21 +305,21 @@
 
 % --- SLIDE 6: PRELIMINARY VERIFICATION & QUANTITATIVE RESULTS ---
 \begin{frame}{6. Preliminary Verification \& Quantitative Results}
-    \framesubtitle{UCI Forest Covertype Benchmark (581,012 samples, 54 features, 7 classes)}
+    \framesubtitle{Held-out test score, identical protocol, 500 evaluations, seed 42}
     \begin{table}
         \centering
         \scriptsize
-        \renewcommand{\arraystretch}{1.15}
-        \begin{tabular}{p{4.8cm} c c c}
+        \renewcommand{\arraystretch}{1.1}
+        \begin{tabular}{l c c c c}
             \toprule
-            \textbf{Method / Configuration} & \textbf{Model} & \textbf{Time} & \textbf{Accuracy} \\
+             & \multicolumn{2}{c}{\textbf{Covertype (acc.)}} & \multicolumn{2}{c}{\textbf{Adult (ROC AUC)}} \\
+            \textbf{Method} & \textbf{Test} & \textbf{Time} & \textbf{Test} & \textbf{Time} \\
             \midrule
-            Default Baseline (XGBoost) & Untuned XGBoost & 2\,s & 80.97\% \\
-            Default Baseline (LightGBM) & Untuned LightGBM & 1\,s & 81.07\% \\
-            Default Baseline (RandomForest) & Untuned RF & 3\,s & 81.48\% \\
-            \midrule
-            EvoSynth Search (20k, 3-fold CV) & ExtraTrees + FE & 8m 30s & 86.39\% \\
-            \textbf{EvoSynth Final (60k/20k refit)} & \textbf{ExtraTrees} & \textbf{9m 44s} & \textbf{93.47\%} \\
+            Best untuned model & 89.77 & -- & 92.92 & -- \\
+            FLAML (same time) & 92.53 & 13.0\,m & \textbf{93.13} & 3.0\,m \\
+            Random Search & \textbf{93.89} & 42.4\,m & 92.98 & 19.1\,m \\
+            Optuna TPE & 93.87 & 49.8\,m & 92.95 & 3.3\,m \\
+            \textbf{EvoSynth} & \textbf{93.89} & \textbf{12.2\,m} & 92.96 & \textbf{3.0\,m} \\
             \bottomrule
         \end{tabular}
     \end{table}
@@ -326,8 +329,9 @@
         \scriptsize
         \begin{itemize}
             \setlength{\itemsep}{1.5pt}
-            \item \textbf{Quantitative Findings:} 93.47\% accuracy = \textbf{64.6\% relative error reduction} (19\% $\to$ 6.53\% error) over untuned baselines, using a single deployable model.
-            \item \textbf{Verification of Core Hypothesis:} Dynamic SWAP confirmed---Iteration 2: $T1\_PSO$ (UCB 0.720, diversity 0.500) replaced $T2\_GA$ (UCB 0.547, diversity 0.450), proving live strategy switching improves convergence under stagnation.
+            \item \textbf{Findings:} EvoSynth ties Random Search and Optuna (within 0.03) and picks the right family per dataset (ExtraTrees + interactions on Covertype, XGBoost on Adult); fastest on Covertype through parallel evaluation (6.1$\times$ measured).
+            \item \textbf{Ablation:} matches the best single optimizer (82.35\% CV, tied with PSO and CMA-ES) without knowing it in advance.
+            \item \textbf{Live decisions:} Covertype run: DE + CMA-ES promoted, GA swapped in (UCB 0.592 vs 0.369), rolled back after its grace period; CMA-ES found the winner.
         \end{itemize}
     \end{block}
 \end{frame}
@@ -352,7 +356,8 @@
             Strategy switching & None (static sampler) & None & None & \textbf{Dynamic Tier SWAPs ($>10\%$)} \\
             Diversity protection & None & None & None & \textbf{Pop.\ Diversity in UCB1} \\
             Feature engineering & Manual & Limited heuristics & Fixed preprocessing & \textbf{Dataset-Agnostic Gene} \\
-            Production output & Single model & Single model & Heavy 10-model stack & \textbf{Single model (2\,ms, 150MB)} \\
+            Production output & Single model & Single model & Heavy 10-model stack & \textbf{Single model (cost of that model)} \\
+            Measured test (Covertype) & 93.87\% & 92.53\% & -- & \textbf{93.89\%} \\
             \bottomrule
         \end{tabular}%
         }
@@ -363,9 +368,9 @@
         \scriptsize
         \begin{itemize}
             \setlength{\itemsep}{1pt}
-            \item \textbf{Pareto Advantage:} Delivers ensemble-level accuracy (93.47\%) without latency/RAM costs of heavy stacking ensembles.
-            \item \textbf{Live Demo:} \texttt{run\_covertype.py} runs end-to-end with real-time React dashboard displaying UCB1 metrics \& SWAPs.
-            \item \textbf{Vision NAS:} PyTorch CNN on Handwritten Digits reached \textbf{95.78\%} in 80 evals (17.7\,s), verifying cross-domain versatility.
+            \item \textbf{Single model:} serving cost is that of the chosen model: 0.26\,ms / 0.4\,MB (Adult XGBoost) to 12.5\,ms / 470\,MB (Covertype ExtraTrees), measured.
+            \item \textbf{Live Demo:} \texttt{evosynth run --dataset covertype} with the real-time React dashboard showing UCB1 scores, SWAPs and rollbacks.
+            \item \textbf{Vision NAS:} CNN search on Fashion-MNIST reached \textbf{81.8\%} validation accuracy in 160 evaluations, with no engine changes.
         \end{itemize}
     \end{block}
 \end{frame}
@@ -394,7 +399,7 @@
             \begin{itemize}
                 \setlength{\itemsep}{1pt}
                 \item \textit{Latent Space:} Slight decode overhead, but enables continuous optimizers (PSO/CMA-ES) to tune categoricals.
-                \item \textit{Meta-overhead:} $<0.05\%$ of total time; 99.95\% spent on model training.
+                \item \textit{Parallel evaluation:} 6.1$\times$ on 12 threads (measured); early stopping adds little.
                 \item \textit{Offline Meta-Optimization:} Zero inference latency penalty.
             \end{itemize}
         \end{block}
@@ -406,7 +411,7 @@
                 \setlength{\itemsep}{1pt}
                 \item Rollback guard: Swapped-in algo must beat global best in 5 iters, else reverted.
                 \item Stagnation rescue: Zero-trend triggers random injection in both tiers.
-                \item Robust under 30\% label-noise benchmark ($\approx$79.4\% best).
+                \item Confirm before select: top 5 re-scored with 5-fold CV against noisy 2-fold scores.
             \end{itemize}
         \end{block}
 
@@ -414,8 +419,8 @@
             \scriptsize
             \begin{itemize}
                 \setlength{\itemsep}{1pt}
-                \item \textit{Current:} Single-machine execution; FE focused on tabular data.
-                \item \textit{Future Scope:} Distributed workers via Ray; warm-start meta-learning across datasets; deep learning pipeline NAS.
+                \item \textit{Current:} Ties (does not beat) strong baselines; one seed; Covertype space has a plateau every method reaches; single machine.
+                \item \textit{Future Scope:} Multi-seed runs on HIGGS / Poker Hand; NGOpt and surrogate-benchmark comparison; latency-aware objective; Ray workers.
             \end{itemize}
         \end{block}
     \end{columns}
