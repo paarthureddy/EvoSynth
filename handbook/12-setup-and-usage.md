@@ -6,7 +6,7 @@
 |---|---|
 | Python | 3.11+ (`requires-python` in `pyproject.toml`). Developed and run on Python 3.14 (Windows). |
 | Node.js | 18+ for the dashboard; 20 for the docs CI |
-| OS | Developed on Windows (PowerShell orchestrator). The Python code is OS-agnostic. |
+| OS | Developed on Windows. The Python code (including `tools/run_experiments.py`) is OS-agnostic. |
 | Hardware | CPU only. Reference machine: Intel i5-12450HX (8 cores / 12 threads), 16 GB RAM. |
 
 ## 2. Installation
@@ -42,7 +42,7 @@ evosynth settings check        # validates settings/ (13 sections)
 evosynth datasets list         # registered datasets
 ```
 
-**Datasets.** Each dataset in `settings/datasets.toml` is downloaded on first use into `<repo>/.data/` (git-ignored). Covertype comes from `sklearn.datasets.fetch_covtype` (about 14 MB).
+**Datasets.** Each dataset in `settings/datasets.toml` is downloaded on first use into `<repo>/.data/` (git-ignored), or all at once with `evosynth datasets download` (about 230 MB for all eight). Covertype comes from `sklearn.datasets.fetch_covtype`, Fashion-MNIST from torchvision, the others from OpenML.
 
 ## 3. Running EvoSynth
 
@@ -52,66 +52,67 @@ Run all commands from the repo root. Every command accepts:
 
 Experiment commands also accept `--results-dir PATH` (write under PATH instead of `results/`); `run`, `scale` and `nas` accept `--variant NAME` (name of the run folder). Each run writes to `results/<experiment>/<dataset>/<variant>/seed_<random_state>/` (see §4).
 
-### 3.1 Covertype benchmark: the headline demo
+### 3.1 A search with refit: the headline demo
 
 ```bash
-evosynth run                      # preset search_demo: 120 evals, pop 20, t1=3, k=2 (+ 60k/20k refit)
-evosynth run --full               # preset search_full: 500 evals, pop 40, t1=5, k=3
-evosynth run --budget 200 --pop-size 30 --t1-iters 4 --k-iters 2 --subsample 20000
-evosynth run --no-refit           # search only
+evosynth run                                  # preset search_demo: 200 evals, pop 40, t1=3, k=2, Covertype
+evosynth run --full --dataset adult           # preset search_full: 500 evals, pop 40, t1=5, k=3
+evosynth run --budget 300 --t1-iters 4 --subsample 10000 --seed 7
+evosynth run --no-refit                       # search and selection only
 ```
 
-**Output** (`results/search/covertype/search_demo/seed_42/`): Steps 0–6 are printed, ending with a summary box: search CV, test accuracy, architecture and FE strategy. For reference, the v1 120-evaluation run on the machine above took 9 min 44 s and gave 86.39% CV / 93.47% test.
+**Output** (`results/search/<dataset>/<preset>/seed_<k>/`): Steps 0–6 are printed, then confirm-before-select and a summary box: search CV score (selected and confirmed), held-out test score, architecture, FE strategy and the measured inference cost. `model.pkl` holds the refitted model.
 
-### 3.2 Covertype at scale, with checkpointing
+### 3.2 Budget scaling, with checkpointing
 
 ```bash
-evosynth scale --budget 300
-evosynth scale --budget 500 --pop-size 30 --checkpoint-interval 10
+evosynth scale                 # budget 500 (default)
+evosynth scale --budget 1000 --dataset higgs --checkpoint-interval 10
 ```
 
-- `--budget` must be one of `experiments.scaling.budgets` (120, 300, 500, 1000). `t1_iters` and `k_iters` follow the schedule in `[experiments.scaling]`.
-- **Outputs** (`results/scaling/covertype/budget_<N>/seed_42/`): `run.log`; `checkpoint.json`, updated every 10 evaluations and finalised with the test accuracy; `result.json`.
-- **Typical times (v1):** about 31 min (300) and about 37 min (500).
+- `--budget` must be one of `experiments.scaling.budgets` (300, 500, 1000). `t1_iters` and `k_iters` follow the schedule in `[experiments.scaling]`.
+- **Outputs** (`results/scaling/<dataset>/budget_<N>/seed_<k>/`): `run.log`; `checkpoint.json`, updated every 10 evaluations and finalised with the test score; `result.json`; `model.pkl`.
 
-### 3.3 Baselines (same 60k/20k split)
+### 3.3 Baselines (same splits, same evaluator and refit as EvoSynth)
 
 ```bash
-evosynth baselines --test all
-evosynth baselines --test optuna --trials 120        # resumes from its SQLite study
-evosynth baselines --test flaml --time-budget 585
+evosynth baselines --test all --dataset covertype
+evosynth baselines --test random --trials 500        # match the EvoSynth budget
+evosynth baselines --test optuna --trials 500        # resumes from its SQLite study
+evosynth baselines --test flaml --time-budget 900    # match the EvoSynth wall time
+evosynth baselines --test defaults                   # untuned XGBoost / LightGBM / RF / ET
 ```
 
-- `--test` accepts `all`, `extratrees`, `random`, `optuna` or `flaml`.
-- **Outputs:** one folder per baseline, `results/baselines/covertype/{default_extratrees,random_search,optuna_tpe,flaml}/seed_42/`, each with `report.txt`, `result.json`, `run.log` (plus `optuna.db` / `flaml.log`).
-- **Times (v1):** ExtraTrees about 1 s; Random Search about 34 min; Optuna about 36 min; FLAML about 10 min.
+- `--test` accepts `all`, `defaults`, `random`, `optuna` or `flaml`.
+- **Outputs:** one folder per baseline, `results/baselines/<dataset>/{defaults,random_search,optuna_tpe,flaml}/seed_<k>/`, each with `report.txt`, `result.json`, `run.log` (plus `model.pkl`, `optuna.db` / `flaml.log`).
+- Random Search and Optuna evaluate one configuration at a time, so at the same budget they take longer than EvoSynth, which evaluates in parallel (about 45 min vs 15 min for 500 evaluations on Covertype with 10,000 search rows).
 
 ### 3.4 Ablations
 
 ```bash
-evosynth ablation --setup CVGS-300                        # pop 30, 2 workers (from [experiments.ablation])
-evosynth ablation --setup CVGS-500 --max-workers 2 --checkpoint-interval 10
+evosynth ablation --setup CVGS-500                                   # pop 40, 2 workers (from [experiments.ablation])
+evosynth ablation --setup CVGS-500 --max-workers 8 --subsample 10000 --splits stratified,random,elite
 ```
 
-- **Outputs:** `results/ablation/covertype/cvgs_300/seed_42/` with `summary.txt`, `individual_runs/`, `isolated_population.csv`, `population.csv` (EvoSynth), `checkpoints/`, `result.json`.
-- **Resuming:** re-run the same command. Completed optimizers are skipped and interrupted ones continue from their last 10-evaluation checkpoint; `run.log` is appended to.
-- **Time (v1):** CVGS-300 took about 25–37 min per optimizer, so plan for an overnight run.
+- **Outputs:** `results/ablation/<dataset>/cvgs_500/seed_<k>/` with `summary.txt` (including a generated conclusion), `individual_runs/`, `isolated_population.csv`, `population[_<split>].csv` (EvoSynth), `checkpoints/`, `result.json`.
+- **Resuming:** re-run the same command. Completed parts are skipped and an interrupted optimizer continues exactly from its last checkpoint, with its full internal state; `run.log` is appended to.
 
-### 3.5 Vision NAS
+### 3.5 Vision NAS and the speed-up benchmark
 
 ```bash
-evosynth nas                   # CNN NAS on digits: 80 evals, pop 20, 2 epochs per candidate (~15–20 s)
+evosynth nas                   # CNN NAS on Fashion-MNIST: 160 evals, pop 40, 2 epochs per candidate (~5 s each)
+evosynth speedup               # parallel threads and early stopping, measured on Covertype
 ```
 
-### 3.6 Staged orchestrator (Windows PowerShell)
+### 3.6 Experiment plans and summary tables
 
-```powershell
-.\tools\run_experiments.ps1                    # interactive menu: 1/2/3/4/A/Q
-.\tools\run_experiments.ps1 -Stage all         # baselines → EvoSynth 300/500 → CVGS-300 → CVGS-500
-.\tools\run_experiments.ps1 -Stage 2 -Extra "--set","run.random_state=7"
+```bash
+py -3.14 tools/run_experiments.py smoke              # the Phase 5 plan; restartable
+py -3.14 tools/run_experiments.py core --dry-run     # list a larger plan's jobs
+evosynth summary                                     # results/summary/: tables over seeds, convergence curves
 ```
 
-It calls the commands above, so everything lands in the usual run folders. See [07-experiments.md](07-experiments.md) §8.
+See [07-experiments.md](07-experiments.md) §8.
 
 ### 3.7 Inspecting settings
 
@@ -122,7 +123,7 @@ evosynth settings show --preset search_full --set engine.budget=600
 
 ## 4. Files written by any run
 
-Folder: `results/<experiment>/<dataset>/<variant>/seed_<random_state>/`
+Folder: `results/<experiment>/<dataset>/<variant>/seed_<run.seed>/`
 
 | File | Content |
 |---|---|
@@ -192,13 +193,14 @@ Used this way, nothing is written to disk. Wrap the code in `evosynth.experiment
 
 **Choosing settings:**
 - Keep `pop_size` at least 20 so each Tier 1 island has at least 2 members (checked by `config.validate`). Use 40 or more for islands of 4 or more, which gives more meaningful diversity scores.
-- Make sure `budget` comfortably exceeds `pop_size + t1_iters·4·(0.1·pop_size)`. Otherwise Tier 2 has no budget left.
-- To see SWAPs, injections and elite sharing in Tier 2, choose `k_iters` small enough that Tier 2 reaches at least one checkpoint.
+- Make sure `budget` comfortably exceeds `pop_size + t1_iters·4·(0.1·pop_size)`. Otherwise Tier 2 has no budget left (the run prints a warning).
+- `pop_size` must be at least 40, so each Tier 1 island has at least 4 members.
+- `k_iters` is lowered automatically (`engine.auto_k`) so that Tier 2 reaches at least two checkpoints, where SWAPs, injections and elite sharing happen.
 - For your own data, write an evaluator as described in [05](05-search-space-and-evaluators.md) §6. For a new optimizer, see [04](04-optimizers.md) §7.
 
 ## 8. Tests
 
-`python -m pytest` (needs the `dev` extra) runs the smoke tests in `tests/` in about 5 seconds, without training any model: settings loading, presets, overrides and validation; search spaces and decoding; a full `DynamicOptimizer` run on the toy objective; run folders (`manifest.json`, `result.json`, `run.log`, `events.jsonl`); and the `evosynth` command.
+`python -m pytest` (needs the `dev` extra) runs the 88 tests in `tests/` in about 20 seconds, on the toy objective and small synthetic data: settings and validation; search spaces and decoding; seeding and reproducibility; the engine (bandit, metrics, tier split, auto k, inject, CMA-ES updates); PSO and DE behaviour; datasets, splits, metrics, early stopping, failed folds and confirm-before-select; the ablation (resume, passive scoring, generated conclusion), refit, baselines and summary tables; run folders and the `evosynth` command.
 
 ## 9. Troubleshooting
 
@@ -206,10 +208,10 @@ Used this way, nothing is written to disk. Wrap the code in `evosynth.experiment
 |---|---|
 | `evosynth` is not recognised | Its scripts folder is not on `PATH`; use `python -m evosynth`. |
 | `evosynth: settings error: ...` | A value in `settings/` or a `--set` override is invalid; the message names it. `evosynth settings check` validates the folder. |
-| Dashboard stays on "Waiting for engine start…" | Start `evosynth serve` **before** the experiment. Check that `http://localhost:8000/docs` loads. |
-| Many `use_label_encoder` warnings | Harmless. Newer XGBoost ignores that argument (removed in Phase 3). |
+| Dashboard stays on "Waiting for engine start…" | Start `evosynth serve`; the engine re-checks every 10 s, so the dashboard connects within seconds. Check that `http://localhost:8000/docs` loads. |
+| `[EVAL] fold … failed` lines | A configuration could not be trained (it scores 0 for that fold). Occasional failures are normal; many suggest a data or settings problem. The count is in `result.json` (`failed_folds`). |
 | `matplotlib is not a writable directory` warning (Windows) | Harmless. Set `MPLCONFIGDIR` to a writable folder to silence it. |
-| Optuna or FLAML not found | `pip install -e ".[baselines]"`. The orchestrator installs them automatically. |
+| Optuna or FLAML not found | `pip install -e ".[baselines]"`. |
 | A run interrupted midway | `evosynth scale` and `evosynth ablation` checkpoint; the ablation and Optuna resume automatically when re-run. The manifest status says `interrupted`. |
 | Out of memory on long ablations | Lower `--max-workers` (the ablation preset uses 2). |
-| Tier 2 shows no swaps or sharing | `k_iters` is too large for the budget left after Tier 1. Lower `k_iters` or raise `budget`. |
+| `budget … leaves about N Tier 2 iteration(s)` warning | Too little budget after Tier 1. Raise `budget` or lower `t1_iters` / `pop_size`. |

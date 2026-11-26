@@ -1,6 +1,6 @@
 # 03 — Engine Internals (`DynamicOptimizer`)
 
-This file walks through `src/evosynth/engine/controller.py` and the scoring modules exactly as they are implemented. All constants and formulas are taken from the code. Where the docs, paper or slides describe something differently, §9 lists the difference.
+This file walks through `src/evosynth/engine/controller.py` and the modules it uses (`scoring.py`, `bandit.py`, `tiers.py`) exactly as they are implemented after the fix plan (Phases 0–4). Every constant comes from `settings/engine.toml`; the values quoted are the defaults.
 
 ---
 
@@ -9,15 +9,20 @@ This file walks through `src/evosynth/engine/controller.py` and the scoring modu
 | Attribute | Meaning |
 |---|---|
 | `evals_used` | Evaluations consumed so far, across all optimizers |
-| `algo_evals[algo]` | Evaluations consumed by each optimizer family (GA/PSO/DE/CMAES), counted across both tiers. Init evaluations are not counted for any family. |
+| `algo_evals[algo]` | Evaluations consumed by each optimizer family (GA/PSO/DE/CMAES), counted across both tiers. Initial-population evaluations count for no family. |
 | `best_individual` | Global best Individual |
 | `history` | One entry per evaluation: `{eval_id, fitness, best_so_far, algo}` |
-| `_algo_stats[algo]` | `best` (best fitness seen by that family) and `prev_best` (best at the last scoring call, used for trend) |
+| `evaluated` | Every evaluated Individual (used by confirm-before-select after the run) |
+| `_algo_stats[algo]` | `best`, `prev_best` (best at the family's last scoring call), `eval_seconds` (evaluation time since then), `best_history` (best at every scoring call) |
+| `scoring_history` | One entry per scoring call: evaluations used and every island's fitness, speed, efficiency, diversity, trend, composite and UCB score |
+| `decisions` | Every promotion, SWAP, rollback, injection and elite exchange, with the evaluation count |
 | `cooldowns[algo]` | Iterations remaining before this family may be swapped into Tier 2 |
 | `active_grace_period` | `None`, or `{algo, iters_left, baseline, snapshot, target_t1}` |
 | `composite_engine` | `CompositeScoringEngine()` |
-| `bandit` | `UCB1Bandit()` (see §8) |
-| `c` | 0.1, the exploration coefficient used in scoring |
+| `bandit` | `UCB1Bandit()` with `c = bandit.c` (0.1); makes every ranking decision |
+| `rng` | The controller's own generator, `stream("engine")`, derived from `run.seed` |
+
+Every optimizer the controller creates gets its own generator, `stream("engine", "optimizer", algo, n)`, so a run is fully reproducible from `run.seed`, whatever the thread scheduling (Phase 0).
 
 ---
 
@@ -25,136 +30,125 @@ This file walks through `src/evosynth/engine/controller.py` and the scoring modu
 
 ### STEP 0 — Search space
 
-The controller prints the dimension count `d = len(space.keys())`, the population size, the budget and the number of T1 iterations. It emits `step {num:0}`.
+The controller prints the dimension count `d = len(space.keys())`, the population size, the budget, the number of T1 iterations and the tier-split method. It emits `step {num:0}`.
 
 ### STEP 1 — Initial population
 
-- Random vectors `np.random.rand(d)` are evaluated in chunks of `max(1, 2·max_workers)`, tagged `'Init'`.
+- Random vectors `self.rng.random(d)` are evaluated in chunks of `max(1, 2·max_workers)`, tagged `'Init'`.
 - A progress line and a `progress` event are produced after each chunk.
-- The full population is then **sorted by fitness, best first**.
 
-### STEP 2 — Tier split
+### STEP 2 — Tier split (`TierManager`, `engine/tiers.py`)
 
 ```
-t1_count       = int(pop_size * 0.4)
-t1_island_size = t1_count // 4
-seeds: GA    = full_pop[0 : s]
-       PSO   = full_pop[s : 2s]
-       DE    = full_pop[2s : 3s]
-       CMAES = full_pop[3s : t1_count]          (s = t1_island_size)
-t2_reserved    = full_pop[t1_count:]            # the worse 60%
+island_size = int(pop_size · t1_fraction) // 4        # t1_fraction = 0.40
+Tier 1      = 4 · island_size individuals             # four islands
+reserve     = the rest, dealt into 2 groups
 ```
 
-The slices are **contiguous ranks** of the sorted population:
-- GA receives the very best individuals, PSO the next block, and so on.
-- The Tier 2 reserve is the bottom 60% by fitness.
+With the default **stratified** split (`engine.tier_split`):
 
-| pop_size | T1 total | Per island | Reserve | Each T2 island after promotion |
-|---|---|---|---|---|
-| 100 | 40 | 10 | 60 | 10 + 30 = 40 |
-| 50 | 20 | 5 | 30 | 5 + 15 = 20 |
-| 30 | 12 | 3 | 18 | 3 + 9 = 12 |
-| 20 | 8 | 2 | 12 | 2 + 6 = 8 |
+1. The population is sorted by fitness and cut into `4 · island_size` equal rank strata; one member is drawn at random from each stratum for Tier 1. Tier 1 therefore spans the whole fitness range instead of being "the best 40%".
+2. Those members are dealt to the four islands block by block (one rank block per round, each member to a random island), so every island gets a similar mix of good and weak members and no family starts with an advantage.
+3. The reserve is dealt into two groups the same way.
+
+The split uses its own generator (`stream("engine", "tiers")`). The alternatives, kept for the split ablation, are `random` (plain shuffle) and `elite` (the v1 behaviour: sorted top 40% in contiguous slices, GA getting the very best).
+
+Islands must have at least `engine.min_island_size` = 4 members, so `pop_size` must be at least 40; smaller values are rejected when the controller is created.
+
+| pop_size N | Tier 1 total | Per island | Reserve | Each reserve group | Each T2 island after promotion |
+|---|---|---|---|---|---|
+| 40 (presets) | 16 | 4 | 24 | 12 | 4 + 12 = 16 |
+| 60 | 24 | 6 | 36 | 18 | 6 + 18 = 24 |
+| 100 (`[engine]` default) | 40 | 10 | 60 | 30 | 10 + 30 = 40 |
+
+**Checkpoint interval k (auto_k).** Right after the split, `_set_checkpoint_interval` estimates how many Tier 2 iterations the budget allows:
+
+```
+remaining = budget − pop_size − t1_iters · 4 · island_size
+t2_iters  = remaining // pop_size                      # one T2 iteration costs about N evaluations
+k         = max(1, min(k_iters, t2_iters // min_t2_checkpoints))   # min_t2_checkpoints = 2
+```
+
+If even `k = 1` cannot give two checkpoints, the run prints a warning. Example: `evosynth run --full` (budget 500, N 40, t1_iters 5) → remaining 380, about 9 Tier 2 iterations, k = min(3, 4) = 3.
 
 ### STEP 3 — Tier 1 tournament (`t1_iters` iterations)
 
-1. One optimizer is created per family with `pop_size = t1_island_size` and told its seed slice.
-2. Each iteration, for every family: `inds = _evaluate_batch(opt.ask(t1_island_size), "T1_<algo>")`, then `opt.tell(inds)`. So each iteration costs `4 × t1_island_size` evaluations.
-3. A row is printed with each family's island best, the global best, the time taken and budget use. `<-- NEW BEST` is appended when the global best improves.
-4. **T1 stagnation check.** On iterations where `i % k == 0`:
-   - the composite metrics of the four islands are computed;
-   - any island whose `trend == 0.0` gets **50%** of its population replaced through `_random_inject(opt, 0.50, ...)`, which evaluates fresh random vectors and drops the worst.
-5. The loop breaks early if the budget runs out.
+1. One optimizer per family is created with `pop_size = island_size` and told its island.
+2. Each iteration, for every family: `inds = _evaluate_batch(opt.ask(island_size), "T1_<algo>")`, then `opt.tell(inds)`. Each iteration costs `4 × island_size` evaluations.
+3. A row is printed with each family's island best, the global best, the time taken and budget use; `<-- NEW BEST` marks a new global best.
+4. **T1 stagnation check.** On iterations where `i % k == 0`, the four islands are scored, and any island whose best did not improve since its last scoring call gets **50%** of its members replaced by fresh random vectors (`_random_inject`, §5).
 
 ### STEP 4 — Composite scoring and top-2 promotion
 
-1. `_compute_composite` is run on the four T1 islands, and the table is printed with columns Algorithm, Best Acc, Diversity, Composite, Bonus and UCB Score.
-2. Islands are sorted by UCB score:
-   - `top2` are **PROMOTED to Tier 2**;
-   - `bot2` are **RETAINED in Tier 1**.
-3. Each family is registered in `self.bandit` and `bandit.update(algo, score)` is called once.
-4. Tier 2 optimizers are built. For winner `idx ∈ {0, 1}`:
-   - `t2_size = len(its T1 island) + len(reserve)//2`;
-   - it receives a new optimizer of the same family, told its T1 island plus `reserve[idx·half : (idx+1)·half]`.
-5. The two losing families keep their existing T1 optimizers.
-6. The events `tier_state` and `switch{action:"Promotion"}` are emitted.
+1. `_compute_composite` scores the four T1 islands (§3); every score is also recorded in `bandit` and `scoring_history`. The table (Algorithm, Best Acc, Diversity, Composite, Bonus, UCB Score) is printed.
+2. `bandit.rank(scores)` orders the families by UCB score: the top `n_promoted` = 2 are **promoted to Tier 2**, the other two **stay in Tier 1**.
+3. For promoted family `idx ∈ {0, 1}`, a new optimizer of the same family is created with its Tier 1 island **plus reserve group `idx`**; its size is the sum (16 with N = 40).
+4. The two other families keep their Tier 1 optimizers.
+5. `tier_state` and `switch{action:"Promotion"}` are emitted and recorded.
 
 ### STEP 5 — Tier 2 working loop (until `evals_used ≥ budget`)
 
 Each iteration:
 
 1. Decrement every positive cooldown.
-2. Every T2 optimizer runs `ask(opt.pop_size)` → evaluate (tag `T2_<algo>`) → `tell`. Every T1 optimizer does the same (tag `T1_<algo>`).
+2. Every T2 optimizer runs `ask(opt.pop_size)` → evaluate (tag `T2_<algo>`) → `tell`; every T1 optimizer does the same (tag `T1_<algo>`).
 3. Print the row and emit `progress`.
 4. **Grace-period bookkeeping**, if a grace period is active:
    - `iters_left -= 1`.
-   - If the global best is now greater than `baseline`, the grace period ends successfully.
-   - Otherwise, if `iters_left ≤ 0`, a **ROLLBACK** happens:
-     1. The snapshot of the demoted optimizer is restored into Tier 2 under its old key, and the promoted family is removed from Tier 2.
-     2. The promoted family is rebuilt in Tier 1 with `t1_island_size` *fresh random* individuals, which are evaluated.
-     3. The demoted family is removed from Tier 1.
-     4. The failed challenger gets `cooldowns = 2k`.
-     5. `switch{action:"Rollback"}` and `tier_state` are emitted.
-5. **Checkpoint**, when `iteration % k == 0`. Scores are computed for all T2 and T1 islands and the table is printed. Then three steps run in order:
+   - If the global best is now above `baseline`, the grace period ends successfully.
+   - Otherwise, if `iters_left ≤ 0`, a **ROLLBACK** happens: the demoted optimizer's snapshot is restored into Tier 2, the challenger is rebuilt in Tier 1 with `island_size` fresh random (evaluated) individuals, the demoted family leaves Tier 1, and the challenger gets a cooldown of `2k`.
+5. **Checkpoint**, when `iteration % k == 0`. All T2 and T1 islands are scored and the table is printed. Then, in order:
 
-   **a) SWAP.** Let `best_t1` be the T1 island with the highest UCB score and `worst_t2` the T2 island with the lowest. A swap happens when all three conditions hold:
+   **a) SWAP.** With `best_t1` the T1 family ranked first and `worst_t2` the T2 family ranked last by the bandit, a swap happens when
 
    ```
-   UCB(best_t1) > UCB(worst_t2) + swap_threshold      (additive, threshold 0.10)
+   UCB(best_t1) > UCB(worst_t2) + swap_margin        (additive, 0.10)
    and cooldowns[best_t1] == 0
    and no grace period is active
    ```
 
-   The swap then proceeds as follows:
-   1. A grace period starts: `{algo: best_t1, iters_left: 5, baseline: current global best, snapshot: deepcopy(T2 optimizer of worst_t2), target_t1: worst_t2}`.
+   1. A grace period starts: `{algo: best_t1, iters_left: 5, baseline: global best, snapshot: deepcopy(T2 optimizer of worst_t2), target_t1: worst_t2}`.
    2. `cooldowns[worst_t2] = 2k`.
-   3. A new T2 optimizer of family `best_t1` is created with the old T2 size. It is told the old T1 island plus the tail of the old T2 population: `old_t1 + old_t2[len(old_t1):]`.
-   4. A new T1 optimizer of family `worst_t2` is created with the T1 island size and told the **top** `t1_island_size` individuals of the old T2 population.
-   5. Dictionaries and stagnation counters are updated, and `switch{action:"Swap"}` and `tier_state` are emitted.
+   3. A new T2 optimizer of family `best_t1` (old T2 size) is told the old T1 island plus the tail of the old T2 population.
+   4. A new T1 optimizer of family `worst_t2` (island size) is told the **top** `island_size` members of the old T2 population.
+   5. `switch{action:"Swap"}` and `tier_state` are emitted and recorded.
 
-   **b) T2 stagnation.**
-   - For each T2 island whose `trend == 0`, `stagnation_counters[algo] += 1`, otherwise the counter resets to 0.
-   - When a counter reaches `stagnation_limit` (3), the island gets `_random_inject(opt, inject_pct=0.20, ...)` and the counter resets.
+   **b) T2 stagnation.** For each T2 island whose best did not improve since its last scoring call, `stagnation_counters[algo] += 1` (otherwise it resets). At `stagnation_limit` = 3, the island gets **20%** random injection and the counter resets.
 
-   **c) Elite sharing (Tier 2 only).**
-   1. For each T2 island, take its top `n = max(1, int(pop_size · 0.20))` individuals and add them to `elite_pool`.
-   2. Sort the pool, best first.
-   3. Each T2 island replaces its worst `n` individuals with the pool's top `n`.
-
-   Both islands receive the *same* best elites. Tier 1 islands never take part.
+   **c) Pairwise elite sharing (Tier 2 only).** With `n = max(1, int(min(|A|, |B|) · 0.20))`, island A receives island B's top n and island B receives island A's top n, each through `optimizer.inject` (which replaces the receiver's worst n and updates its search state). Tier 1 islands do not take part.
 6. Reprint the header and continue.
 
 ### STEP 6 — Final results
 
-The controller prints total evaluations, total time, the winning algorithm tag (the `source_algorithm` of the best individual, e.g. `T2_PSO`), best accuracy, the optimal model type and every decoded hyperparameter. It returns the best `Individual`.
+The controller prints total evaluations, total time, the winning algorithm tag (the `source_algorithm` of the best individual, e.g. `T2_PSO`), the best score and every decoded hyperparameter, and returns the best `Individual`. The calling command (`evosynth run` / `scale`) then runs confirm-before-select and the refit ([02-architecture.md](02-architecture.md) §3).
 
 ---
 
 ## 3. Scoring: exact formulas
 
-`_compute_composite(algo_pops)` computes, for each island `P` (a list of Individuals) of family `a`:
+`_compute_composite(islands)` computes, for each island `P` of family `a` (d = number of dimensions):
 
 ```
-f_i       = fitness values in P
-best      = max(f_i)
-spread    = max(f_i) − min(f_i) + 1e-9
-diversity = min( std(f_i) / spread , 1.0 )          # numpy population std
-prev      = _algo_stats[a].prev_best                 # family-level, updated every call
-trend     = max(best − prev, 0)
-_algo_stats[a].prev_best = best
-raw metrics = { fitness: best, speed: trend, efficiency: 1.0, diversity: diversity, trend: trend }
+best        = max fitness in P
+improvement = max(best − _algo_stats[a].prev_best, 0)              # "speed"
+efficiency  = improvement / max(_algo_stats[a].eval_seconds, 1e-6)  # gain per evaluation-second
+diversity   = mean pairwise Euclidean distance between P's latent vectors / sqrt(d)   (0 if |P| < 2)
+trend       = least-squares slope of the family's best over its last trend_window = 3 scoring calls
+then: prev_best ← best, eval_seconds ← 0, best appended to best_history
 ```
 
-`CompositeScoringEngine.calculate_scores(raw)` then min–max normalises each metric **across the islands being compared**:
+`eval_seconds` accumulates the wall time of the family's evaluation batches between scoring calls.
+
+`CompositeScoringEngine.calculate_scores` then min-max normalises each metric **across the islands scored together**:
 
 ```
-norm_m(a) = (m(a) − min_m) / (max_m − min_m)      if max_m − min_m > 1e-9
-          = 0.5                                   otherwise
+norm_m(a)    = (m(a) − min_m) / (max_m − min_m)     if max_m − min_m > 1e-9
+             = 0.5  (tie_value)                     otherwise
 composite(a) = 0.30·norm_fitness + 0.25·norm_speed + 0.15·norm_efficiency
              + 0.15·norm_diversity + 0.15·norm_trend
 ```
 
-The exploration bonus and UCB score are:
+The bandit then adds the exploration bonus:
 
 ```
 bonus(a) = c · sqrt( ln(max(1, evals_used)) / max(1, algo_evals[a]) ),   c = 0.1
@@ -163,79 +157,56 @@ UCB(a)   = composite(a) + bonus(a)
 
 **What follows from these definitions:**
 
-- **Efficiency is constant.** It is always 1.0, so it normalises to 0.5 for every island and adds a constant 0.075. It never changes a ranking.
-- **Speed and trend are the same quantity.** Together they make up 40% of the composite weight and reward recent improvement.
-- **Diversity is fitness-based, not location-based.** It measures how spread an island's fitness values are, not distance in the latent space.
-- **Diversity is fixed at 0.500 for islands of two.** For two values `a ≠ b`, `std = |a−b|/2`, so `std/spread = 0.5` exactly. With identical values it is 0. This is why 0.500 appears so often in logs with small islands (pop 20 → 2 per T1 island). The CVGS ablation summaries also report a *hardcoded* 0.500/0.450 for EvoSynth; see [08-results.md](08-results.md).
-- **Trend depends on call history.** `prev_best` is stored per family and updated on *every* scoring call (T1 stagnation checks, promotion and each checkpoint). Trend is therefore "improvement since the last time this family was scored".
-- **Scores are relative.** Because of min–max normalisation, a composite score only means something within one table. The best island on a metric gets 1 and the worst gets 0.
-- **The bonus is small.** With `c = 0.1` it is typically 0.04–0.08. It mainly breaks near-ties in favour of families that have consumed less budget.
+- **Scores are relative.** Because of min-max normalisation, a composite only means something within one scoring call: the best island on a metric gets 1, the worst 0.
+- **Efficiency separates cheap progress from expensive progress.** Two families with the same improvement get different efficiency if one used more evaluation time (e.g. larger forests).
+- **Diversity is measured on configurations, not scores.** Two islands with identical accuracies but different hyperparameters are told apart.
+- **Speed and trend differ.** Speed is the gain since the last call; trend is the slope over the last three calls, so one lucky jump moves speed fully but trend only partly.
+- **The bonus is small.** With `c = 0.1` it is typically 0.04–0.08; it mainly breaks near-ties in favour of families that have used less budget.
 
 ---
 
-## 4. Worked example: reproducing the real Step 4 table
+## 4. Worked example: a Tier 1 scoring call
 
-These numbers come from the Covertype 120-evaluation run (`results/archive/2026-11-19_covertype_v1/evosynth/run_120.txt`). The run used pop = 20, `t1_iters = 3` and `k = 2`, so each T1 island has 2 individuals.
+An illustrative Step 4 with N = 40 and `t1_iters = 3` (the `evosynth run` preset): each family has used 3 × 4 = 12 evaluations and the run 40 + 48 = 88. The numbers below were computed with the engine's own `CompositeScoringEngine` and `UCB1Bandit`.
 
-Tier 1 log:
+Raw metrics:
 
-```
-Iter   GA      PSO     DE      CMAES   Global  Budget
- 1   85.96%  83.98%  83.20%  81.97%  85.96%   28/120
- 2   86.21%  83.98%  83.20%  81.97%  86.21%   36/120   ← k=2: scoring call sets prev_best
- 3   86.21%  83.98%  83.20%  82.66%  86.21%   44/120
-```
+| Family | Fitness (%) | Speed | Efficiency | Diversity | Trend |
+|---|---|---|---|---|---|
+| GA | 86.2 | 0.4 | 0.04 | 0.31 | 0.20 |
+| PSO | 85.1 | 1.1 | 0.12 | 0.42 | 0.55 |
+| DE | 84.6 | 0.0 | 0.00 | 0.47 | 0.00 |
+| CMAES | 85.6 | 0.6 | 0.05 | 0.22 | 0.30 |
 
-The Step 4 raw metrics, with trend measured since iteration 2:
+For GA: fitness (86.2 − 84.6)/1.6 = 1 → 0.300; speed 0.4/1.1 = 0.364 → 0.091; efficiency 0.04/0.12 = 0.333 → 0.050; diversity (0.31 − 0.22)/0.25 = 0.36 → 0.054; trend 0.20/0.55 = 0.364 → 0.055; composite **0.549**. The bonus is `0.1 · sqrt(ln 88 / 12) = 0.061` for every family (equal use so far).
 
-| Family | Best | Diversity | Trend (= speed) |
-|---|---|---|---|
-| CMAES | 82.66 | 0.5 | 0.69 |
-| GA | 86.21 | 0.5 | 0 |
-| DE | 83.20 | 0.5 | 0 |
-| PSO | 83.98 | 0.0 (both members equal) | 0 |
+| Family | Composite | Bonus | UCB | Decision |
+|---|---|---|---|---|
+| PSO | 0.764 | 0.061 | **0.825** | promoted |
+| GA | 0.549 | 0.061 | **0.611** | promoted |
+| CMAES | 0.468 | 0.061 | 0.529 | stays in Tier 1 |
+| DE | 0.150 | 0.061 | 0.211 | stays in Tier 1 |
 
-Normalising (fitness range 82.66–86.21 = 3.55; diversity 0–0.5; trend 0–0.69):
+PSO is promoted ahead of GA despite a lower best score, because it is improving fastest and most cheaply. At a later checkpoint, CMAES could SWAP in only if its UCB exceeded the weaker Tier 2 family's by more than 0.10.
 
-| Family | 0.30·F | 0.25·S | 0.075 (Eff) | 0.15·D | 0.15·T | Composite | Bonus | UCB |
-|---|---|---|---|---|---|---|---|---|
-| CMAES | 0 | 0.25 | 0.075 | 0.15 | 0.15 | **0.625** | 0.079 | **0.704** |
-| GA | 0.30 | 0 | 0.075 | 0.15 | 0 | **0.525** | 0.079 | **0.604** |
-| DE | 0.30·0.152 = 0.046 | 0 | 0.075 | 0.15 | 0 | **0.271** | 0.079 | **0.350** |
-| PSO | 0.30·0.372 = 0.112 | 0 | 0.075 | 0 | 0 | **0.187** | 0.079 | **0.266** |
-
-The bonus is `0.1·sqrt(ln 44 / 6) = 0.079`: 44 evaluations used, 6 per family (3 iterations × 2).
-
-These values match the log exactly, so **CMAES and GA are promoted**. CMAES is promoted with the *lowest* accuracy because it was the only family still improving. That is the intended behaviour of the trend and speed weighting.
-
-**The live SWAP at the first Tier 2 checkpoint** (iteration 2 of Step 5):
-
-```
-T1_PSO   85.20%  div 0.500  comp 0.654  bonus 0.067  UCB 0.720
-T2_CMAES 84.71%  div 0.335  comp 0.620  bonus 0.045  UCB 0.665
-T2_GA    86.33%  div 0.450  comp 0.503  bonus 0.045  UCB 0.547
-T1_DE    83.20%  div 0.500  comp 0.225  bonus 0.067  UCB 0.292
-[SWAP] T1_PSO (0.720) beats T2_GA (0.547) by >10%!
-```
-
-`0.720 > 0.547 + 0.10`, so PSO moves to Tier 2 and GA moves to Tier 1. The final winner was `T2_PSO` at 86.39% CV. Tier 2 bonuses are smaller because T2 families have consumed more evaluations.
+Real scoring tables from the re-runs are in each run's `run.log`, and every value is stored in the controller's `scoring_history` (the ablation's `result.json` reports them).
 
 ---
 
 ## 5. Random injection (`_random_inject`)
 
 ```
-n_inject = max(1, int(len(opt.population) * pct))
-fresh    = _evaluate_batch([rand(d) for _ in range(n_inject)], tag)   # costs budget
-opt.population.sort(desc); opt.population = population[:-n_inject] + fresh
+n_inject = max(1, int(len(opt.population) · pct))
+fresh    = _evaluate_batch([rng.random(d) for _ in range(n_inject)], tag)   # costs budget
+opt.inject(fresh)
 ```
+
+`inject` replaces the optimizer's worst members and keeps its internal state consistent: PSO resets the replaced particles (and its global best if a newcomer beats it), CMA-ES restarts its distribution around the new population, DE clears its pending targets.
 
 | Where | Fraction | Trigger |
 |---|---|---|
-| Tier 1 tournament (Step 3) | 50% | Trend 0 at a T1 checkpoint |
-| Tier 2 (Step 5) | 20% | Trend 0 at 3 consecutive checkpoints |
-
-The function edits `opt.population` directly. For PSO and CMA-ES the injected individuals change the tracked population, but not the particles' velocities or the CMA distribution; those adapt only through later `tell` calls.
+| Tier 1 tournament (Step 3) | 50% (`t1_inject_pct`) | No improvement at a T1 check |
+| Tier 2 (Step 5) | 20% (`t2_inject_pct`) | No improvement at 3 consecutive checkpoints |
 
 ---
 
@@ -243,7 +214,7 @@ The function edits `opt.population` directly. For PSO and CMA-ES the injected in
 
 - The budget is counted in **evaluations**. It is shared, not multiplied, so four optimizers do not cost four times as much.
 - `_evaluate_batch` truncates any request to the remaining budget, so the final batch can be partial. Step 5 exits as soon as `evals_used ≥ budget`.
-- Injections, swap-related evaluations and rollback re-seeding all consume budget.
+- Injections and rollback re-seeding consume budget. Confirm-before-select (after the run) does not; its cost is reported separately in `result.json`.
 - The meta-logic itself (scoring, sorting, deep copies) costs negligible time compared with model training.
 
 ---
@@ -252,43 +223,36 @@ The function edits `opt.population` directly. For PSO and CMA-ES the injected in
 
 ### `CompositeScoringEngine` (`engine/scoring.py`)
 
-Holds the weights `{fitness:0.30, speed:0.25, efficiency:0.15, diversity:0.15, trend:0.15}` from `[composite]` in `settings/engine.toml`. `calculate_scores(dict)` returns normalised weighted sums as in §3.
+Holds the weights `{fitness 0.30, speed 0.25, efficiency 0.15, diversity 0.15, trend 0.15}` and `tie_value` 0.5 from `[composite]`. `calculate_scores(dict)` returns the normalised weighted sums of §3.
 
 ### `UCB1Bandit` (`engine/bandit.py`)
 
-- `__init__(c=1.414)` sets up the exploration constant, a `stats` dict mapping algo → {pulls, total_reward}, and `total_pulls`.
-- `register_algorithm`, and `update(algo, reward)` which adds a pull and adds the reward.
-- `select_next(available)` returns any algorithm with zero pulls; otherwise it returns the argmax of `avg_reward + c·sqrt(ln(total_pulls)/pulls)`.
+- `c` defaults to `bandit.c` (0.1).
+- `update(algo, reward)` records a pull with the composite as reward (called at every scoring call); `mean_reward(algo)`.
+- `bonus(n_algo, n_total)` and `score(algo, composite, n_algo, n_total) = composite + bonus`.
+- `rank(ucb_scores)` orders families best first; the controller uses it for promotion and both sides of the SWAP rule.
 
 ### `TierManager` (`engine/tiers.py`)
 
-- Shuffles a population and splits it 40/60 (`t1_ratio = 0.4`).
-- `allocate_t1_batch` / `allocate_t2_batch` pop batches from each pool.
-- The static `share_elites(a, b, top_pct=0.2)` performs a *pairwise* swap: A's worst are replaced by B's elites, and vice versa.
+- `TierManager(population, island_size, n_islands=4, split="stratified", rng)` performs the split of Step 2; `islands()` and `reserve_groups(n)` deal the members.
+- `select_elites(pop, top_pct)` and `share_elites(a, b, top_pct)` (pairwise exchange) are used for elite sharing.
 
 ---
 
-## 8. How much of the bandit and helpers the controller actually uses
+## 8. What changed from the panel-review version (v1)
 
-- **`UCB1Bandit`.** The controller instantiates it and, at Step 4, calls `register_algorithm` and `update`. It **never calls `select_next`**. All promotion and swap decisions use the controller's own UCB-style score from §3 (composite plus `0.1·sqrt(ln N / n_i)`). So the "UCB1 bandit" in EvoSynth is that inline formula. The `UCB1Bandit` class with `c = √2` is bookkeeping that the decision logic does not use.
-- **`TierManager`.** Imported but not yet used (Phase 1 wires it in for the stratified split and pairwise elite sharing). The controller implements the split itself, without shuffling: the sorted top 40% go to T1. It also implements elite sharing as *pooled* sharing, not `TierManager`'s pairwise swap.
-- **`PopulationManager`** was removed in the restructure; the controller generates the population itself, in parallel.
-
----
-
-## 9. Where the docs, paper or slides differ from the code
-
-| Topic | Code (authoritative) | Elsewhere |
+| Topic | v1 (panel review) | Now |
 |---|---|---|
-| Composite weights | 5 metrics: 0.30 / 0.25 / 0.15 / 0.15 / 0.15 | Paper §II-D: 4 pillars 0.40 / 0.20 / 0.20 / 0.20. The slides use the code's 5-metric weights. |
-| Exploration constant | `c = 0.1` | Panel guide says `c = 0.5`. The `UCB1Bandit` default is 1.414. The passive ablation telemetry uses 0.5. |
-| Diversity | std/spread of fitness values | Panel guide: mean pairwise Euclidean distance in latent space |
-| Speed | Equals trend (improvement) | Panel guide: inverse runtime. The ablation scripts' passive telemetry uses `1/(step_time+1e-4)`. |
-| Efficiency | Constant 1.0 | Panel guide: `F/ln(t+e)`. The ablation scripts' passive telemetry uses that formula. |
-| SWAP rule | `UCB_T1 > UCB_T2 + 0.10` (additive) | Several docs: "beats by >10%" or `UCB_T1 > 1.10 × UCB_T2` |
-| Who gets the cooldown on SWAP | The demoted T2 family (`2k`). On rollback, the failed challenger (`2k`). | Docs: "demoted algorithm locked out" — consistent |
-| T1 seeding | Contiguous rank slices of the sorted population; GA gets the best | Phase 1 replaces it with a stratified-random split (`TierManager`) |
-| T2 reserve | The worst 60% of the initial population | Some docs describe it as neutral "reserved capacity" |
-| Elite sharing | Pooled top-n, written into both islands | `TierManager.share_elites`: pairwise swap |
-| Stagnation rule | T1: any zero-trend checkpoint → 50%. T2: 3 consecutive → 20%. | Docs: "3 consecutive checkpoints" for both |
-| Default `t1_iters` / `k` | 30 / 10 in `[engine]`. Command presets override them (e.g. 3 / 2 for `evosynth run`). | Slides: 10 / 5 |
+| Who decides | An inline UCB-style formula; `UCB1Bandit` only did bookkeeping (default c 1.414) | `UCB1Bandit` (c 0.1) ranks every promotion and SWAP |
+| Efficiency | Constant 1.0 (no effect) | Improvement per evaluation-second |
+| Trend | Identical to speed | Slope over the last 3 scoring calls |
+| Diversity | Spread of fitness values (always 0.5 for 2-member islands) | Mean latent distance / √d; islands of at least 4 |
+| Tier split | Sorted top 40% in contiguous slices; GA got the best | Stratified by rank; `random` / `elite` for the ablation |
+| Checkpoint k | Fixed; Tier 2 sometimes never reached a checkpoint | Sized automatically (≥ 2 Tier 2 checkpoints) |
+| Injection | Overwrote the population list only | `optimizer.inject` updates the search state |
+| Elite sharing | Pooled: both islands got the same elites | Pairwise exchange |
+| Stagnation | Zero "trend" (= zero improvement) | Zero improvement since the last scoring call |
+| Randomness | Global NumPy state; CMA-ES reseeded from the clock | One seed; a generator per component |
+| CMA-ES | Updates often failed silently (seeds told with the first generation) | One update per generation with its own samples |
+| PSO / DE | PSO re-evaluated its seeds; both only used the first members when asked for fewer | Seeds are moved first; members visited round-robin; DE one-to-one selection |
+| Records | Printed tables only | `scoring_history`, `decisions`, `evaluated` |

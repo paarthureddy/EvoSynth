@@ -15,7 +15,7 @@ SSE (server-sent events) was chosen over WebSockets because the traffic is one-w
 ## 1. Engine side: `EventReporter` and `LoggerWriter` (`src/evosynth/telemetry/`)
 
 - **`EventReporter`** (`reporter.py`) is created by `RunContext` when a run starts (or lazily by `get_reporter()`), and the controller uses the active one.
-  - It probes `GET http://localhost:8000/docs` with a 0.5 s timeout (`[telemetry]` settings) and sets `enabled = True` only if the probe succeeds.
+  - It probes `GET http://localhost:8000/docs` with a 0.5 s timeout (`[telemetry]` settings) and sets `enabled = True` if the probe succeeds. While the server is unreachable it re-probes in the background every `telemetry.reprobe_seconds` (10 s), so the server and dashboard can be started after a run has begun. Every event is also appended to the run's `events.jsonl` either way.
   - Live telemetry is therefore **off** unless the API server is already running when the run starts.
 - **`emit(event_type, payload)`** always appends the event, with a timestamp, to the run's `events.jsonl` (except `log` events). When enabled, it also starts a daemon thread that POSTs `{"type": event_type, "data": payload}` to `http://localhost:8000/event` with a 1 s timeout. Failures are swallowed, so telemetry can never slow down or crash a run.
 - **`LoggerWriter`** (`run_logger.py`) replaces `sys.stdout` for the duration of a run. Each `write`:

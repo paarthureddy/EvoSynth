@@ -13,7 +13,7 @@ All search spaces are `ConfigSpace.ConfigurationSpace` objects, built from the r
 | `optimizer` | categorical | Adam, SGD, RMSprop |
 | `dropout` | float | 0.0 – 0.5 |
 
-### 1.2 `get_tabular_search_space(include_model_type=True, include_fe_strategy=True)` (`tabular.py`): the main 9-dimensional tabular space
+### 1.2 `get_tabular_search_space(include_model_type=True, include_fe_strategy=True)` (`tabular.py`): the main 8-dimensional tabular space
 
 | Name | Type | Range / choices | Used by |
 |---|---|---|---|
@@ -23,11 +23,10 @@ All search spaces are `ConfigSpace.ConfigurationSpace` objects, built from the r
 | `n_estimators` | int | 50 – 500 | All (RF/ET capped at 150 during search) |
 | `max_depth` | int | 3 – 10 | All (RF/ET use depth×3, or unlimited when depth = 10) |
 | `subsample` | float | 0.5 – 1.0 | XGBoost, LightGBM |
-| `booster` | categorical | gbtree, dart | XGBoost |
 | `colsample_bytree` | float | 0.3 – 1.0 | XGB/LGBM; used as `max_features` for RF/ET |
 | `reg_alpha` | float | 0.0 – 10.0 | XGBoost, LightGBM (L1) |
 
-Without the two flags the space is 7-dimensional. `get_xgboost_search_space` is kept as an alias of `get_tabular_search_space`.
+Without the two flags the space is 6-dimensional. XGBoost always uses the `gbtree` booster: the v1 `booster` gene (gbtree / dart) was removed because XGBoost 3.4 deprecates `dart`. `get_xgboost_search_space` is kept as an alias of `get_tabular_search_space`.
 
 ### 1.3 `get_image_nas_search_space()` (`nas.py`): 7 dimensions (CNN NAS)
 
@@ -63,8 +62,8 @@ config = Configuration(space, vector=valid_vec)
   - linear: `x = L + z·(U − L)`;
   - log scale: `x = exp(ln L + z·(ln U − ln L))`;
   - integers are rounded from the scaled value.
-- **Dimension order is `list(space.keys())`.** In the ConfigSpace version used, that order is **alphabetical**, as every log's hyperparameter listing shows: `booster, colsample_bytree, fe_strategy, learning_rate, max_depth, model_type, n_estimators, reg_alpha, subsample`. The vector index of a hyperparameter is its alphabetical position, not its declaration order.
-- **Inactive dimensions.** For RF/ET, `learning_rate`, `subsample`, `booster` and `reg_alpha` have no effect. They drift neutrally through the search, which the project lists as a known limitation.
+- **Dimension order is `list(space.keys())`.** In the ConfigSpace version used, that order is **alphabetical**, as every log's hyperparameter listing shows: `colsample_bytree, fe_strategy, learning_rate, max_depth, model_type, n_estimators, reg_alpha, subsample` (a unit test checks this order). The vector index of a hyperparameter is its alphabetical position, not its declaration order.
+- **Inactive dimensions.** For RF/ET, `learning_rate`, `subsample` and `reg_alpha` have no effect. They drift neutrally through the search, which the project lists as a known limitation.
 
 Why the latent space is needed: PSO velocities, DE differences, GA blending and CMA-ES covariance all need continuous vectors. Binning lets those continuous operators move between model families and other categorical choices without special rules.
 
@@ -72,7 +71,7 @@ Why the latent space is needed: PSO velocities, DE differences, GA blending and 
 
 ## 3. Evaluators
 
-Evaluators live in `src/evosynth/evaluators/`. All return **accuracy in percent** (0–100; higher is better) and set every model's `random_state` to `run.random_state` (42).
+Evaluators live in `src/evosynth/evaluators/`. All return a **score in percent** (0–100; higher is better): the dataset's metric for tabular data, accuracy for NAS. Every model's `random_state` is `run.seed` (42); data splits use `run.data_seed` (42).
 
 ### 3.1 `DummyObjectiveFunction` (`toy.py`)
 
@@ -85,43 +84,50 @@ score = max(0, 100 − error)
 
 ### 3.2 `TabularEvaluator(dataset="covertype", subsample_size=None)` (`tabular.py`), the real-world benchmark
 
-The evaluator is generic over the datasets registered in `settings/datasets.toml` (`evosynth datasets list`); the data loading lives in `src/evosynth/datasets/`, the model construction in `src/evosynth/models/factory.py` (`build_model(phase="search")`). `subsample_size` defaults to `datasets.<name>.search_subsample`. Covertype is currently the only registered dataset (HIGGS, Adult, Airlines, Poker Hand, MiniBooNE and Jannis follow in Phase 3).
+The evaluator is generic over the datasets registered in `settings/datasets.toml` (`evosynth datasets list`). Loading and splitting live in `src/evosynth/datasets/`, models in `src/evosynth/models/factory.py`, scoring in `models/metrics.py`.
 
-- **Data:** `sklearn.datasets.fetch_covtype(data_home="<repo>/.data")`, cached as `.data/covertype/samples_py3` and `targets_py3` (git-ignored).
-  - 581,012 rows, 54 features: 10 continuous cartographic features plus 4 wilderness and 40 soil-type binary indicators. 7 classes.
-  - `X` is cast to float32 and `y = target − 1` (classes 0..6; `datasets.covertype.label_offset`).
-- **Search subsample:** a stratified `train_test_split(train_size=subsample_size, random_state=42)`, giving 20,000 rows. Class counts in the subsample:
-  - 0: 7,292
-  - 1: 9,752
-  - 2: 1,231
-  - 3: 94
-  - 4: 327
-  - 5: 598
-  - 6: 706
-- **Protocol:** `StratifiedKFold(evaluation.cv_folds = 2, shuffle=True, random_state=42)`. The feature engineer is **fit on the training fold and applied to the validation fold**, which avoids leakage.
+**Datasets.**
+
+| Dataset | Source | Rows | Features | Classes | Metric |
+|---|---|---|---|---|---|
+| Covertype | `sklearn.fetch_covtype` (UCI) | 581,012 | 54 | 7 | accuracy |
+| HIGGS (98k version) | OpenML 23512 | 98,050 | 28 | 2 | ROC AUC |
+| Adult | OpenML 1590 | 48,842 | 14 (8 categorical) | 2 | ROC AUC |
+| Airlines | OpenML 1169 | 539,383 | 7 (4 categorical) | 2 | ROC AUC |
+| Poker Hand (v2) | OpenML 1569 | 1,025,000 | 10 | 9 | accuracy |
+| MiniBooNE | OpenML 41150 | 130,064 | 50 | 2 | ROC AUC |
+| Jannis | OpenML 41168 | 83,733 | 54 | 4 | accuracy |
+
+Binary datasets use ROC AUC because several are imbalanced (Adult is 76/24), where accuracy rewards predicting the majority class.
+
+- **Loading** (`datasets/loaders.py`): downloaded once into `.data/` and stored as `.data/<name>/<name>.npz`. Labels are re-coded to `0..K−1`; categorical columns become integer codes (missing values get their own code); missing numbers are replaced by the column median.
+- **Splits** (`datasets.partition`, `run.data_seed`): the **test rows** (20,000; 12,000 for Adult) are split off first, stratified, and are never seen by any search. The **search rows** (20,000) and the **train rows** for the refit (60,000; 36,000 for Adult) are stratified samples of the rest. `subsample_size` (CLI `--subsample`) takes a stratified subset of the search rows; the Phase 5 runs use 10,000. The exact row indices are published in the EvoSynth-Bench dataset (Zenodo 10.5281/zenodo.23645119).
+- **Protocol:** `StratifiedKFold(evaluation.cv_folds = 2, shuffle=True, random_state=data_seed)`. In each fold the feature engineer is **fit on the training fold and applied to the validation fold**. For XGBoost and LightGBM, 15% of the training fold (`early_stopping_fraction`) is held back as the early-stopping set; the validation fold is used only for the score.
 - **Models by `model_type`:**
 
-| Choice | Construction during search |
+| Choice | Construction during search (`build_model(phase="search")`) |
 |---|---|
-| XGBoost | `XGBClassifier(lr, n_est, depth, subsample, booster, colsample, reg_alpha, early_stopping_rounds=10, eval_metric="mlogloss", n_jobs=1, use_label_encoder=False)` fit with `eval_set = validation fold`. The deprecated `use_label_encoder` argument only produces warnings in the logs. |
-| LightGBM | `LGBMClassifier(lr, n_est, depth, subsample, colsample, reg_alpha, n_jobs=1)` with `early_stopping(10)` |
-| ExtraTrees | `ExtraTreesClassifier(n_estimators=min(n,150), max_depth = depth·3 if depth<10 else None, max_features=colsample, n_jobs=1)` |
+| XGBoost | `XGBClassifier(lr, n_est, depth, subsample, colsample, reg_alpha, booster="gbtree", early_stopping_rounds=10, eval_metric=logloss or mlogloss, n_jobs=1)` fit with `eval_set` = the early-stopping slice. When a training fold lacks a class (rare Poker Hand hands), labels are re-coded for training and mapped back for prediction. |
+| LightGBM | `LGBMClassifier(lr, n_est, depth, subsample, colsample, reg_alpha, n_jobs=1)` with `early_stopping(10)` on the early-stopping slice |
+| ExtraTrees | `ExtraTreesClassifier(n_estimators=min(n,150), max_depth = depth·3 if depth<10 else None, max_features=colsample, n_jobs=1)` on the whole training fold |
 | RandomForest | Same rules as ExtraTrees, using `RandomForestClassifier` |
 
-- **Failure handling:** any exception scores that fold `evaluation.failed_fold_score` = 0.5 (changed to 0 in Phase 3).
-- **Score:** mean of the 2 fold accuracies × 100.
+- **Failure handling:** a fold whose model raises an exception scores `evaluation.failed_fold_score` = 0; the error is printed and counted (`evaluator.failed_folds`, reported in `result.json`).
+- **Score:** mean of the fold scores in the dataset's metric, × 100.
+- **`evaluate_config(params, folds)`:** scores decoded hyperparameters with any number of folds; used by confirm-before-select (5 folds).
 
 ### 3.3 `ImageCNNEvaluator(space=None, epochs=None, batch_size=None, device=None)` (`image.py`), NAS
 
 Defaults come from `[experiments.nas]`: 2 epochs, batch size 64, CPU.
 
-- **Data:** `sklearn.datasets.load_digits`, 1,797 grayscale 8×8 images in 10 classes, scaled to `[0,1]` (divided by 16) and shaped `(N, 1, 8, 8)`. A stratified 75/25 train/validation split (`random_state=42`) is wrapped in DataLoaders, with the training loader shuffled.
+- **Data:** Fashion-MNIST (`experiments.nas.dataset`), 70,000 grayscale 28×28 images of clothing in 10 balanced classes, downloaded via torchvision, scaled to `[0,1]` and shaped `(N, 1, 28, 28)`. The search trains on 10,000 and validates on 2,500 images, both stratified samples of the official 60,000 training images (`data_seed`); the official 10,000 test images are held out.
+- **Seeding:** each configuration trains with a seed derived from `run.seed` and its vector, and training is serialised under a lock, so the same configuration always gets the same score.
 - **`DynamicCNN`** (`src/evosynth/models/cnn.py`):
 
 ```
 Conv2d(1 → conv1, 3×3, pad 1) → BatchNorm2d → act → MaxPool2d(2)
 Conv2d(conv1 → conv2, 3×3, pad 1) → BatchNorm2d → act → AdaptiveAvgPool2d(2×2)
-Flatten → Linear(conv2·4 → fc_units) → act → Dropout(p) → Linear(fc_units → 10)
+Flatten → Linear(conv2·4 → fc_units) → act → Dropout(p) → Linear(fc_units → num_classes)
 act = ReLU or LeakyReLU
 ```
 
@@ -163,10 +169,10 @@ On Covertype, the 10 cartographic columns are continuous:
 
 ## 5. Early stopping and acceleration
 
-- **Boosted models:** XGBoost and LightGBM stop after 10 rounds without improvement on the validation fold (`early_stopping_rounds=10` or `lgb.early_stopping(10)`). Poor configurations are cut short. (Early stopping on the same fold that is then scored makes those scores slightly optimistic. The same protocol is used for every candidate.)
+- **Boosted models:** XGBoost and LightGBM stop after 10 rounds without improvement on an early-stopping slice of the training fold (never on the fold that is scored, Phase 3). Poor configurations are cut short. (Early stopping on the same fold that is then scored makes those scores slightly optimistic. The same protocol is used for every candidate.)
 - **Bagging models:** RF and ET are capped at 150 trees during search, which keeps evaluation cost bounded.
 - **Thread-pool parallelism:** see [02-architecture.md](02-architecture.md) §5.
-- **Covertype multi-fidelity:** the search uses 20k rows with 2-fold CV, about 10k training rows per fold. The single winner is then refit on 60k rows and tested on 20k unseen rows ([07-experiments.md](07-experiments.md) E1).
+- **Cheap search, full refit:** the search uses 20,000 rows (10,000 in the Phase 5 runs) with 2-fold CV. After confirm-before-select, the selected configuration is refit on the train rows (60,000 for most datasets) with the same early-stopping rule and scored once on the held-out test rows ([07-experiments.md](07-experiments.md)).
 
 ---
 
@@ -175,8 +181,8 @@ On Covertype, the 10 cartographic columns are continuous:
 The contract is a `.space` attribute (a ConfigSpace) and `.evaluate(individual) -> float`:
 
 ```python
-import numpy as np, ConfigSpace as CS, ConfigSpace.hyperparameters as CSH
-from ConfigSpace import Configuration
+import ConfigSpace as CS, ConfigSpace.hyperparameters as CSH
+from evosynth.core.decoding import decode_vector_to_dict
 
 class MyEvaluator:
     def __init__(self):
@@ -188,12 +194,7 @@ class MyEvaluator:
         self.X, self.y = load_my_data()
 
     def evaluate(self, individual) -> float:
-        v = np.copy(individual.vector)
-        for i, name in enumerate(list(self.space.keys())):           # categorical binning
-            hp = self.space.get_hyperparameter(name)
-            if isinstance(hp, CSH.CategoricalHyperparameter):
-                K = len(hp.choices); v[i] = float(min(int(np.floor(v[i] * K)), K - 1))
-        cfg = Configuration(self.space, vector=v)
+        cfg = decode_vector_to_dict(individual.vector, self.space)  # bins categoricals, scales the rest
         return float(train_and_score(cfg, self.X, self.y))           # higher is better, e.g. %
 
 from evosynth.engine.controller import DynamicOptimizer
@@ -202,7 +203,7 @@ best = DynamicOptimizer(search_space=MyEvaluator().space, evaluator=MyEvaluator(
 ```
 
 **Rules for custom evaluators:**
-- Always bin categorical dimensions before building the `Configuration`.
+- Decode with `decode_vector_to_dict` (it bins categorical dimensions the same way as EvoSynth's evaluators).
 - Keep `evaluate` thread-safe, because it is called from a thread pool.
 - Set `n_jobs=1` inside models.
 - Return a bounded score.

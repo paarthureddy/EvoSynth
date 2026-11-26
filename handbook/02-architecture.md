@@ -9,27 +9,30 @@ EvoSynth/
 ├── README.md / CONTRIBUTING.md / LICENSE (MIT)
 ├── settings/                    # ── EVERY TUNABLE VALUE ── (TOML, merged into one set of settings)
 │   ├── README.md                # Index: which file holds what, rules, how a value is chosen
-│   ├── run.toml                 # [run] random_state, max_workers
+│   ├── run.toml                 # [run] seed, data_seed, max_workers
 │   ├── engine.toml              # [engine] [bandit] [composite] [safeguards]
 │   ├── optimizers.toml          # [optimizers.ga|pso|de|cmaes]
 │   ├── search_spaces.toml       # [search_space.tabular|nas|toy]
-│   ├── evaluation.toml          # [evaluation] [features] [refit]
+│   ├── evaluation.toml          # [evaluation] [selection] [features] [refit] [inference]
 │   ├── datasets.toml            # [datasets.<name>]
 │   ├── telemetry.toml           # [telemetry]
-│   └── experiments.toml         # [experiments.search_demo|search_full|scaling|ablation|baselines|nas]
+│   └── experiments.toml         # [experiments.search_demo|search_full|scaling|ablation|baselines|nas|speedup]
 ├── src/evosynth/                # ── THE FRAMEWORK ──
 │   ├── __main__.py / cli.py     # `evosynth <command>` (= `python -m evosynth`)
 │   ├── config.py                # read_settings, load_config (preset + overrides), validate, get/set_settings
 │   ├── paths.py                 # PROJECT_ROOT, DATA_DIR (.data/), RESULTS_DIR (results/), SETTINGS_DIR
+│   ├── seeding.py               # run_seed / data_seed, stream(*names): one independent generator per component
 │   ├── core/
 │   │   ├── individual.py        # Individual(vector, fitness, source_algorithm)
 │   │   └── decoding.py          # decode_vector_to_dict(vector, space)
-│   ├── search_spaces/           # tabular.py (9-D), nas.py (7-D), toy.py (4-D), built from settings
-│   ├── datasets/                # registry.py (name → loader + spec), loaders.py (download to .data/), splits.py
+│   ├── search_spaces/           # tabular.py (8-D), nas.py (7-D), toy.py (4-D), built from settings
+│   ├── datasets/                # registry.py (spec, load, partition), loaders.py (sklearn / OpenML / torchvision → .data/), splits.py (test first)
 │   ├── features/generic.py      # GenericFeatureEngineer: none / stats / interactions
 │   ├── models/
-│   │   ├── factory.py           # build_model / fit_model for search, refit and baseline phases
-│   │   ├── refit.py             # refit_split, refit_and_score (60k train / 20k test)
+│   │   ├── factory.py           # build_model (search / refit), build_default_model, fit_model (early stopping, relabelling)
+│   │   ├── refit.py             # refit_split, refit_and_score: the one refit for every tuned method
+│   │   ├── metrics.py           # score(model, X, y, metric): accuracy / balanced_accuracy / roc_auc
+│   │   ├── inference.py         # measure(model, X): latency per row, rows/s, model size
 │   │   └── cnn.py               # DynamicCNN
 │   ├── evaluators/
 │   │   ├── tabular.py           # TabularEvaluator(dataset, subsample_size)
@@ -38,9 +41,9 @@ EvoSynth/
 │   ├── engine/
 │   │   ├── controller.py        # DynamicOptimizer: the whole meta-optimization loop
 │   │   ├── scoring.py           # CompositeScoringEngine (5 weighted, min-max-normalised metrics)
-│   │   ├── bandit.py            # UCB1Bandit class (bookkeeping; see 03 §8)
-│   │   └── tiers.py             # TierManager helper (not yet used by the controller)
-│   ├── optimizers/              # base.py (ask/tell contract), ga.py, pso.py, de.py, cmaes.py
+│   │   ├── bandit.py            # UCB1Bandit: scores and ranks the families (promotion, SWAP)
+│   │   └── tiers.py             # TierManager: stratified / random / elite split, pairwise elite sharing
+│   ├── optimizers/              # base.py (ask / tell / inject, own rng), ga.py, pso.py, de.py, cmaes.py
 │   ├── telemetry/
 │   │   ├── reporter.py          # EventReporter: events.jsonl + optional POST to the server
 │   │   ├── run_logger.py        # stdout mirror (run.log), PopulationLogger (population.csv)
@@ -52,8 +55,12 @@ EvoSynth/
 │       ├── scaling.py           # `evosynth scale`
 │       ├── ablation.py          # `evosynth ablation`
 │       ├── baselines.py         # `evosynth baselines`
+│       ├── selection.py         # confirm_best: confirm before select
+│       ├── summary.py           # `evosynth summary`: tables over seeds, convergence curves
+│       ├── speedup.py           # `evosynth speedup`
 │       └── nas.py               # `evosynth nas`
-├── tools/run_experiments.ps1    # Staged PowerShell orchestrator for the Covertype study
+├── tools/run_experiments.py     # Experiment plans (smoke / lean / core), resumable
+├── tools/export_splits.py       # Exports the exact dataset splits (EvoSynth-Bench release)
 ├── results/                     # One folder per run (see §4); archive/ holds the v1 panel-review results
 ├── dashboard/                   # React 19 + Vite 8 + Tailwind 4 live dashboard (src/App.jsx)
 ├── docs/                        # VitePress documentation site
@@ -101,25 +108,27 @@ evosynth run  (cli.cmd_run)
   │ settings = load_config(preset, flags, --set)   # settings/*.toml → preset → flags → --set
   │ with RunContext("search", dataset, variant):   # creates the run folder, manifest.json, run.log
   │   space = get_tabular_search_space(...)        # ConfigSpace, d dims
-  │   evaluator = TabularEvaluator(dataset, n)     # loads/subsamples data once
+  │   evaluator = TabularEvaluator(dataset, n)     # loads the dataset's search rows once (test rows held out)
   │   opt = DynamicOptimizer(space, evaluator, population_csv=...)   # budget etc. from [engine]
   ▼
 opt.run()
   STEP 0  print config; emit step 0
   STEP 1  for chunks of size 2·max_workers: random vectors → _evaluate_batch('Init')
-  STEP 2  sort pop desc; T1 = top 40% split in 4 contiguous slices; T2 reserve = rest
+  STEP 2  TierManager(split="stratified"): 40% → 4 Tier 1 islands, 60% → 2 reserve groups; k sized (auto_k)
   STEP 3  for i in 1..t1_iters:
              for each algo: inds = _evaluate_batch(opt.ask(island), 'T1_algo'); opt.tell(inds)
-             every k: composite → if trend==0: inject 50% random into that T1 island
-  STEP 4  composite+UCB over T1 → top2 → build T2 optimizers (T1 island + half reserve each)
+             every k: composite → island without improvement: inject 50% random (optimizer.inject)
+  STEP 4  composite + UCB1Bandit over T1 → rank → top2 → build T2 optimizers (T1 island + one reserve group each)
   STEP 5  while evals_used < budget:
              each T2 and T1 optimizer: ask(pop_size) → evaluate → tell
              grace-period bookkeeping (rollback if failed)
-             every k: score all → maybe SWAP → stagnation injection (T2) → elite sharing (T2)
+             every k: score all (scoring_history) → maybe SWAP → stagnation injection → pairwise elite sharing
   STEP 6  print totals, winning algo tag, decoded best hyperparameters; return best Individual
   ▼
 experiment (search / scaling)
-  refit_and_score: decode best → GenericFeatureEngineer → build final model → fit 60k → test 20k
+  confirm_best: top 5 distinct configs re-scored with 5-fold CV → selected config
+  refit_and_score: GenericFeatureEngineer (fit on train) → build model → fit on train rows
+                   (boosted: early stop on a train slice) → score test rows → measure inference → model.pkl
   run.write_result({...})                          # result.json
 ```
 
@@ -138,20 +147,21 @@ experiment (search / scaling)
 
 Importing any `evosynth` module has **no side effects**. Everything is set up by `RunContext` when a command starts a run, in one folder per run:
 
-`results/<experiment>/<dataset>/<variant>/seed_<random_state>/`
+`results/<experiment>/<dataset>/<variant>/seed_<run.seed>/`
 
 | File | Contents |
 |---|---|
 | `manifest.json` | Command line, every resolved setting, git commit/branch/dirty flag, Python and library versions, start/end time, status (`running` / `completed` / `failed` / `interrupted`) |
-| `result.json` | The run's final numbers (best CV score, best configuration, refit test accuracy, …) |
+| `result.json` | The run's final numbers (metric, best and selected CV score, confirmation table, selected configuration, held-out test score, inference cost, failed folds, …) |
 | `run.log` | Everything printed to the console (UTF-8). `sys.stdout` is replaced by `LoggerWriter` for the duration of the run |
 | `events.jsonl` | Every engine event (`step`, `progress`, `tier_state`, `metric`, `composite`, `switch`) with a timestamp — the same stream the dashboard receives, saved even when the server is not running |
 | `population.csv` | One row per evaluation: `Eval_ID,Phase,Algorithm,Fitness,<hyperparameters...>` (Phase = Init / T1 / T2) |
-| `checkpoint.json`, `checkpoints/` | Resume state (scaling, ablation) |
+| `model.pkl` | The refitted model, its feature engineer and configuration (search, scaling, Random Search, Optuna) |
+| `checkpoint.json`, `checkpoints/` | Resume state (scaling, ablation; the ablation saves each optimizer's full state) |
 
 Only `manifest.json`, `result.json` and `summary/` folders are committed to git. Experiment-specific outputs are listed in [07-experiments.md](07-experiments.md).
 
-**Telemetry.** On first use (`get_reporter()`, or when a run starts) an `EventReporter` tries `GET http://localhost:8000/docs` with a 0.5 s timeout; live telemetry is enabled only if that succeeds. **Start `evosynth serve` before starting a run** to see it on the dashboard.
+**Telemetry.** On first use (`get_reporter()`, or when a run starts) an `EventReporter` tries `GET http://localhost:8000/docs` with a 0.5 s timeout; live telemetry is enabled if that succeeds. If the server is not up yet, the reporter re-probes every `telemetry.reprobe_seconds` (10 s) in the background, so the dashboard can also be started after a run has begun.
 
 ## 5. Concurrency model
 
@@ -161,7 +171,7 @@ Only `manifest.json`, `result.json` and `summary/` folders are committed to git.
 
 ## 6. Configuration surface
 
-`DynamicOptimizer(search_space, evaluator, budget=None, pop_size=None, t1_iters=None, k_iters=None, swap_threshold=None, stagnation_limit=None, elite_pct=None, inject_pct=None, max_workers=None, population_csv=None)`
+`DynamicOptimizer(search_space, evaluator, budget=None, pop_size=None, t1_iters=None, k_iters=None, swap_margin=None, stagnation_limit=None, elite_pct=None, inject_pct=None, max_workers=None, population_csv=None)`
 
 Every argument left as `None` is taken from the settings:
 
@@ -170,11 +180,11 @@ Every argument left as `None` is taken from the settings:
 | `search_space` | — | — | ConfigSpace object; its keys define dimension order |
 | `evaluator` | — | — | Object with `.evaluate(ind)` |
 | `budget` | `engine.budget` | 2000 | Total evaluations |
-| `pop_size` | `engine.pop_size` | 100 | Initial population N |
+| `pop_size` | `engine.pop_size` | 100 | Initial population N (≥ 40 so each Tier 1 island has ≥ `engine.min_island_size` = 4) |
 | `t1_iters` | `engine.t1_iters` | 30 | Tier 1 tournament iterations |
-| `k_iters` | `engine.k_iters` | 10 | Checkpoint interval k |
-| `swap_threshold` | `safeguards.swap_margin` | 0.10 | Additive UCB margin needed for a SWAP |
-| `stagnation_limit` | `safeguards.stagnation_limit` | 3 | Consecutive zero-trend checkpoints before T2 injection |
+| `k_iters` | `engine.k_iters` | 10 | Checkpoint interval k (upper bound when `engine.auto_k`) |
+| `swap_margin` | `safeguards.swap_margin` | 0.10 | Additive UCB margin needed for a SWAP |
+| `stagnation_limit` | `safeguards.stagnation_limit` | 3 | Consecutive checkpoints without improvement before T2 injection |
 | `elite_pct` | `safeguards.elite_pct` | 0.20 | Fraction shared between T2 islands |
 | `inject_pct` | `safeguards.t2_inject_pct` | 0.20 | Fraction replaced on T2 stagnation |
 | `max_workers` | `run.max_workers` | 0 → `min(8, cpu_count)` | Evaluation threads |
@@ -191,5 +201,8 @@ Further constants, all in `settings/engine.toml`:
 | Grace period | `safeguards.grace_iters` | 5 iterations |
 | Cooldown | `safeguards.cooldown_multiplier` | 2 → `2·k` |
 | Composite weights | `composite.*` | 0.30 / 0.25 / 0.15 / 0.15 / 0.15 |
+| Trend window | `composite.trend_window` | 3 scoring calls |
+| Tier split method | `engine.tier_split` | `stratified` (also `random`, `elite`) |
+| Automatic k | `engine.auto_k`, `engine.min_t2_checkpoints` | on, ≥ 2 Tier 2 checkpoints |
 
-The commands apply presets on top (e.g. `evosynth run` uses `[experiments.search_demo]`: budget 120, pop 20, t1 3, k 2). Settings are validated when loaded (`config.validate`).
+The commands apply presets on top (e.g. `evosynth run` uses `[experiments.search_demo]`: budget 200, pop 40, t1 3, k 2; `--full` uses budget 500). Settings are validated when loaded (`config.validate`).

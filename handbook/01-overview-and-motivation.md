@@ -20,7 +20,7 @@ A model's performance depends heavily on hyperparameters that gradient descent c
 
 1. Build a UCB1 multi-armed-bandit meta-engine that routes budget to the best-performing optimizer in real time.
 2. Switch strategies live (tier SWAPs) based on stagnation and diversity monitoring.
-3. Reach ensemble-level accuracy (93.47% on Covertype in the panel version) with a **single deployable model**, avoiding ensemble overhead. The project claims about 2 ms latency and about 150 MB of memory for this model.
+3. Deliver a **single deployable model** instead of an ensemble, and measure its cost. (The panel version reported 93.47% on Covertype and claimed about 2 ms and 150 MB per model; after the fixes, every refit measures latency and size, which depend on the model family. See [08-results.md](08-results.md).)
 4. Make the search observable live (a "glass box") through an SSE dashboard.
 5. Stay dataset-agnostic: the same engine handles tabular model switching and CNN architecture search.
 
@@ -39,7 +39,7 @@ A model's performance depends heavily on hyperparameters that gradient descent c
     ├── "Dynamic Multi-Armed Bandit" ─► composite score + UCB bonus decide promotion and SWAPs
     ├── "Meta-Optimizer" ─────────────► portfolio of 4 optimizers (GA, PSO, DE, CMA-ES) in 2 tiers
     ├── "Automated Model Selection" ──► model_type gene: XGBoost / LightGBM / RandomForest / ExtraTrees (or a CNN)
-    └── "Hyperparameter Tuning" ──────► 9-dimensional latent space, parallel evaluation, early stopping
+    └── "Hyperparameter Tuning" ──────► 8-dimensional latent space, parallel evaluation, early stopping
 ```
 
 ## 4. The No Free Lunch argument
@@ -75,12 +75,12 @@ The README and paper describe these stages. The controller prints matching "STEP
 | Stage | Name | What happens |
 |---|---|---|
 | 0 | Problem definition and latent mapping | The search space (discrete, categorical and continuous) is mapped to `[0,1]^d`. |
-| 1 | Parallel population initialisation | `pop_size` random vectors are evaluated in thread-pool batches with early stopping. |
-| 2 | Two-tier split | The best 40% become the Tier 1 seeds, split equally into four islands. The remaining 60% are reserved for Tier 2. |
-| 3 | Tier 1 tournament | GA, PSO, DE and CMA-ES evolve their islands for `t1_iters` iterations. Stagnant T1 islands get 50% random injection. |
-| 4 | Meta-control and promotion | Composite score plus UCB bonus are computed, and the top two optimizers are promoted to Tier 2 and absorb the reserve. |
+| 1 | Parallel population initialisation | `pop_size` (N) random vectors are evaluated in thread-pool batches. |
+| 2 | Two-tier split | A **stratified** split: 40% of N go to four equal Tier 1 islands and 60% to two reserve groups, each receiving one member from every fitness-rank stratum, so every island starts with the same mix of good and weak members. |
+| 3 | Tier 1 tournament | GA, PSO, DE and CMA-ES evolve their islands for `t1_iters` iterations. Islands without improvement at a check get 50% random injection. |
+| 4 | Meta-control and promotion | The composite score (fitness, speed, efficiency, diversity, trend) and the UCB1 bandit rank the families; the top two are promoted and each takes one reserve group. |
 | 5 | Tier 2 exploitation and safeguards | T2 and the remaining T1 run until the budget is spent. Every `k` iterations the checkpoint handles SWAP with grace and rollback, stagnation injection, and top-20% elite sharing. |
-| 6 | Output and observability | The best individual is decoded into a single model configuration. Optionally it is refit on held-out data. Telemetry streams to the dashboard throughout. |
+| 6 | Selection, output and observability | The top 5 distinct configurations are re-scored with 5-fold CV (confirm before select); the selected one is refitted on the dataset's train rows and scored once on its held-out test rows, with latency and size measured. Telemetry streams to the dashboard throughout. |
 
 ```mermaid
 flowchart TD
@@ -91,8 +91,8 @@ flowchart TD
         B --> C[Evaluate Initial Population in Parallel across CPU threads]
     end
     subgraph Step2["Step 2: Tiered Split"]
-        C --> D1[Tier 1: best 40% → 4 islands]
-        C --> D2[Tier 2: remaining 60% reserved]
+        C --> D1[Tier 1: 40% → 4 stratified islands]
+        C --> D2[Tier 2 reserve: 60% → 2 stratified groups]
     end
     subgraph Step3["Step 3: Tier 1 Tournament"]
         D1 --> E1[GA] & E2[PSO] & E3[DE] & E4[CMA-ES]
@@ -108,56 +108,44 @@ flowchart TD
         D2 -. reserve seeds .-> J1
         J1 --> S{Checkpoint every k iters}
         S --> SW[SWAP if best T1 > worst T2 + 0.10 → grace 5 iters / rollback]
-        S --> ST[Stagnation → inject random vectors into bottom 20%]
-        S --> EL[Elite sharing: top 20% between T2 islands]
+        S --> ST[No improvement → inject random vectors]
+        S --> EL[Pairwise elite sharing: top 20% between the T2 islands]
     end
     subgraph Step6["Step 6: Output & Observability"]
-        J1 --> O[Best configuration → single standalone model]
-        O --> R[Optional refit on 60k / test on 20k]
+        J1 --> O[Confirm before select: top 5 re-scored with 5-fold CV]
+        O --> R[Refit on train rows → one score on held-out test rows]
         G & H & J1 -. SSE telemetry .-> Q[React Glass-Box Dashboard]
     end
 ```
 
 ## 7. The architecture figure (`docs/public/arch.png`), described
 
-The figure reads left to right in seven coloured blocks, with a control loop drawn underneath:
+The figure (also `paper/figures/arch.png`; source `paper/figures/arch_source.html`) reads left to right in six coloured panels, with a footer of cross-cutting properties. The panel-review figure is kept as `arch_legacy.png`.
 
-1. **Input layer (blue).**
-   - "Search Space": 9 dimensions, namely `model_type`, `fe_strategy` and 7 hyperparameters.
-   - "Any Dataset (Dataset Agnostic)".
-   - A note that the search space and fitness metric are configured per task.
-2. **Initialization (green).**
-   - "Population Generator" creates N random individuals.
-   - "Fitness Evaluator" assigns initial fitness using 4 model families (XGBoost, LightGBM, RandomForest, ExtraTrees) and the "Generic Feature Engineer" (none | stats | interactions).
-   - An arrow labelled **40% Population** goes to Tier 1. An arrow over the top labelled **60% Population** goes to Tier 2.
-3. **Tier 1 — Competition arena (red).** DE, PSO, CMA-ES and GA feed into the **Composite Scoring Engine**.
-4. **Tier 2 — Working population (purple).**
-   - "Best Algorithm" and "2nd Best Algorithm" receive the promoted strategies.
-   - "Periodic Sharing" exchanges the top 20% between them every k iterations.
-5. **Output layer (grey).** "Best Single Standalone Model (Zero Ensemble)", labelled "2 ms inference latency, ~150 MB RAM".
-6. **Post-search phase 2 (orange).** "Generalization Refit": retrain the winner on 60k samples and test on a held-out 20k. The final validated result is **93.47%**.
-7. **Control layer (green, bottom).**
-   - Inputs: T1 and T2 performance.
-   - Components:
-     - **Tier Performance Comparator** (sends scores),
-     - **Stagnation Detector**,
-     - **UCB1 Bandit Selector** (on "T2 persistent stagnation"),
-     - **Promotion & Demotion Engine** (swaps strategies, forces swaps, promotes a strategy and reassigns its island).
-   - Its output, "promote strategy + reassign island", feeds back into Tier 2.
-8. **Diversity injection (dashed green).**
-   - Triggered by "stagnation detection in T1, T2".
-   - Contains three mechanisms:
-     - **T1 Global Reset** (keep the top x%, replace the rest),
-     - **T1 Batch Refresh** (refresh the bottom 50%),
-     - **T2 Island Diversity Injection** (replace the bottom 20%).
-   - Dashed arrows feed back to the Tier 1 and Tier 2 populations.
+1. **Data (blue).**
+   - **Dataset registry:** seven tabular datasets and Fashion-MNIST; metric per dataset (accuracy for multiclass, ROC AUC for binary).
+   - **Fixed split (data_seed):** test rows split off first and never searched; search rows for cross-validation; train rows for the refit.
+   - **Latent search space [0,1]^8:** `model_type`, `fe_strategy` and six hyperparameters.
+2. **Evaluation and initialization (green).**
+   - **Fitness evaluator:** k-fold CV on the search rows (k = 2); boosted models early-stop on a slice of the training fold; a failed fit scores 0 and is logged.
+   - **Population generator:** N random vectors (default 40), evaluated in parallel.
+   - **Stratified tier split:** 40% of N to four equal Tier 1 islands, 60% to two equal reserve groups, each with a mix of good and weak members. An arrow over the top carries the reserve to Tier 2.
+3. **Tier 1 — Competition (red).** GA, PSO, DE and CMA-ES islands of N/10 members each, running `t1_iters` generations; after promotion the two others keep running and can SWAP back in.
+4. **Scoring and control (green).**
+   - **Composite score:** fitness 0.30, speed 0.25, efficiency 0.15, diversity 0.15, trend 0.15, min-max normalised over the islands scored together.
+   - **UCB1 bandit:** UCB = composite + c·√(ln N / n_family), c = 0.1; it ranks the families for every decision.
+   - **Decisions:** promote the top 2; SWAP when the best Tier 1 UCB beats the worst Tier 2 UCB by more than 0.10 (grace period with rollback, cooldown); inject fresh vectors into islands without improvement.
+5. **Tier 2 — Exploitation (purple).** Rank-1 and rank-2 families, each its Tier 1 island plus one reserve group; pairwise elite sharing (top 20% each way) every k iterations; a checkpoint every k iterations rescores all islands (k sized automatically so Tier 2 reaches at least two checkpoints).
+6. **Selection and output (orange).** Confirm before select (top 5 re-scored with 5-fold CV), refit on the train rows, one held-out test score with measured latency and size, and a single deployable model (`model.pkl` + `result.json`).
 
-*(The paper's figure caption numbers the same blocks 1–8. The slide deck uses an updated version, `arch_updated.png`, of the same diagram.)*
+**Footer:** reproducible (one seed), configurable (`settings/*.toml`), recorded (manifest, result, logs, scoring history), observable (live dashboard).
 
-## 8. Core claims, as the project states them
+## 8. Core claims, and where they stand after the fixes
 
 1. **Escape from premature convergence.** On Covertype, GA was promoted to Tier 2 but stalled. PSO, still in Tier 1, overtook it on UCB score (0.720 vs 0.547) and a live SWAP promoted PSO, which then found the winning configuration (see [08-results.md](08-results.md) §5).
 2. **Dataset-agnostic feature engineering.** With no column names, generic row statistics and pairwise interactions lifted Covertype test accuracy into the 93–94% range.
 3. **Pareto efficiency.** Accuracy at ensemble level from a single model and a modest budget.
-4. **Throughput.** Thread-pool parallelism and early stopping cut initial population evaluation from 44.8 s to 3.9 s (11.5× in the paper's speed-up benchmark).
-5. **Cross-domain.** The same engine performs CNN NAS on handwritten digits (95.33% in the paper, 95.78% in the panel deck).
+4. **Throughput.** The paper reported 11.5× (44.8 s → 3.9 s) on a synthetic 50k × 25 dataset. Re-measured on Covertype with `evosynth speedup` (see [08-results.md](08-results.md)), almost all of the gain comes from parallel threads; early stopping adds little.
+5. **Cross-domain.** The same engine performs CNN architecture search. The panel version used 8×8 handwritten digits (95.33% in the paper); it now uses Fashion-MNIST (28×28 images, 10 classes).
+
+Claims 1–3 were measured on one unseeded panel-review run. The fix plan (Phases 0–6) re-runs them with a fixed seed, held-out test rows and equal treatment of every method; [08-results.md](08-results.md) reports what holds.

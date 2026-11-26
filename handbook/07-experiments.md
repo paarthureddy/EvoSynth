@@ -1,141 +1,91 @@
 # 07 — Experiments
 
-This file describes every experiment: what it tests, how it is configured, and which command produces it. The numbers are in [08-results.md](08-results.md). All values below are the defaults from `settings/` (mostly `settings/experiments.toml`); each can be changed there or per run with `--set`.
+Every experiment is one `evosynth` command. All of them share the same dataset splits, evaluator, refit and seeding, so their numbers can be compared directly.
 
-| # | Experiment | Dataset | Command | Run folder |
+| # | Experiment | Data | Command | Run folder |
 |---|---|---|---|---|
-| E1 | Covertype demo + refit | UCI Covertype | `evosynth run [--full]` | `results/search/covertype/<preset>/seed_<k>/` |
-| E2 | Covertype scaled runs (300, 500) | UCI Covertype | `evosynth scale --budget N` | `results/scaling/covertype/budget_<N>/seed_<k>/` |
-| E3 | Competitor and floor baselines | UCI Covertype | `evosynth baselines --test ...` | `results/baselines/covertype/<baseline>/seed_<k>/` |
-| E4 | CVGS-300 / CVGS-500 ablation | UCI Covertype | `evosynth ablation --setup CVGS-300` | `results/ablation/covertype/cvgs_<n>/seed_<k>/` |
-| E5 | Vision NAS | sklearn digits | `evosynth nas` | `results/nas/digits/default/seed_<k>/` |
-| E6 | Speed-up benchmark | Synthetic 50k × 25 | (reported in paper; no command) | Paper Table I |
+| E1 | Search with refit | any tabular dataset | `evosynth run [--full] --dataset NAME` | `results/search/<dataset>/<preset>/seed_<k>/` |
+| E2 | Budget scaling | any tabular dataset | `evosynth scale --budget 300 \| 500 \| 1000` | `results/scaling/<dataset>/budget_<n>/seed_<k>/` |
+| E3 | Baselines | any tabular dataset | `evosynth baselines --test all \| defaults \| random \| optuna \| flaml` | `results/baselines/<dataset>/<baseline>/seed_<k>/` |
+| E4 | Ablation (+ tier-split ablation) | any tabular dataset | `evosynth ablation --setup CVGS-500 [--splits stratified,random,elite]` | `results/ablation/<dataset>/cvgs_<n>/seed_<k>/` |
+| E5 | Vision NAS | Fashion-MNIST | `evosynth nas` | `results/nas/fashion_mnist/default/seed_<k>/` |
+| E6 | Speed-up | any tabular dataset | `evosynth speedup` | `results/speedup/<dataset>/default/seed_<k>/` |
+| — | Summary tables | all completed runs | `evosynth summary` | `results/summary/` |
 
-Every run folder contains `manifest.json`, `result.json`, `run.log` and `events.jsonl` (see [02-architecture.md](02-architecture.md) §4). The Covertype experiments (E2–E4) are orchestrated by `tools/run_experiments.ps1` (§8). The panel-review (19 November) outputs of E1–E4 are archived unchanged in `results/archive/2026-11-19_covertype_v1/`; they were produced by the v1 code at git tag `v1-panel-review`.
+Every run folder contains `manifest.json`, `result.json`, `run.log` and `events.jsonl` (see [02-architecture.md](02-architecture.md) §4). `--seed N` sets the search seed; `--seeds 1,2,3` repeats a command once per seed. `--subsample N` (run, scale, ablation, baselines, speedup) searches on a stratified N-row subset of the dataset's search rows. The panel-review (19 November) outputs are archived unchanged in `results/archive/2026-11-19_covertype_v1/`; they were produced by the v1 code at git tag `v1-panel-review` and are not comparable with the new runs.
 
----
+## Shared protocol
 
-## E1 — Covertype demo with refit (`evosynth run`)
+- **Splits** (`datasets.partition`, `run.data_seed = 42`): held-out **test rows** split off first; **search rows** for every method's cross-validation; **train rows** for every refit. Test rows are never seen by any search.
+- **Search score:** `TabularEvaluator`, 2-fold stratified CV on the search rows, in the dataset's metric (accuracy multiclass, ROC AUC binary); boosted models early-stop on a slice of the training fold.
+- **Selection:** confirm before select. The top 5 distinct configurations are re-scored with 5-fold CV and the best confirmed one is selected (`[selection]`). These fits are not counted in the evaluation budget.
+- **Refit:** `refit_and_score`: the selected configuration retrained on the train rows (boosted models early-stop on 15% of them), scored once on the test rows, with inference latency and model size measured (`models/inference.py`) and the model saved as `model.pkl`.
+- **Same treatment for every tuned method.** Random Search and Optuna use the same evaluator, selection and refit as EvoSynth; only the search strategy differs.
 
-- **Goal:** the headline real-world benchmark, covering model families, feature engineering and generalisation.
-- **Search:** the 9-D space with `TabularEvaluator("covertype", subsample_size=20000)`, i.e. 2-fold CV on 20k stratified rows (`datasets.covertype.search_subsample`, `evaluation.cv_folds`).
+## E1 — Search with refit (`evosynth run`)
 
-| Preset | Budget | Pop | `t1_iters` | `k` |
-|---|---|---|---|---|
-| `search_demo` (default) | 120 | 20 | 3 | 2 |
-| `search_full` (`--full`) | 500 | 40 | 5 | 3 |
+- **Presets:** `search_demo` (default: budget 200, pop 40, t1_iters 3, k 2) and `search_full` (`--full`: budget 500, pop 40, t1_iters 5, k 3; k is lowered automatically if Tier 2 would get fewer than two checkpoints).
+- **Steps:** the full `DynamicOptimizer` run ([03-engine-internals.md](03-engine-internals.md)), then confirm-before-select and the refit.
+- **`result.json`:** metric, best search CV score, selected (confirmed) CV score and configuration, the confirmation table, winning algorithm, failed folds, evaluations, search seconds, and `refit` (test score, train / test rows, inference cost). `--no-refit` stops after selection.
 
-  `--budget`, `--pop-size`, `--t1-iters`, `--k-iters` and `--subsample` override the preset; `--no-refit` skips Step 6.
-- **Step 6 refit (the generalisation test, `models/refit.refit_and_score`):**
-  1. Reload the full dataset and take a stratified split of **60,000 train / 20,000 test** (`refit.train_rows`, `refit.test_rows`, `run.random_state = 42`).
-  2. Decode the winner and apply its FE strategy (fit on train, transform test).
-  3. Build the winning model at full capacity (`models/factory.build_model(phase="refit")`):
+## E2 — Budget scaling (`evosynth scale`)
 
-| Family | Refit model |
-|---|---|
-| ExtraTrees / RandomForest | `n_estimators = max(n, 150)`, `max_depth = depth·3` if depth < 10 else unlimited, `max_features = colsample`, `n_jobs = −1` |
-| LightGBM | `n_estimators = max(n, 250)` |
-| XGBoost | `n_estimators = max(n, 200)`, `mlogloss` |
-
-  4. Fit on 60k, then print the search CV accuracy, the test accuracy, the architecture and the FE strategy. `result.json` holds the best CV score, the best configuration, the winning algorithm and the refit numbers.
-
-## E2 — Covertype scaled runs (`evosynth scale`)
-
-- **Goal:** the budget-scaling curve (120 → 300 → 500) with crash-safe checkpointing.
-- **Options:**
-
-| Flag | Values | Default (`[experiments.scaling]`) |
-|---|---|---|
-| `--budget` | one of `budgets` = 120, 300, 500, 1000 | `default_budget` = 300 |
-| `--pop-size` | integer | 30 |
-| `--checkpoint-interval` | integer | 10 |
-| `--variant` | folder name | `budget_<N>` |
-
-- **Schedule:** `t1_iters = max(3, int(0.03·budget))` and `k = max(2, int(0.02·budget))`:
-  - 300 evaluations → 9 / 6;
-  - 500 evaluations → 15 / 10.
-- **Fault tolerance:**
-  - `evaluator.evaluate` is wrapped so that every 10 evaluations (and at the end) an **atomic** JSON checkpoint is written (temp file then `os.replace`) to `checkpoint.json` in the run folder;
-  - the checkpoint holds `budget`, `evals_used`, `best_cv_accuracy`, `best_config`, `elapsed_seconds`, `status` and `timestamp`.
-- **Refit:** the same 60k/20k refit as E1. The final checkpoint and `result.json` add the generalisation accuracy, the architecture and the FE strategy.
-- **The 19 November run used** budget 300 and budget 500, both with pop 30; the 120 point of the curve is the E1 demo run (pop 20).
+- **Question:** how do search score and test score change with the budget?
+- **Budgets** (`[experiments.scaling]`): 300, 500 (default) and 1000, population 40. `t1_iters = max(3, int(0.03·budget))`, `k = max(2, int(0.02·budget))`, giving Tier 2 about 2, 5 and 13 iterations.
+- **Checkpoint:** `checkpoint.json` every 10 evaluations (best score and configuration so far).
+- **Result:** as E1, plus the inference cost.
 
 ## E3 — Baselines (`evosynth baselines`)
 
-All baselines use the **same 60k/20k split** (`random_state=42`). Each baseline gets its own run folder.
-
-| Baseline (folder) | Search | Refit / test |
+| Baseline (folder) | Search | Final model |
 |---|---|---|
-| Default ExtraTrees (`default_extratrees`) | None | `ExtraTreesClassifier(n_estimators=100)`, sklearn defaults, fit on 60k, test on 20k |
-| Random Search (`random_search`) | 120 uniform random latent vectors scored with `TabularEvaluator(20k)` | Decode the best; refit **its model family and FE strategy** with `n_estimators=150` and library defaults (the tuned hyperparameters are **not** used) |
-| Optuna TPE (`optuna_tpe`) | 120 trials of `TPESampler(seed=42)` over 9 `x_i ∈ [0,1]` floats, scored with `TabularEvaluator(20k)`; SQLite storage `optuna.db` with `load_if_exists` (resumable) | Same simplified refit as Random Search |
-| FLAML AutoML (`flaml`) | `AutoML.fit` on the 60k training rows; `time_budget = 585 s` (about 10 min, matched to EvoSynth); `metric = accuracy`; estimators `lgbm`, `rf`, `extra_tree`, `xgboost`; holdout evaluation chosen by FLAML; seed 42 | FLAML's own final model, tested on 20k |
+| Untuned defaults (`defaults`) | None | Library defaults of XGBoost, LightGBM, RandomForest and ExtraTrees (seeded), trained on the train rows, scored on the test rows; inference measured for each |
+| Random Search (`random_search`) | `--trials` uniform random latent vectors, scored with the same evaluator | Confirm-before-select + the shared refit |
+| Optuna TPE (`optuna_tpe`) | `--trials` trials of `TPESampler(seed)` over the same latent space; SQLite study `optuna.db`, resumable | Confirm-before-select + the shared refit |
+| FLAML (`flaml`) | `AutoML.fit` on the train rows with `--time-budget` seconds, the dataset's metric, estimators lgbm, rf, extra_tree, xgboost | FLAML's own refit; scored on the test rows |
 
-- **Options:** `--test` = `all` (default), `extratrees`, `random`, `optuna` or `flaml`; `--trials` (default 120); `--time-budget` (default 585).
-- **Outputs per baseline:** `report.txt`, `result.json`, `run.log` (plus `optuna.db` / `flaml.log`).
+For a fair comparison, give Random Search and Optuna the same number of evaluations as the EvoSynth run they are compared with, and FLAML the same wall-clock time (the Phase 5 runner does both).
 
-**Default XGBoost / LightGBM / RandomForest (80.97 / 81.07 / 81.48%).** These floors appear in the paper, the slides and the v1 master table. The repository has no command that produces them yet (planned: Phase 4); they were obtained earlier and are reported as values.
+## E4 — Ablation (`evosynth ablation`)
 
-## E4 — CVGS ablation on Covertype (`evosynth ablation`)
-
-- **Question:** can any single optimizer, running alone, match EvoSynth's coordinated portfolio? And what if each optimizer gets an equal 25% share of the budget?
-- **Setups** (`[experiments.ablation].setups`), evaluator `TabularEvaluator(20k)`:
-
-| Setup | Budget | Pop | 25% checkpoint |
-|---|---|---|---|
-| CVGS-300 | 300 | 30 | 75 evaluations |
-| CVGS-500 | 500 | 30 | 125 evaluations |
-
-- **Isolated runs.** GA, PSO, DE and CMA-ES each run alone under strict rules:
-  - each starts from its **own** random population of `pop_size`;
-  - there is no co-evolution, no elite sharing and no swapping;
-  - each run gets the full budget;
-  - each run uses the same space, evaluator and seed policy.
-
-  Mechanics:
-  - Generation 0 evaluates `pop_size` random vectors in chunks.
-  - The run then loops `ask(batch)` → evaluate → `tell`, with `batch = max(5, min(10, pop//3))`.
-  - **Passive telemetry** is logged at every step: diversity, trend, speed `1/(t+1e-4)`, efficiency `best/ln(max(1,t)+e)`, composite (the `[composite]` weights with fixed scalings) and UCB (`c = 0.5`, `[experiments.ablation.passive_telemetry]`). It is **never used to make decisions**.
-  - At the 25% checkpoint the state is captured: best accuracy, diversity and UCB.
-- **EvoSynth run:** the same budget and population, with `t1_iters = max(3, int(0.04·budget))` and `k = max(2, int(0.02·budget))`. The checkpoint accuracy is read from `optimizer.history`. (Its diversity / composite / UCB values in the summary are still constants; measuring them is Phase 4.1.)
-- **Resumable.** For each optimizer, a JSON (metadata and logs) and a pickle (best individual, population, all individuals) are saved atomically every 10 evaluations under `checkpoints/`. On restart, completed optimizers are skipped and interrupted ones resume from their last evaluation. `experiment_state.json` tracks the status of each algorithm. `max_workers = 2` by default to limit RAM.
-- **Outputs:** `summary.txt` (Part 1: the 25% checkpoint; Part 2: full budget; plus a conclusion), `individual_runs/<SETUP>_<ALGO>.txt` (iteration log, checkpoint audit, final audit, discovered hyperparameters), `isolated_population.csv` (every evaluation of the isolated optimizers), `population.csv` (EvoSynth), `checkpoints/`, `result.json`.
+- **Question:** can any single optimizer, running alone, match EvoSynth's coordinated portfolio? And how much does the tier split matter?
+- **Setups** (`[experiments.ablation].setups`): CVGS-500 (budget 500) and CVGS-1000 (budget 1000), population 40; comparison mark at 25% of the budget. EvoSynth uses `t1_iters = max(3, int(0.03·budget))`, so Tier 2 gets about 5 / 13 iterations.
+- **Isolated runs.** GA, PSO, DE and CMA-ES each run alone: own random population, no tiers, no sharing, no injection, the full budget, the same evaluator and seed policy. Each step asks for a batch of `max(5, min(10, pop//3))` candidates.
+- **Passive scoring (Phase 4.2).** Composite scores are relative, so the four isolated runs are scored *together* at every 10% of the budget (and at the mark) with the controller's own `CompositeScoringEngine` and UCB1 bonus. Nothing is decided from these scores; they show what the bandit would have measured.
+- **EvoSynth.** One run per tier split in `--splits` (default `stratified`; `stratified,random,elite` is the split ablation). Its diversity, composite and UCB values come from the controller's `scoring_history` (the highest-UCB island at the last scoring call; diversity averaged over its islands).
+- **Resume.** Each isolated optimizer's full state (optimizer object with its particles, targets or distribution, generators, every evaluated individual) is pickled every 10 evaluations under `checkpoints/`; an interrupted run continues exactly. A completed EvoSynth run is stored as a whole.
+- **Outputs:** `summary.txt` (both marks, decisions, a conclusion generated from the numbers), `individual_runs/<SETUP>_<method>.txt`, `isolated_population.csv`, `population[_<split>].csv`, and `result.json` (every method's scores, diversity, composite, UCB, curve at the marks, best configuration; EvoSynth's decision counts).
 
 ## E5 — Vision NAS (`evosynth nas`)
 
 - **Goal:** show that the engine is not limited to tabular data.
-- **Setup:** `get_image_nas_search_space()` (7-D), `ImageCNNEvaluator(epochs=2, batch_size=64)`, budget 80, pop 20, `t1_iters = 3`, `k = 2` (`[experiments.nas]`). Dataset: scikit-learn digits (Fashion-MNIST replaces it in Phase 3).
-- **Output:** the console log, the best CNN topology, `result.json`.
+- **Setup:** `get_image_nas_search_space()` (7-D), `ImageCNNEvaluator(epochs=2, batch_size=64)`, budget 160, pop 40, `t1_iters = 3`, `k = 2` (`[experiments.nas]`), on Fashion-MNIST: 10,000 training and 2,500 validation images from the official training set.
+- **Output:** the best CNN topology and its validation accuracy in `result.json`.
 
-## E6 — Speed-up benchmark (paper Table I)
+## E6 — Speed-up (`evosynth speedup`)
 
-Compares three evaluation modes:
-- serial (1 core);
-- parallel batching (8 threads);
-- parallel plus early stopping (8 threads).
+- **Question:** how much do parallel workers and early stopping actually save? (The v1 paper's 11.5× came from a synthetic 50k × 25 dataset.)
+- **Method:** the same `configurations` (40) random configurations are evaluated four times: sequential with and without early stopping, and with `workers` threads (0 = all cores) with and without early stopping. Wall time, speed-up over the sequential no-early-stopping reference and mean CV score are reported (early stopping changes scores slightly).
 
-It measures the initial 100-individual population and a full 120-evaluation run on a synthetic classification dataset (50,000 rows, 25 features, as described in the comparative analysis). No command in the repository reproduces it yet (planned: Phase 4, `measure_inference` / speed-up on Covertype).
+## Summary tables (`evosynth summary`)
+
+Reads every completed run and writes `results/summary/`: `main_table` (held-out test score per dataset and method, mean ± std over seeds, latency and model size), `ablation_table` (score at the mark and at the full budget, and how often EvoSynth beat the best isolated optimizer), `nas_table`, and `convergence/` (best-so-far curves averaged over seeds). Nothing is typed in by hand.
 
 ---
 
-## 8. `tools/run_experiments.ps1`, the staged orchestrator
+## 8. `tools/run_experiments.py`, the experiment runner
 
 ```
-param([string]$Stage = "menu", [string[]]$Extra = @())
+py -3.14 tools/run_experiments.py smoke            # run a plan
+py -3.14 tools/run_experiments.py core --dry-run   # list its jobs and which are already done
 ```
 
-- Runs the `evosynth` commands below with `py -3.14 -m evosynth`; `-Extra` arguments are passed to every command (e.g. `-Extra "--set","run.random_state=7"` for another seed).
-- Outputs go to the usual run folders; re-running a stage overwrites that stage's folders, while the ablation and Optuna resume from their checkpoints.
-- **Machine profile in the header:** Intel Core i5-12450HX (8 cores / 12 threads), 16 GB RAM.
+| Plan | Seeds | Main comparison datasets | Also |
+|---|---|---|---|
+| `smoke` (Phase 5 as run) | 42 | Covertype, Adult | CVGS-500 on Covertype, speed-up, NAS |
+| `lean` | 42–44 | Covertype, HIGGS, Adult, Poker Hand | CVGS-500 with the split ablation, speed-up, NAS |
+| `core` | 42–44 | all 7 tabular datasets | as `lean` |
 
-| Stage | Command | Estimated duration |
-|---|---|---|
-| 1 Baselines | Installs optuna / flaml if missing, then `evosynth baselines --test all` | ~15–20 min (Random Search and Optuna took ~35 min each in practice) |
-| 2 EvoSynth scaled | `evosynth scale --budget 300`, then `--budget 500` | ~1 h |
-| 3 CVGS-300 | `evosynth ablation --setup CVGS-300` | Overnight |
-| 4 CVGS-500 | `evosynth ablation --setup CVGS-500` | Overnight |
-| A | Stages 1 → 4 in sequence, reporting total hours | — |
+The main comparison per dataset and seed is: EvoSynth (`--full`, 500 evaluations), Random Search (500), Optuna TPE (500), untuned defaults, and FLAML with the same wall time as that EvoSynth search. Every search uses `--subsample 10000`. A job whose run folder is already `completed` is skipped, so the runner can be stopped and restarted; progress goes to `results/runner.log`, and `evosynth summary` runs at the end.
 
-Usage: `.\tools\run_experiments.ps1` (interactive menu), or `.\tools\run_experiments.ps1 -Stage 2`.
-
-The v1 `summary/` folder (`main_comparison_table.txt`, `convergence_curve.csv`) was compiled by hand from the stage outputs; generating summaries automatically (`build_summary`) is planned for Phase 4.
+**Cost.** One evaluation takes about 1–9 s with 8 threads at 20,000 rows (MiniBooNE slowest, Poker Hand fastest); `smoke` takes about 6 hours, `core` about 2–2.5 days. The full original plan (all datasets, 5 seeds, every budget and ablation) would take about 3 weeks on one laptop.
