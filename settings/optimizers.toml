@@ -45,7 +45,8 @@ init_velocity = 0.1
 
 # -------------------------------------------------------------------------------------
 [optimizers.de]
-# Differential Evolution (DE/rand/1/bin) — src/evosynth/optimizers/de.py
+# Differential Evolution (DE/rand/1/bin, one-to-one selection: a trial replaces only its own target)
+#   — src/evosynth/optimizers/de.py
 # -------------------------------------------------------------------------------------
 
 # Mutation (differential weight) F:  donor = a + F·(b − c).   Used in: DifferentialEvolution.__init__, .ask   Range: 0.4–1.0

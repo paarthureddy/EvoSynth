@@ -15,6 +15,8 @@ class ParticleSwarm(BaseOptimizer):
         self.particles = []
         self.gbest_pos = None
         self.gbest_score = -float('inf')
+        self._cursor = 0        # next particle to move (round-robin)
+        self._pending = []      # particle index of each vector returned by the last ask
 
     def _seed_particles_from_population(self):
         """
@@ -42,42 +44,53 @@ class ParticleSwarm(BaseOptimizer):
 
         # Pad to pop_size with random particles if needed
         while len(self.particles) < self.pop_size:
-            pos = self.rng.random(self.dimensions)
-            vel = self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
-            self.particles.append({
-                'pos': pos, 'vel': vel,
-                'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')
-            })
+            self.particles.append(self._new_random_particle())
+
+    def _new_random_particle(self):
+        pos = self.rng.random(self.dimensions)
+        vel = self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
+        return {'pos': pos, 'vel': vel, 'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')}
 
     def ask(self, num_samples):
-        # If particles not yet built, seed them from the population (set via tell)
+        """
+        Phase 2.1: never re-proposes the seed population (it is already evaluated): the first ask
+        after a seeding tell already moves the particles. Particles are visited round-robin
+        (self._cursor), so asking for fewer samples than the swarm size still moves every particle
+        in turn; tell() matches results to the particles recorded in self._pending.
+        """
+        self._pending = []
         if len(self.particles) == 0:
             if len(self.population) > 0:
                 self._seed_particles_from_population()
             else:
-                # Pure random initialization (no seed population)
-                for _ in range(self.pop_size):
-                    pos = self.rng.random(self.dimensions)
-                    vel = self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
-                    self.particles.append({
-                        'pos': pos, 'vel': vel,
-                        'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')
-                    })
-            return [np.copy(p['pos']) for p in self.particles[:num_samples]]
+                # Pure random initialization (no seed population): the random positions are new,
+                # so they are proposed as they are.
+                self.particles = [self._new_random_particle() for _ in range(self.pop_size)]
+                out = []
+                for _ in range(num_samples):
+                    idx = self._cursor % len(self.particles)
+                    self._cursor += 1
+                    self._pending.append(idx)
+                    out.append(np.copy(self.particles[idx]['pos']))
+                return out
 
         # Standard PSO velocity + position update
         new_vectors = []
-        for i in range(num_samples):
-            p = self.particles[i % len(self.particles)]
+        for _ in range(num_samples):
+            idx = self._cursor % len(self.particles)
+            self._cursor += 1
+            p = self.particles[idx]
             r1 = self.rng.random(self.dimensions)
             r2 = self.rng.random(self.dimensions)
+            gbest = self.gbest_pos if self.gbest_pos is not None else p['pbest_pos']
 
             p['vel'] = (
                 self.w * p['vel']
                 + self.c1 * r1 * (p['pbest_pos'] - p['pos'])
-                + self.c2 * r2 * (self.gbest_pos - p['pos'])
+                + self.c2 * r2 * (gbest - p['pos'])
             )
             p['pos'] = np.clip(p['pos'] + p['vel'], 0.0, 1.0)
+            self._pending.append(idx)
             new_vectors.append(np.copy(p['pos']))
 
         return new_vectors
@@ -109,11 +122,9 @@ class ParticleSwarm(BaseOptimizer):
             self.population = list(evaluated_individuals)
             return
 
-        # Update particles from corresponding evaluations
-        for i, ind in enumerate(evaluated_individuals):
-            if i >= len(self.particles):
-                break
-            p = self.particles[i]
+        # Update the particles that proposed these vectors (recorded by ask, in order)
+        for idx, ind in zip(self._pending, evaluated_individuals):
+            p = self.particles[idx]
             # Update particle's current position to match what was actually evaluated
             p['pos'] = np.copy(ind.vector)
 
@@ -124,6 +135,8 @@ class ParticleSwarm(BaseOptimizer):
             if ind.fitness > self.gbest_score:
                 self.gbest_score = ind.fitness
                 self.gbest_pos = np.copy(p['pos'])
+
+        self._pending = []
 
         # Keep self.population in sync (sorted best-first) so controller
         # can read the latest evaluated individuals easily

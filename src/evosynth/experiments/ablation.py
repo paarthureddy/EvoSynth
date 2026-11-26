@@ -5,14 +5,14 @@ EvoSynth Empirical Ablation Study Runner — UCI Forest Covertype Dataset
 ========================================================================
 Compares isolated individual optimizers (GA, PSO, DE, CMA-ES in strict isolation)
 against the EvoSynth Dynamic Meta-Optimizer across Covertype Benchmark Setups:
-  - CVGS-300: Budget = 300 evaluations, Population = 30
-  - CVGS-500: Budget = 500 evaluations, Population = 30
+  - CVGS-500:  Budget = 500 evaluations, Population = 40
+  - CVGS-1000: Budget = 1000 evaluations, Population = 40
 
 Features:
   - Strict isolation: zero co-evolution, zero elite sharing for standalone algorithms
   - Atomic fault-handling checkpointing every 10 evaluations
   - Auto-resumes interrupted runs from the exact last checkpoint
-  - Output: results/ablation/<dataset>/<setup>/seed_<k>/ (e.g. .../cvgs_300/seed_42/):
+  - Output: results/ablation/<dataset>/<setup>/seed_<k>/ (e.g. .../cvgs_500/seed_42/):
       run.log, events.jsonl, manifest.json, result.json, summary.txt,
       individual_runs/<setup>_<algo>.txt, isolated_population.csv (isolated optimizers),
       population.csv (EvoSynth run), checkpoints/ (resume state)

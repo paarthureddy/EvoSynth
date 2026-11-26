@@ -246,7 +246,7 @@ Executes dynamic meta-optimization across 4 model families (XGBoost, LightGBM, R
 evosynth run                         # Fast benchmark (preset search_demo: 200 evals, pop=40)
 evosynth run --full                  # Full benchmark (preset search_full: 500 evals, pop=40)
 evosynth scale --budget 300          # Budget-scaling run with checkpoints
-evosynth ablation --setup CVGS-300   # Isolated GA / PSO / DE / CMA-ES vs EvoSynth
+evosynth ablation --setup CVGS-500   # Isolated GA / PSO / DE / CMA-ES vs EvoSynth
 evosynth baselines --test all        # Default ExtraTrees, Random Search, Optuna, FLAML
 ```
 

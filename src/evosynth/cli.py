@@ -3,7 +3,7 @@
 
     evosynth run        [--full | --preset NAME] [--dataset covertype] [--budget N ...] [--no-refit]
     evosynth scale      --budget 300 [--pop-size N] [--checkpoint-interval N]
-    evosynth ablation   [--setup CVGS-300] [--pop-size N] [--max-workers N]
+    evosynth ablation   [--setup CVGS-500] [--pop-size N] [--max-workers N]
     evosynth baselines  [--test all|extratrees|random|optuna|flaml] [--trials N] [--time-budget S]
     evosynth nas
     evosynth serve      [--host H] [--port P]

@@ -50,7 +50,7 @@ checkpoint_interval = 10          # write checkpoint JSON every N evaluations (r
 #          checkpoint_interval, share_checkpoint_fraction), run_isolated_optimizer (batch_*),
 #          run_benchmark_setup (t1/k schedule for the EvoSynth run).
 # -------------------------------------------------------------------------------------
-setups = { "CVGS-300" = 300, "CVGS-500" = 500 }   # setup name → budget (run_ablation)
+setups = { "CVGS-500" = 500, "CVGS-1000" = 1000 }   # setup name → budget (run_ablation)
 pop_size = 40                      # run_ablation (--pop-size default)
 max_workers = 2                    # run_ablation (--max-workers default; low to limit RAM)
 checkpoint_interval = 10           # run_isolated_optimizer (resume checkpoint every N evals)
@@ -58,7 +58,7 @@ share_checkpoint_fraction = 0.25   # run_ablation: checkpoint_eval = int(budget 
 batch_min = 5                      # run_isolated_optimizer: batch = max(batch_min, min(batch_max, pop // batch_divisor))
 batch_max = 10
 batch_divisor = 3
-t1_iters_fraction = 0.04           # run_benchmark_setup: EvoSynth t1_iters = max(3, int(0.04 · budget))
+t1_iters_fraction = 0.03           # run_benchmark_setup: EvoSynth t1_iters = max(3, int(0.03 · budget)) (Tier 2 gets ~5 / ~13 iterations at pop 40)
 t1_iters_min = 3
 k_iters_fraction = 0.02            # run_benchmark_setup: EvoSynth k_iters = max(2, int(0.02 · budget))
 k_iters_min = 2
