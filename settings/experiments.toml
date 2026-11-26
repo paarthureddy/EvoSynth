@@ -13,8 +13,8 @@
 # Applied to [engine] by src/evosynth/config.py → load_config(preset=...), called from
 # src/evosynth/cli.py → cmd_run; then read by DynamicOptimizer.__init__ via experiments/search.py → run_search.
 # -------------------------------------------------------------------------------------
-budget = 120
-pop_size = 20
+budget = 200
+pop_size = 40
 t1_iters = 3
 k_iters = 2
 
@@ -36,7 +36,7 @@ k_iters = 3
 # -------------------------------------------------------------------------------------
 budgets = [120, 300, 500, 1000]   # allowed `evosynth scale --budget` values
 default_budget = 300
-pop_size = 30
+pop_size = 40
 t1_iters_fraction = 0.03
 t1_iters_min = 3
 k_iters_fraction = 0.02
@@ -51,7 +51,7 @@ checkpoint_interval = 10          # write checkpoint JSON every N evaluations (r
 #          run_benchmark_setup (t1/k schedule for the EvoSynth run).
 # -------------------------------------------------------------------------------------
 setups = { "CVGS-300" = 300, "CVGS-500" = 500 }   # setup name → budget (run_ablation)
-pop_size = 30                      # run_ablation (--pop-size default)
+pop_size = 40                      # run_ablation (--pop-size default)
 max_workers = 2                    # run_ablation (--max-workers default; low to limit RAM)
 checkpoint_interval = 10           # run_isolated_optimizer (resume checkpoint every N evals)
 share_checkpoint_fraction = 0.25   # run_ablation: checkpoint_eval = int(budget · fraction) ("25% budget share")
@@ -95,8 +95,8 @@ refit_trees = 150                  # models/factory.py build_model(phase="baseli
 # src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__ (defaults) and .evaluate (momentum).
 # budget / pop_size / t1_iters / k_iters: src/evosynth/experiments/nas.py → run_nas (command: evosynth nas).
 # -------------------------------------------------------------------------------------
-budget = 80
-pop_size = 20
+budget = 160
+pop_size = 40
 t1_iters = 3
 k_iters = 2
 epochs = 2                 # ImageCNNEvaluator.__init__ default

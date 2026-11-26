@@ -12,7 +12,7 @@ from evosynth.seeding import derive_int, stream
 
 def _toy_run(space, evaluator, seed):
     set_settings(load_config(overrides=[f"run.seed={seed}"]))
-    opt = DynamicOptimizer(space, evaluator, budget=80, pop_size=20, t1_iters=2, k_iters=1, max_workers=4)
+    opt = DynamicOptimizer(space, evaluator, budget=160, pop_size=40, t1_iters=2, k_iters=1, max_workers=4)
     best = opt.run()
     return [(h["eval_id"], round(h["fitness"], 10), h["algo"]) for h in opt.history], best
 

@@ -17,7 +17,7 @@ from evosynth.core.decoding import decode_vector_to_dict
 from evosynth.core.individual import Individual
 from evosynth.engine.bandit import UCB1Bandit
 from evosynth.engine.scoring import CompositeScoringEngine
-from evosynth.engine.tiers import TierManager  # noqa: F401  (wired in Phase 1.6/1.9)
+from evosynth.engine.tiers import TierManager
 from evosynth.optimizers.cmaes import CMAESOptimizer
 from evosynth.optimizers.de import DifferentialEvolution
 from evosynth.optimizers.ga import GeneticAlgorithm
@@ -58,7 +58,7 @@ class DynamicOptimizer:
     def __init__(self, search_space, evaluator,
                  budget=None, pop_size=None,
                  t1_iters=None, k_iters=None,
-                 swap_threshold=None, stagnation_limit=None,
+                 swap_margin=None, stagnation_limit=None,
                  elite_pct=None, inject_pct=None,
                  max_workers=None, population_csv=None):
         cfg = get_settings()
@@ -69,7 +69,7 @@ class DynamicOptimizer:
         self.pop_size = _pick(pop_size, eng.pop_size)
         self.t1_iters = _pick(t1_iters, eng.t1_iters)
         self.k = _pick(k_iters, eng.k_iters)
-        self.swap_threshold = _pick(swap_threshold, sg.swap_margin)
+        self.swap_margin = _pick(swap_margin, sg.swap_margin)   # additive UCB margin for a SWAP
         self.stagnation_limit = _pick(stagnation_limit, sg.stagnation_limit)
         self.elite_pct = _pick(elite_pct, sg.elite_pct)
         self.inject_pct = _pick(inject_pct, sg.t2_inject_pct)
@@ -79,14 +79,18 @@ class DynamicOptimizer:
         # Constants previously hard-coded in run()
         self.t1_fraction = eng.t1_fraction
         self.n_promoted = eng.n_promoted
+        self.min_island_size = eng.min_island_size
+        self.tier_split = eng.tier_split
+        self.auto_k = eng.auto_k
+        self.min_t2_checkpoints = eng.min_t2_checkpoints
+        self.trend_window = cfg.composite.trend_window
         self.t1_inject_pct = sg.t1_inject_pct
         self.grace_iters = sg.grace_iters
         self.cooldown_multiplier = sg.cooldown_multiplier
 
         self.composite_engine = CompositeScoringEngine()
+        # Phase 1.1: the bandit makes promotion and SWAP decisions (c from [bandit] c)
         self.bandit = UCB1Bandit()
-
-        self.c = cfg.bandit.c
 
         # Phase 0 seeding: the controller's own generator (initial population, injections) and
         # one fresh generator per optimizer instance it creates, all derived from run.seed.
@@ -102,12 +106,16 @@ class DynamicOptimizer:
         # One CSV row per evaluation (population.csv of the run folder), if a path is given
         self.pop_logger = PopulationLogger(self.space, population_csv) if population_csv else None
         self.reporter = get_reporter()
-        self._algo_stats = {
-            'GA': {'best': 0.0, 'prev_best': 0.0},
-            'PSO': {'best': 0.0, 'prev_best': 0.0},
-            'DE': {'best': 0.0, 'prev_best': 0.0},
-            'CMAES': {'best': 0.0, 'prev_best': 0.0}
-        }
+        # Per family: best so far, best at the last scoring call, evaluation seconds since the
+        # last scoring call (efficiency), and island bests at past scoring calls (trend).
+        self._algo_stats = {k: {'best': 0.0, 'prev_best': 0.0, 'eval_seconds': 0.0, 'best_history': []}
+                            for k in ('GA', 'PSO', 'DE', 'CMAES')}
+
+        island = int(self.pop_size * self.t1_fraction) // 4
+        if island < self.min_island_size:
+            raise ValueError(
+                f"pop_size={self.pop_size} with t1_fraction={self.t1_fraction} gives Tier 1 islands of {island}; "
+                f"at least engine.min_island_size={self.min_island_size} are needed (raise pop_size)")
 
     def _new_optimizer(self, algo_key, pop_size):
         """Create an optimizer with its own generator: stream("engine", "optimizer", algo, n)."""
@@ -133,12 +141,15 @@ class DynamicOptimizer:
             return ind
 
         n_workers = min(self.max_workers, len(eval_vectors))
+        t_start = time.perf_counter()
         if n_workers > 1:
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
                 evaluated_inds = list(executor.map(_eval_single, eval_vectors))
         else:
             evaluated_inds = [_eval_single(v) for v in eval_vectors]
+        if algo_key in self._algo_stats:
+            self._algo_stats[algo_key]['eval_seconds'] += time.perf_counter() - t_start
 
         for ind in evaluated_inds:
             inds.append(ind)
@@ -167,38 +178,66 @@ class DynamicOptimizer:
             })
         return inds
 
+    @staticmethod
+    def _latent_diversity(pop, dims):
+        """Mean pairwise Euclidean distance between the island's latent vectors / sqrt(d), in [0, 1]."""
+        if len(pop) < 2:
+            return 0.0
+        X = np.array([ind.vector for ind in pop], dtype=float)
+        diff = X[:, None, :] - X[None, :, :]
+        dist = np.sqrt((diff ** 2).sum(axis=-1))
+        n = len(X)
+        return float(dist[np.triu_indices(n, k=1)].mean() / np.sqrt(dims))
+
+    def _trend(self, history):
+        """Least-squares slope of the island's best fitness over the last `trend_window` scoring calls."""
+        h = history[-self.trend_window:]
+        if len(h) < 2:
+            return 0.0
+        return float(np.polyfit(np.arange(len(h)), h, 1)[0])
+
     def _compute_composite(self, algo_pops):
+        """
+        Raw metrics per island, composite score (CompositeScoringEngine) and UCB score (UCB1Bandit).
+          fitness     best accuracy in the island
+          speed       improvement of the family's best since its last scoring call
+          efficiency  that improvement per second of evaluation time spent on the family since then
+          diversity   mean pairwise latent distance / sqrt(d)
+          trend       slope of the family's best over its last `trend_window` scoring calls
+        Returns (ucb_scores, raw): raw[name] also holds 'raw_composite' and 'ucb_bonus'.
+        """
+        dims = len(list(self.space.keys()))
         algo_data = {}
         for name, pop in algo_pops.items():
             if not pop: continue
-            fitnesses = [ind.fitness for ind in pop]
-            best = max(fitnesses)
-            spread = max(fitnesses) - min(fitnesses) + 1e-9
-            diversity = min(float(np.std(fitnesses)) / spread, 1.0)
+            best = max(ind.fitness for ind in pop)
             algo_key = name.replace("T1_", "").replace("T2_", "")
-            prev = self._algo_stats.get(algo_key, {}).get('prev_best', 0.0)
-            trend = max(best - prev, 0.0)
-            self._algo_stats[algo_key]['prev_best'] = best
+            st = self._algo_stats[algo_key]
+            improvement = max(best - st['prev_best'], 0.0)
+            efficiency = improvement / max(st['eval_seconds'], 1e-6)
+            st['best_history'].append(best)
             algo_data[name] = {
-                'fitness': best, 'speed': trend,
-                'efficiency': 1.0, 'diversity': diversity, 'trend': trend
+                'fitness': best,
+                'speed': improvement,
+                'efficiency': efficiency,
+                'diversity': self._latent_diversity(pop, dims),
+                'trend': self._trend(st['best_history']),
+                'improvement': improvement,
             }
-            
+            st['prev_best'] = best
+            st['eval_seconds'] = 0.0
+
         composite_scores = self.composite_engine.calculate_scores(algo_data)
-        
-        final_scores = {}
-        import math
-        for name, comp_score in composite_scores.items():
+
+        ucb_scores = {}
+        for name, comp in composite_scores.items():
             algo_key = name.replace("T1_", "").replace("T2_", "")
-            algo_budget = self.algo_evals.get(algo_key, 1)
-            total_budget = max(1, self.evals_used)
-            
-            exploration_bonus = self.c * math.sqrt(math.log(total_budget) / max(1, algo_budget))
-            final_scores[name] = comp_score + exploration_bonus
-            algo_data[name]['ucb_bonus'] = exploration_bonus
-            algo_data[name]['raw_composite'] = comp_score
-            
-        return final_scores, algo_data
+            n_algo = self.algo_evals.get(algo_key, 0)
+            self.bandit.update(algo_key, comp)
+            ucb_scores[name] = self.bandit.score(algo_key, comp, n_algo, self.evals_used)
+            algo_data[name]['raw_composite'] = comp
+            algo_data[name]['ucb_bonus'] = self.bandit.bonus(n_algo, self.evals_used)
+        return ucb_scores, algo_data
 
     def _print_scoring_table(self, algo_pops, scores, raw):
         print(f"\n  {'Algorithm':<12} {'Best Acc':>9} {'Diversity':>10} {'Composite':>10} {'Bonus':>7} {'UCB Score':>10}")
@@ -217,9 +256,49 @@ class DynamicOptimizer:
         print(f"\n  [INJECT] Replacing bottom {n_inject} in {tag} with fresh random vectors.")
         self.reporter.emit("switch", {"action": "Injection", "algo": tag, "details": f"Replaced bottom {n_inject} due to stagnation"})
         fresh = self._evaluate_batch([self.rng.random(dims) for _ in range(n_inject)], tag)
-        optimizer.population.sort(key=lambda x: x.fitness, reverse=True)
-        optimizer.population = optimizer.population[:-n_inject] + fresh
+        optimizer.inject(fresh)     # Phase 1.8: the optimizer updates its own search state too
         return optimizer
+
+    def _initialize_population(self, dims):
+        """Step 1: evaluate pop_size random vectors in parallel chunks; returns them best first."""
+        self.reporter.emit("step", {"num": 1, "name": f"Initial Population (N={self.pop_size})"})
+        print(f"\n{_sep()}")
+        print(_header(f"STEP 1: INITIAL POPULATION (N={self.pop_size})"))
+        print(_sep())
+        full_pop = []
+        chunk_size = max(1, self.max_workers * 2)
+        for batch_start in range(0, self.pop_size, chunk_size):
+            if self.evals_used >= self.budget: break
+            curr_len = min(chunk_size, self.pop_size - batch_start)
+            batch_inds = self._evaluate_batch([self.rng.random(dims) for _ in range(curr_len)], 'Init')
+            full_pop.extend(batch_inds)
+            print(f"    Evaluated {len(full_pop)}/{self.pop_size} (best so far: {max(ind.fitness for ind in full_pop):.2f}%)")
+            self.reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
+        full_pop.sort(key=lambda x: x.fitness, reverse=True)
+        print(f"  [OK] Full population evaluated. Best: {full_pop[0].fitness:.2f}% | Budget: {self.evals_used}/{self.budget}")
+        return full_pop
+
+    def _set_checkpoint_interval(self, island_size):
+        """
+        Phase 1.7: with auto_k, shrink k so Tier 2 reaches at least min_t2_checkpoints checkpoints.
+        Estimate: Tier 1 uses t1_iters · 4 · island evaluations after the initial population; each
+        Tier 2 iteration evaluates about pop_size candidates (both T2 islands + both T1 islands).
+        k_iters stays the upper bound.
+        """
+        self._k_note = ""
+        if not self.auto_k:
+            return
+        remaining = self.budget - self.pop_size - self.t1_iters * 4 * island_size
+        t2_iters = max(0, remaining // max(1, self.pop_size))
+        configured = self.k
+        if t2_iters >= self.min_t2_checkpoints:
+            self.k = max(1, min(configured, t2_iters // self.min_t2_checkpoints))
+        else:
+            self.k = 1
+            print(f"  [WARNING] budget {self.budget} leaves about {t2_iters} Tier 2 iteration(s); fewer than "
+                  f"{self.min_t2_checkpoints} checkpoints are possible. Raise the budget or lower pop_size / t1_iters.")
+        self._k_note = (f" (auto: about {t2_iters} Tier 2 iterations, >= {self.min_t2_checkpoints} checkpoints"
+                        + (f"; k_iters={configured} lowered" if self.k < configured else "") + ")")
 
     def run(self):
         total_start = time.time()
@@ -236,49 +315,33 @@ class DynamicOptimizer:
         print(f"  Population Size      : {self.pop_size}")
         print(f"  Budget               : {self.budget} evals")
         print(f"  T1 Competition       : {self.t1_iters} iters (4 Algorithms)")
+        print(f"  Tier split           : {self.tier_split}")
 
         # ==============================================================
         # STEP 1: INITIAL POPULATION
         # ==============================================================
-        self.reporter.emit("step", {"num": 1, "name": "Initial Population (N=100)"})
-        print(f"\n{_sep()}")
-        print(_header(f"STEP 1: INITIAL POPULATION (N={self.pop_size})"))
-        print(_sep())
-        full_pop = []
-        chunk_size = max(1, self.max_workers * 2)
-        for batch_start in range(0, self.pop_size, chunk_size):
-            if self.evals_used >= self.budget: break
-            curr_len = min(chunk_size, self.pop_size - batch_start)
-            batch_vecs = [self.rng.random(dims) for _ in range(curr_len)]
-            batch_inds = self._evaluate_batch(batch_vecs, 'Init')
-            full_pop.extend(batch_inds)
-            print(f"    Evaluated {len(full_pop)}/{self.pop_size} (best so far: {max(ind.fitness for ind in full_pop):.2f}%)")
-            self.reporter.emit("progress", {"evals": self.evals_used, "budget": self.budget})
-        
-        full_pop.sort(key=lambda x: x.fitness, reverse=True)
-        print(f"  [OK] Full population evaluated. Best: {full_pop[0].fitness:.2f}% | Budget: {self.evals_used}/{self.budget}")
+        full_pop = self._initialize_population(dims)
 
         # ==============================================================
-        # STEP 2: TIER SPLIT (40% T1 / 60% T2 Reserved)
+        # STEP 2: TIER SPLIT (TierManager: Tier 1 islands + Tier 2 reserve)
         # ==============================================================
         self.reporter.emit("step", {"num": 2, "name": "Tier Split (4-Way)"})
-        t1_count = int(self.pop_size * self.t1_fraction)
-        t2_reserved = full_pop[t1_count:]
-        t1_island_size = t1_count // 4
-
-        seeds = {
-            'GA': full_pop[:t1_island_size],
-            'PSO': full_pop[t1_island_size:2*t1_island_size],
-            'DE': full_pop[2*t1_island_size:3*t1_island_size],
-            'CMAES': full_pop[3*t1_island_size:t1_count]
-        }
+        t1_island_size = int(self.pop_size * self.t1_fraction) // 4
+        tiers = TierManager(full_pop, t1_island_size, n_islands=4, split=self.tier_split,
+                            rng=stream("engine", "tiers"))
+        seeds = dict(zip(['GA', 'PSO', 'DE', 'CMAES'], tiers.islands()))
+        t2_reserve_groups = tiers.reserve_groups(self.n_promoted)
+        t1_count = 4 * t1_island_size
+        self._set_checkpoint_interval(t1_island_size)
 
         print(f"\n{_sep()}")
         print(_header("STEP 2: TIER SPLIT (4-WAY)"))
         print(_sep())
-        print(f"  Tier 1 (40%) : {t1_count} individuals split 4 ways ({t1_island_size} each)")
-        print(f"  Tier 2 (60%) : {len(t2_reserved)} individuals RESERVED for Top 2 winners")
-        
+        print(f"  Split method : {self.tier_split}")
+        print(f"  Tier 1       : {t1_count} individuals split 4 ways ({t1_island_size} each)")
+        print(f"  Tier 2       : {len(tiers.tier2_pool)} individuals RESERVED for the top {self.n_promoted}")
+        print(f"  Checkpoint k : {self.k}{self._k_note}")
+
         self.reporter.emit("tier_state", {"T1": ["GA", "PSO", "DE", "CMAES"], "T2": ["(Reserved)", "(Reserved)"]})
 
         # ==============================================================
@@ -317,7 +380,7 @@ class DynamicOptimizer:
                 t1_pops = {f"T1_{k}": list(opt.population) for k, opt in t1_optims.items()}
                 _, rw = self._compute_composite(t1_pops)
                 for k, opt in t1_optims.items():
-                    if rw.get(f"T1_{k}", {}).get('trend', 1.0) == 0.0:
+                    if rw.get(f"T1_{k}", {}).get('improvement', 1.0) == 0.0:
                         t1_optims[k] = self._random_inject(opt, self.t1_inject_pct, dims, f"T1_{k}")
 
         # ==============================================================
@@ -332,14 +395,9 @@ class DynamicOptimizer:
         scores, raw = self._compute_composite(t1_pops)
         self._print_scoring_table(t1_pops, scores, raw)
 
-        sorted_algos = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
+        sorted_algos = self.bandit.rank(scores)          # Phase 1.1: ranked by the bandit's UCB score
         top2 = sorted_algos[:self.n_promoted]
         bot2 = sorted_algos[self.n_promoted:]
-
-        for k in scores:
-            algo_key = k.replace("T1_", "")
-            self.bandit.register_algorithm(algo_key)
-            self.bandit.update(algo_key, scores[k])
 
         print(f"\n  [PROMOTED to Tier 2] : {top2[0]}, {top2[1]}")
         print(f"  [RETAINED in Tier 1] : {bot2[0]}, {bot2[1]}")
@@ -351,12 +409,10 @@ class DynamicOptimizer:
 
         # Build T2 Optimizers
         t2_optims = {}
-        t2_ind_per_algo = len(t2_reserved) // 2
         for idx, t1_name in enumerate(top2):
             k = t1_name.replace("T1_", "")
-            t2_size = len(t1_pops[t1_name]) + t2_ind_per_algo
-            opt = self._new_optimizer(k, t2_size)
-            seed_pop = t1_pops[t1_name] + t2_reserved[idx*t2_ind_per_algo : (idx+1)*t2_ind_per_algo]
+            seed_pop = t1_pops[t1_name] + t2_reserve_groups[idx]
+            opt = self._new_optimizer(k, len(seed_pop))
             opt.tell(seed_pop)
             t2_optims[k] = opt
 
@@ -459,14 +515,15 @@ class DynamicOptimizer:
                 t1_scores = {k: sc[k] for k in sc if k.startswith("T1_")}
                 t2_scores = {k: sc[k] for k in sc if k.startswith("T2_")}
                 
-                best_t1_name = max(t1_scores, key=t1_scores.get)
-                worst_t2_name = min(t2_scores, key=t2_scores.get)
+                best_t1_name = self.bandit.rank(t1_scores)[0]
+                worst_t2_name = self.bandit.rank(t2_scores)[-1]
                 best_t1_key = best_t1_name.replace("T1_", "")
                 worst_t2_key = worst_t2_name.replace("T2_", "")
 
                 # a) Swap
-                if t1_scores[best_t1_name] > t2_scores[worst_t2_name] + self.swap_threshold and self.cooldowns[best_t1_key] == 0 and self.active_grace_period is None:
-                    print(f"\n  [SWAP] {best_t1_name} ({t1_scores[best_t1_name]:.3f}) beats {worst_t2_name} ({t2_scores[worst_t2_name]:.3f}) by >{self.swap_threshold*100:.0f}%!")
+                if t1_scores[best_t1_name] > t2_scores[worst_t2_name] + self.swap_margin and self.cooldowns[best_t1_key] == 0 and self.active_grace_period is None:
+                    print(f"\n  [SWAP] {best_t1_name} (UCB {t1_scores[best_t1_name]:.3f}) beats {worst_t2_name} "
+                          f"(UCB {t2_scores[worst_t2_name]:.3f}) by more than the margin {self.swap_margin:.2f}")
                     self.reporter.emit("switch", {"action": "Swap", "algo": f"{best_t1_key} <-> {worst_t2_key}", "details": "Demoting T2 algorithm due to low composite score"})
                     
                     import copy
@@ -502,7 +559,7 @@ class DynamicOptimizer:
 
                 # b) Stagnation
                 for k, opt in list(t2_optims.items()):
-                    if rw.get(f"T2_{k}", {}).get('trend', 1.0) == 0.0:
+                    if rw.get(f"T2_{k}", {}).get('improvement', 1.0) == 0.0:
                         stagnation_counters[k] = stagnation_counters.get(k, 0) + 1
                         if stagnation_counters[k] >= self.stagnation_limit:
                             t2_optims[k] = self._random_inject(opt, self.inject_pct, dims, f"T2_{k}")
@@ -511,19 +568,18 @@ class DynamicOptimizer:
                         stagnation_counters[k] = 0
 
                 # c) Elite Sharing (Tier 2 ONLY)
-                print(f"\n  [ELITE SHARE] Pooling top {int(self.elite_pct*100)}% from Tier 2 algorithms and redistributing...")
-                self.reporter.emit("switch", {"action": "Elite Sharing", "algo": "Tier 2 Only", "details": "Swapped top individuals between T2 islands"})
-                elite_pool = []
-                for k, opt in t2_optims.items():
-                    n = max(1, int(opt.pop_size * self.elite_pct))
-                    elite_pool.extend(sorted(opt.population, key=lambda x: x.fitness, reverse=True)[:n])
-                
-                elite_pool.sort(key=lambda x: x.fitness, reverse=True)
-                
-                for k, opt in t2_optims.items():
-                    n = max(1, int(opt.pop_size * self.elite_pct))
-                    s = sorted(opt.population, key=lambda x: x.fitness, reverse=True)
-                    opt.population = s[:-n] + elite_pool[:n]
+                # Phase 1.9: pairwise sharing (TierManager): each island's worst are replaced by the
+                # other island's elites, through optimizer.inject() so search state follows.
+                (ka, oa), (kb, ob) = list(t2_optims.items())[:2]
+                n_share = max(1, int(min(len(oa.population), len(ob.population)) * self.elite_pct))
+                elites_a = TierManager.select_elites(oa.population, n_share / max(1, len(oa.population)))[:n_share]
+                elites_b = TierManager.select_elites(ob.population, n_share / max(1, len(ob.population)))[:n_share]
+                print(f"\n  [ELITE SHARE] T2_{ka} <-> T2_{kb}: exchanging the top {n_share} "
+                      f"({int(self.elite_pct*100)}%) of each island")
+                self.reporter.emit("switch", {"action": "Elite Sharing", "algo": f"{ka} <-> {kb}",
+                                              "details": f"Pairwise exchange of the top {n_share} between T2 islands"})
+                oa.inject(elites_b)
+                ob.inject(elites_a)
                 
                 print(f"  {_sep('-', 80)}\n")
                 

@@ -28,3 +28,9 @@ reporter_url = "http://localhost:8000"
 # Used in: EventReporter.__init__ (probe timeout), EventReporter.emit (post timeout)
 probe_timeout = 0.5
 post_timeout  = 1.0
+
+# While the server is unreachable, check again in the background every N seconds, so a
+# dashboard started after the run began still receives events. 0 = probe only once.
+# Used in: src/evosynth/telemetry/reporter.py → EventReporter._maybe_reprobe (called from emit)
+# Range: ≥ 0
+reprobe_seconds = 10

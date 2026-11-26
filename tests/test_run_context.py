@@ -19,7 +19,7 @@ def test_completed_run_writes_all_files(tmp_path, toy_problem):
     stdout = sys.stdout
     np.random.seed(0)
     with RunContext("search", "toy", "smoke", results_dir=tmp_path) as run:
-        opt = DynamicOptimizer(space, evaluator, budget=40, pop_size=20, t1_iters=2, k_iters=1,
+        opt = DynamicOptimizer(space, evaluator, budget=80, pop_size=40, t1_iters=2, k_iters=1,
                                max_workers=1, population_csv=run.file("population.csv"))
         best = opt.run()
         run.write_result({"best": best.fitness})
@@ -39,7 +39,7 @@ def test_completed_run_writes_all_files(tmp_path, toy_problem):
     events = [json.loads(l) for l in (folder / "events.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {"step", "progress"} <= {e["type"] for e in events}
     assert all(e["type"] != "log" for e in events)
-    assert len((folder / "population.csv").read_text(encoding="utf-8").splitlines()) == 41
+    assert len((folder / "population.csv").read_text(encoding="utf-8").splitlines()) == 81
 
 
 def test_failed_run_is_recorded(tmp_path):

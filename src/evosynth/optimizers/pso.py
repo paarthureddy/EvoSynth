@@ -82,6 +82,22 @@ class ParticleSwarm(BaseOptimizer):
 
         return new_vectors
 
+    def inject(self, individuals):
+        """Reset the worst particles (lowest personal best) to the injected individuals."""
+        individuals = list(individuals)
+        if self.particles:
+            worst = sorted(range(len(self.particles)), key=lambda i: self.particles[i]['pbest_score'])
+            for idx, ind in zip(worst, individuals):
+                pos = np.copy(ind.vector)
+                self.particles[idx] = {
+                    'pos': pos,
+                    'vel': self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions),
+                    'pbest_pos': np.copy(pos), 'pbest_score': ind.fitness,
+                }
+                if ind.fitness > self.gbest_score:
+                    self.gbest_score, self.gbest_pos = ind.fitness, np.copy(pos)
+        super().inject(individuals)
+
     def tell(self, evaluated_individuals):
         """
         Receives evaluated individuals, updates pbest / gbest,

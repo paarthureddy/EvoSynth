@@ -7,7 +7,7 @@ from evosynth.engine.controller import DynamicOptimizer
 from evosynth.engine.scoring import CompositeScoringEngine
 
 
-def _run(space, evaluator, budget=60, pop_size=20, **kw):
+def _run(space, evaluator, budget=120, pop_size=40, **kw):
     opt = DynamicOptimizer(search_space=space, evaluator=evaluator, budget=budget, pop_size=pop_size,
                            t1_iters=2, k_iters=1, max_workers=1, **kw)
     return opt, opt.run()
@@ -16,8 +16,8 @@ def _run(space, evaluator, budget=60, pop_size=20, **kw):
 def test_run_uses_exactly_the_budget(toy_problem):
     np.random.seed(0)
     opt, best = _run(*toy_problem)
-    assert opt.evals_used == 60
-    assert len(opt.history) == 60
+    assert opt.evals_used == 120
+    assert len(opt.history) == 120
     assert best.fitness == max(h["fitness"] for h in opt.history)
     assert best.source_algorithm
 
@@ -35,7 +35,7 @@ def test_population_csv_has_one_row_per_evaluation(toy_problem, tmp_path):
     _run(*toy_problem, population_csv=str(csv))
     lines = csv.read_text(encoding="utf-8").splitlines()
     assert lines[0].startswith("Eval_ID,Phase,Algorithm,Fitness,")
-    assert len(lines) == 1 + 60
+    assert len(lines) == 1 + 120
     assert {l.split(",")[1] for l in lines[1:]} <= {"Init", "T1", "T2"}
 
 

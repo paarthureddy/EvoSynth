@@ -32,3 +32,16 @@ class BaseOptimizer:
         Must be implemented by subclasses.
         """
         raise NotImplementedError
+
+    def inject(self, individuals):
+        """
+        Replace the worst members of the population with already-evaluated `individuals`
+        (random injection on stagnation, elite sharing between Tier 2 islands). Phase 1.8.
+        Subclasses with internal search state (PSO particles, CMA-ES distribution) also update it.
+        """
+        individuals = list(individuals)
+        if not individuals:
+            return
+        ranked = sorted(self.population, key=lambda ind: ind.fitness, reverse=True)
+        keep = ranked[:max(0, len(ranked) - len(individuals))]
+        self.population = sorted(keep + individuals, key=lambda ind: ind.fitness, reverse=True)[:self.pop_size]

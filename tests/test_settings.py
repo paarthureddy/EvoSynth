@@ -25,7 +25,7 @@ def test_defaults_are_valid_and_sensible():
 
 def test_preset_overrides_engine():
     s = load_config(preset="search_demo")
-    assert (s.engine.budget, s.engine.pop_size, s.engine.t1_iters, s.engine.k_iters) == (120, 20, 3, 2)
+    assert (s.engine.budget, s.engine.pop_size, s.engine.t1_iters, s.engine.k_iters) == (200, 40, 3, 2)
 
 
 def test_dotted_override_is_parsed_as_toml():
@@ -42,7 +42,9 @@ def test_bad_override_is_rejected(override):
 
 @pytest.mark.parametrize("override", [
     "composite.fitness=0.9",            # weights no longer sum to 1
-    "engine.pop_size=8",                # Tier 1 islands would have fewer than 2 members
+    "engine.pop_size=20",               # Tier 1 islands would have fewer than 4 members
+    "experiments.nas.pop_size=20",      # same check for every preset
+    "engine.tier_split=\"best\"",       # unknown split method
     "engine.budget=10",                 # budget must exceed the population
 ])
 def test_invalid_values_are_rejected(override):

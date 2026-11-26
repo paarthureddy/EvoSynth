@@ -247,12 +247,28 @@ def validate(data: Mapping) -> None:
     frac("engine.t1_fraction", 0.05, 0.95)
     n_prom = _get(data, "engine.n_promoted", e)
     _require(n_prom == 2, "engine.n_promoted: only 2 is supported until the tier logic is generalised", e)
+    pos_int("engine.min_island_size", 2)
+    pos_int("engine.min_t2_checkpoints", 1)
+    _require(isinstance(_get(data, "engine.auto_k", e), bool), "engine.auto_k must be true or false", e)
+    split = _get(data, "engine.tier_split", e)
+    _require(split in ("stratified", "random", "elite"),
+             f"engine.tier_split must be 'stratified', 'random' or 'elite' (got {split!r})", e)
+    pos_int("composite.trend_window", 2)
+    _require(_is_num(_get(data, "telemetry.reprobe_seconds", e)) and _get(data, "telemetry.reprobe_seconds", e) >= 0,
+             "telemetry.reprobe_seconds must be >= 0", e)
     pop = _get(data, "engine.pop_size", e)
     t1f = _get(data, "engine.t1_fraction", e)
-    if isinstance(pop, int) and _is_num(t1f):
-        _require(int(pop * t1f) // 4 >= 2,
-                 f"engine.pop_size={pop} x t1_fraction={t1f} gives Tier 1 islands of "
-                 f"{int(pop * t1f) // 4} (< 2 members); increase pop_size", e)
+    min_island = data.get("engine", {}).get("min_island_size", 4)
+    if _is_num(t1f) and isinstance(min_island, int):
+        sized = [("engine.pop_size", pop)] + [
+            (f"experiments.{name}.pop_size", preset.get("pop_size"))
+            for name, preset in data.get("experiments", {}).items() if isinstance(preset, dict)]
+        for key, value in sized:
+            if isinstance(value, int):
+                _require(int(value * t1f) // 4 >= min_island,
+                         f"{key}={value} x engine.t1_fraction={t1f} gives Tier 1 islands of "
+                         f"{int(value * t1f) // 4}; at least engine.min_island_size={min_island} are needed "
+                         f"(pop_size >= {-(-min_island * 4 // t1f):.0f})", e)
     budget = _get(data, "engine.budget", e)
     if isinstance(pop, int) and isinstance(budget, int):
         _require(budget > pop, f"engine.budget ({budget}) must exceed engine.pop_size ({pop})", e)

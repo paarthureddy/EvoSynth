@@ -22,7 +22,7 @@ Thank you for your interest in contributing to **EvoSynth**! We welcome contribu
 3. **Check the Settings and Run a Quick Search:**
    ```bash
    evosynth settings check
-   evosynth run --budget 36 --pop-size 20 --t1-iters 2 --k-iters 1 --no-refit
+   evosynth run --budget 120 --pop-size 40 --t1-iters 2 --k-iters 1 --no-refit
    ```
 
 4. **Run Vision NAS Verification:**

@@ -2,7 +2,7 @@
 EventReporter: records engine events to the run's events.jsonl and, when the telemetry
 server is running, sends them to it (fire-and-forget POSTs) for the live dashboard.
 
-Settings: [telemetry] reporter_url, probe_timeout, post_timeout.
+Settings: [telemetry] reporter_url, probe_timeout, post_timeout, reprobe_seconds.
 Event types: step, progress, tier_state, metric, composite, switch, log
 (see docs: dashboard/sse-protocol). 'log' events (console text) go to the server only;
 the console text itself is saved in run.log.
@@ -42,12 +42,31 @@ class EventReporter:
         self._lock = threading.Lock()
         self._events = open(events_path, "a", encoding="utf-8") if events_path else None
         self.enabled = False
+        self._base = base
+        self._probe_timeout = t.probe_timeout if probe_timeout is None else probe_timeout
+        self._reprobe_seconds = t.reprobe_seconds
+        self._last_probe = 0.0
+        self._probing = False
+        self._probe()                       # live telemetry needs the API server to be running
+
+    def _probe(self):
+        self._last_probe = time.time()
         try:
-            # Live telemetry is only enabled if the API server is already running
-            requests.get(f"{base}/docs", timeout=t.probe_timeout if probe_timeout is None else probe_timeout)
+            requests.get(f"{self._base}/docs", timeout=self._probe_timeout)
             self.enabled = True
-        except Exception:
-            pass
+        except requests.RequestException:
+            self.enabled = False
+        finally:
+            self._probing = False
+
+    def _maybe_reprobe(self):
+        """Server not reachable yet: check again in the background every reprobe_seconds, so a
+        dashboard started after the run still connects (Phase 1.11)."""
+        if self._reprobe_seconds <= 0 or self._probing:
+            return
+        if time.time() - self._last_probe >= self._reprobe_seconds:
+            self._probing = True
+            threading.Thread(target=self._probe, daemon=True).start()
 
     def emit(self, event_type, payload):
         if self._events is not None and event_type not in FILE_SKIP:
@@ -57,13 +76,14 @@ class EventReporter:
                 self._events.write(line + "\n")
                 self._events.flush()
         if not self.enabled:
+            self._maybe_reprobe()
             return
 
         def _send():
             try:
                 requests.post(self.url, json={"type": event_type, "data": payload}, timeout=self.post_timeout)
-            except Exception:
-                pass
+            except requests.RequestException:
+                pass                        # telemetry must never slow down or crash a run
         threading.Thread(target=_send, daemon=True).start()
 
     def close(self):
