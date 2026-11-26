@@ -206,7 +206,7 @@ EvoSynth/
 │   └── experiments/              # search, scaling, ablation, baselines, nas, run folders
 ├── results/                      # One folder per run: <experiment>/<dataset>/<variant>/seed_<k>/
 │   └── archive/                  # Panel-review (v1) results, kept unchanged
-├── tools/run_experiments.ps1     # Staged runner for the full Covertype study
+├── tools/run_experiments.py      # Experiment plans (smoke / lean / core) for the re-runs
 ├── dashboard/                    # React live telemetry dashboard (Vite + Tailwind CSS)
 ├── docs/                         # VitePress documentation site
 │   ├── research/                 # Comparative analysis, related papers

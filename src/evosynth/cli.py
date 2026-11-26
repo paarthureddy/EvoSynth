@@ -104,7 +104,8 @@ def cmd_scale(args):
     from evosynth.experiments.scaling import run_benchmark
     _per_seed(args, lambda: run_benchmark(budget=args.budget, pop_size=args.pop_size,
                                           checkpoint_interval=args.checkpoint_interval, variant=args.variant,
-                                          results_dir=args.results_dir, dataset=args.dataset))
+                                          results_dir=args.results_dir, dataset=args.dataset,
+                                          subsample=args.subsample))
 
 
 def cmd_ablation(args):
@@ -112,7 +113,7 @@ def cmd_ablation(args):
     _per_seed(args, lambda: run_ablation(setup=args.setup, pop_size=args.pop_size, max_workers=args.max_workers,
                                          checkpoint_interval=args.checkpoint_interval,
                                          results_dir=args.results_dir, dataset=args.dataset,
-                                         splits=_split_list(args.splits)))
+                                         splits=_split_list(args.splits), subsample=args.subsample))
 
 
 def _split_list(text):
@@ -130,7 +131,8 @@ def _split_list(text):
 def cmd_baselines(args):
     from evosynth.experiments.baselines import run_baselines
     _per_seed(args, lambda: run_baselines(test=args.test, trials=args.trials, time_budget=args.time_budget,
-                                          results_dir=args.results_dir, dataset=args.dataset))
+                                          results_dir=args.results_dir, dataset=args.dataset,
+                                          subsample=args.subsample))
 
 
 def cmd_nas(args):
@@ -148,7 +150,7 @@ def cmd_speedup(args):
     from evosynth.experiments.speedup import run_speedup
     _per_seed(args, lambda: run_speedup(dataset=args.dataset, configurations=args.configurations,
                                         workers=args.workers, variant=args.variant or "default",
-                                        results_dir=args.results_dir))
+                                        results_dir=args.results_dir, subsample=args.subsample))
 
 
 def cmd_serve(args):
@@ -272,6 +274,9 @@ def build_parser():
         _common(sp)
     for sp in (r, sc, n, su):
         sp.add_argument("--variant", help="run folder name (default: preset / budget_<N> / default)")
+    for sp in (sc, a, b, su):
+        sp.add_argument("--subsample", type=int,
+                        help="search on this many rows: a stratified subset of the dataset's search rows")
     for sp in (r, sc, a, b, n, su):
         seeds = sp.add_mutually_exclusive_group()
         seeds.add_argument("--seed", type=int, help="search seed (sets run.seed)")

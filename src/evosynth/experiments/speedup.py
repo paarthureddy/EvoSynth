@@ -37,20 +37,22 @@ def _time(evaluator, vectors, workers):
     return time.perf_counter() - t, scores
 
 
-def run_speedup(dataset="covertype", configurations=None, workers=None, variant="default", results_dir=None):
+def run_speedup(dataset="covertype", configurations=None, workers=None, variant="default", results_dir=None,
+                subsample=None):
     with RunContext("speedup", dataset, variant, results_dir=results_dir) as run:
-        return _run(run, dataset, configurations, workers)
+        return _run(run, dataset, configurations, workers, subsample)
 
 
-def _run(run, dataset, configurations, workers):
+def _run(run, dataset, configurations, workers, subsample):
     from evosynth.evaluators.tabular import TabularEvaluator
 
     s = get_settings()
     sp = s.experiments.speedup
     n = sp.configurations if configurations is None else configurations
     workers = (sp.workers or os.cpu_count() or 1) if workers is None else workers
-    evaluators = {True: TabularEvaluator(dataset, settings=with_overrides(s, ["evaluation.early_stopping=true"])),
-                  False: TabularEvaluator(dataset, settings=with_overrides(s, ["evaluation.early_stopping=false"]))}
+    evaluators = {es: TabularEvaluator(dataset, subsample_size=subsample,
+                                       settings=with_overrides(s, [f"evaluation.early_stopping={str(es).lower()}"]))
+                  for es in (True, False)}
     dims = len(list(evaluators[True].space.keys()))
     rng = stream("speedup", "configurations")
     vectors = [rng.random(dims) for _ in range(n)]

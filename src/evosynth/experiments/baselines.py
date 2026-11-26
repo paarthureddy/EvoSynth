@@ -96,13 +96,13 @@ def _tuned_result(name, best_cv, selected, cfg, confirmation, refit, evaluator, 
             "trials": n_trials, "failed_folds": evaluator.failed_folds, "search_seconds": round(seconds, 2)}
 
 
-def run_random_search(out_dir, n_trials=None, dataset="covertype"):
+def run_random_search(out_dir, n_trials=None, dataset="covertype", subsample=None):
     n_trials = get_settings().experiments.baselines.random_search_trials if n_trials is None else n_trials
     _banner(f"BASELINE: RANDOM SEARCH ({n_trials} EVALUATIONS)")
     from evosynth.evaluators.tabular import TabularEvaluator
 
     space = get_tabular_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = TabularEvaluator(dataset)
+    evaluator = TabularEvaluator(dataset, subsample_size=subsample)
     dims = len(list(space.keys()))
     rng = stream("baseline", "random_search")
     individuals = []
@@ -127,7 +127,7 @@ def run_random_search(out_dir, n_trials=None, dataset="covertype"):
     return _tuned_result("random_search", best_cv, selected, cfg, confirmation, refit, evaluator, n_trials, seconds)
 
 
-def run_optuna_baseline(out_dir, n_trials=None, dataset="covertype"):
+def run_optuna_baseline(out_dir, n_trials=None, dataset="covertype", subsample=None):
     n_trials = get_settings().experiments.baselines.optuna_trials if n_trials is None else n_trials
     _banner(f"BASELINE: OPTUNA TPE SAMPLER ({n_trials} TRIALS)")
     try:
@@ -138,7 +138,7 @@ def run_optuna_baseline(out_dir, n_trials=None, dataset="covertype"):
     from evosynth.evaluators.tabular import TabularEvaluator
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    evaluator = TabularEvaluator(dataset)
+    evaluator = TabularEvaluator(dataset, subsample_size=subsample)
     space = get_tabular_search_space(include_model_type=True, include_fe_strategy=True)
     dims = len(list(space.keys()))
     study = optuna.create_study(
@@ -213,18 +213,21 @@ BASELINE_TESTS = ("all", "defaults", "random", "optuna", "flaml")
 # --test name -> (run-folder name, function); Optuna resumes from its SQLite study
 _BASELINES = {
     "defaults": ("defaults", lambda d, a: run_defaults(d, dataset=a["dataset"])),
-    "random": ("random_search", lambda d, a: run_random_search(d, n_trials=a["trials"], dataset=a["dataset"])),
-    "optuna": ("optuna_tpe", lambda d, a: run_optuna_baseline(d, n_trials=a["trials"], dataset=a["dataset"])),
+    "random": ("random_search", lambda d, a: run_random_search(d, n_trials=a["trials"], dataset=a["dataset"],
+                                                               subsample=a["subsample"])),
+    "optuna": ("optuna_tpe", lambda d, a: run_optuna_baseline(d, n_trials=a["trials"], dataset=a["dataset"],
+                                                              subsample=a["subsample"])),
     "flaml": ("flaml", lambda d, a: run_flaml_baseline(d, time_budget=a["time_budget"], dataset=a["dataset"])),
 }
 
 
-def run_baselines(test="all", trials=None, time_budget=None, results_dir=None, dataset="covertype"):
+def run_baselines(test="all", trials=None, time_budget=None, results_dir=None, dataset="covertype",
+                  subsample=None):
     """Run one or all baselines on `dataset`, each in its own run folder."""
     if test not in BASELINE_TESTS:
         raise ValueError(f"unknown baseline '{test}'. Choose from {BASELINE_TESTS}")
     get_spec(dataset, kind="tabular")            # fail early on an unknown dataset
-    args = {"trials": trials, "time_budget": time_budget, "dataset": dataset}
+    args = {"trials": trials, "time_budget": time_budget, "dataset": dataset, "subsample": subsample}
     for name, (variant, fn) in _BASELINES.items():
         if test not in ("all", name):
             continue

@@ -370,7 +370,7 @@ def run_benchmark_setup(run, setup_name, budget, pop_size, evaluator, space, max
 
 
 def run_ablation(setup=None, pop_size=None, max_workers=None, checkpoint_interval=None,
-                 results_dir=None, dataset="covertype", splits=None):
+                 results_dir=None, dataset="covertype", splits=None, subsample=None):
     """Isolated GA/PSO/DE/CMA-ES vs EvoSynth for one setup from [experiments.ablation].setups."""
     ab = get_settings().experiments.ablation
     setups = dict(ab.setups)
@@ -379,7 +379,7 @@ def run_ablation(setup=None, pop_size=None, max_workers=None, checkpoint_interva
         raise ValueError(f"unknown setup '{setup}'. Available: {sorted(setups)}")
     budget = setups[setup]
     space = get_tabular_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = TabularEvaluator(dataset)
+    evaluator = TabularEvaluator(dataset, subsample_size=subsample)
     # resume=True: an interrupted setup continues from checkpoints/ and appends to run.log
     with RunContext("ablation", dataset, setup, results_dir=results_dir, resume=True) as run:
         return run_benchmark_setup(
