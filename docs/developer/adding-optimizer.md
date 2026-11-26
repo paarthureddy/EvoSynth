@@ -6,29 +6,25 @@ EvoSynth's modular design makes integrating new nature-inspired or metaheuristic
 
 ## The Ask / Tell Contract
 
-Every worker optimizer must inherit or implement the **Ask / Tell** interface:
+Every worker optimizer subclasses `BaseOptimizer` (`src/evosynth/optimizers/base.py`) and implements the **Ask / Tell** interface. `BaseOptimizer` gives it `self.dimensions`, `self.population` and its own seeded random generator `self.rng`; use `self.rng` for all randomness (never `np.random`), so runs stay reproducible from `run.seed`.
 
 ```python
-import numpy as np
+from evosynth.optimizers.base import BaseOptimizer
 
-class CustomOptimizer:
-    def __init__(self, search_space, pop_size):
-        self.space = search_space
-        self.pop_size = pop_size
-        self.population = []
 
-    def ask(self, n: int) -> list[np.ndarray]:
-        """
-        Generate and return `n` candidate vectors in [0, 1]^d.
-        """
-        return [np.random.rand(len(self.space)) for _ in range(n)]
+class CustomOptimizer(BaseOptimizer):
+    def ask(self, n):
+        """Return `n` candidate vectors in [0, 1]^d."""
+        return [self.rng.random(self.dimensions) for _ in range(n)]
 
-    def tell(self, individuals: list) -> None:
-        """
-        Ingest evaluated individuals (with ind.fitness populated)
-        to update internal algorithm state (e.g., velocity, covariance, population).
-        """
-        self.population = individuals
+    def tell(self, individuals):
+        """Ingest evaluated individuals (ind.fitness set) and update the optimizer's state."""
+        self.population = sorted(self.population + list(individuals),
+                                 key=lambda i: i.fitness, reverse=True)[:self.pop_size]
+
+    # Optional: BaseOptimizer.inject(individuals) replaces the worst members (random injection,
+    # elite sharing). Override it if the optimizer keeps internal search state, as PSO (particles)
+    # and CMA-ES (its distribution) do.
 ```
 
 ---
@@ -40,12 +36,10 @@ class CustomOptimizer:
    ```python
    from evosynth.optimizers.custom_opt import CustomOptimizer
 
-   def _make_optimizer(algo_key, space, pop_size):
-       if algo_key == 'GA': return GeneticAlgorithm(space, pop_size)
-       if algo_key == 'PSO': return ParticleSwarm(space, pop_size)
-       if algo_key == 'DE': return DifferentialEvolution(space, pop_size)
-       if algo_key == 'CMAES': return CMAESOptimizer(space, pop_size)
-       if algo_key == 'CUSTOM': return CustomOptimizer(space, pop_size)
+   def _make_optimizer(algo_key, space, pop_size, rng=None):
+       if algo_key == 'GA': return GeneticAlgorithm(space, pop_size, rng=rng)
+       ...
+       if algo_key == 'CUSTOM': return CustomOptimizer(space, pop_size, rng=rng)
        raise ValueError(f"Unknown algo: {algo_key}")
    ```
-3. Add `'CUSTOM'` to `self.algo_evals` and `self.cooldowns` in `DynamicOptimizer.__init__`.
+3. Add `'CUSTOM'` to `self.algo_evals`, `self.cooldowns` and `self._algo_stats` in `DynamicOptimizer.__init__`. Tier 1 currently runs exactly four islands (one per family), so a fifth family also needs the island count in the tier split (`TierManager(n_islands=...)`) and the Tier 1 share to be raised accordingly.

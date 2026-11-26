@@ -19,8 +19,8 @@ EvoSynth introduces **Glass-Box Telemetry**: a live React dashboard providing re
 │ [T2: GA, CMAES]        │                                               │
 ├────────────────────────┼───────────────────────────────────────────────┤
 │ UCB1 Composite Radar   │ Terminal Log Mirror                           │
-│ 🎯 Fitness, Velocity,  │ [INFO] Evaluating batch 16/100...             │
-│    Diversity, Trend    │ [OK] New Best: 95.33% via PSO                 │
+│ 🎯 Fitness, Speed,     │ [INFO] Evaluating batch 16/100...             │
+│    Diversity, Trend    │ [OK] New Best: 86.40% via T2_PSO              │
 └────────────────────────┴───────────────────────────────────────────────┘
 ```
 

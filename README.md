@@ -32,7 +32,7 @@ When defending this project before an evaluation panel, every keyword in the tit
 
 | Title Component | Concrete Workflow Stage | Source Implementation |
 | :--- | :--- | :--- |
-| **Dynamic Multi-Armed Bandit** | Calculates real-time Upper Confidence Bounds ($UCB1 = \bar{X}_i + c \sqrt{\frac{\ln N}{n_i}}$) across composite fitness, velocity, diversity, and trend metrics. | [`src/evosynth/engine/bandit.py`](src/evosynth/engine/bandit.py) |
+| **Dynamic Multi-Armed Bandit** | The UCB1 bandit ranks the optimizer families for every promotion and SWAP: $UCB = \text{composite} + c \sqrt{\frac{\ln N}{n_i}}$ with $c = 0.1$, where the composite combines fitness, speed, efficiency, latent diversity and trend. | [`src/evosynth/engine/bandit.py`](src/evosynth/engine/bandit.py) |
 | **Meta-Optimizer** | Controls and coordinates multiple underlying optimization algorithms (Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES) in a 2-Tier Island Model. | [`src/evosynth/engine/controller.py`](src/evosynth/engine/controller.py) |
 | **Automated Model Selection** | Decodes latent vectors to dynamically switch model families (`XGBoost`, `LightGBM`, `RandomForest`, or PyTorch `CNN`) within the same search loop. | [`src/evosynth/search_spaces/`](src/evosynth/search_spaces/) |
 | **Hyperparameter Tuning** | Evaluates continuous & discrete parameters in parallel with early stopping to prevent wasted compute on suboptimal branches. | [`src/evosynth/evaluators/tabular.py`](src/evosynth/evaluators/tabular.py) |
@@ -49,11 +49,11 @@ The EvoSynth workflow operates in **7 discrete, automated stages**:
 
 1. **Step 0 — Problem Definition & Universal Latent Mapping**: Maps mixed discrete, categorical, and continuous hyperparameter spaces and neural architectures into a unified continuous hypercube $[0, 1]^d$.
 2. **Step 1 — Parallel Population Initialization**: Generates and evaluates the initial population asynchronously across CPU worker threads with early stopping.
-3. **Step 2 — Two-Tier Co-evolutionary Split**: Separates candidate individuals into **Tier 1 (40% seed tournament pool)** for rapid heuristic discovery and **Tier 2 (60% reserve pool)** for exploitation.
+3. **Step 2 — Two-Tier Co-evolutionary Split**: A stratified split gives **Tier 1** 40% of the population as four equal islands, and keeps 60% as the **Tier 2 reserve** in two groups. Every island and group gets a mix of good and weak members, so no optimizer starts with an advantage.
 4. **Step 3 — Tier 1 Tournament**: Simultaneous execution of 4 competing metaheuristic algorithms (Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES) over candidate vectors.
-5. **Step 4 — Meta-Control & Dynamic Promotion**: Evaluates candidate fitness, velocity, diversity, and trend via a Composite Scoring Engine and routes computational resources via a **UCB1 Multi-Armed Bandit** with exploration bonuses to promote top strategies.
-6. **Step 5 — Tier 2 Exploitation & Safeguards**: Dual-island cooperative co-evolution with top-20% elite migration and automated random latent injections when stagnation is detected.
-7. **Step 6 — Production Output & Glass-Box Observability**: Delivers a **single standalone, production-ready model** with zero inference penalty, while streaming live telemetry via Server-Sent Events (SSE) to the interactive React dashboard.
+5. **Step 4 — Meta-Control & Dynamic Promotion**: The Composite Scoring Engine measures each island's fitness, speed (gain since the last check), efficiency (gain per evaluation-second), latent diversity and trend (slope over the last 3 checks); the **UCB1 bandit** adds an exploration bonus and promotes the top two families.
+6. **Step 5 — Tier 2 Exploitation & Safeguards**: The two promoted islands (each its Tier 1 island plus one reserve group) exchange their top 20% every k iterations. At each checkpoint a Tier 1 family whose UCB beats the weakest Tier 2 family by more than 0.10 is swapped in (with a grace period, rollback and cooldown), and islands without improvement receive fresh random vectors.
+7. **Step 6 — Selection, Output & Observability**: The top 5 distinct configurations are re-scored with 5-fold CV (confirm before select); the selected one is retrained on the train rows and scored once on held-out test rows, with its inference latency and size measured. The output is a **single standalone model**; live telemetry streams via Server-Sent Events (SSE) to the React dashboard.
 
 <details>
 <summary><b>Click to expand Text Flowchart (Mermaid)</b></summary>
@@ -69,8 +69,8 @@ flowchart TD
     end
 
     subgraph Step2["Step 2: Tiered Split"]
-        C --> D1[Tier 1: 40% Exploration Seed Population]
-        C --> D2[Tier 2: 60% Reserved Pool for Promotion]
+        C --> D1[Tier 1: 40% as 4 stratified islands]
+        C --> D2[Tier 2 reserve: 60% in 2 stratified groups]
     end
 
     subgraph Step3["Step 3: Tier 1 Tournament"]
@@ -82,7 +82,7 @@ flowchart TD
     end
 
     subgraph Step4["Step 4: Meta-Control & Promotion"]
-        F --> G[Composite Scoring Engine: Fitness + Speed + Diversity + Trend]
+        F --> G[Composite Scoring Engine: Fitness + Speed + Efficiency + Diversity + Trend]
         G --> H[UCB1 Multi-Armed Bandit Exploration Bonus]
         H --> I[Promote Top-2 Strategies to Tier 2 Exploitation]
     end
@@ -90,15 +90,17 @@ flowchart TD
     subgraph Step5["Step 5: Tier 2 Exploitation & Safeguards"]
         I --> J1[Cooperative Co-evolution Islands]
         D2 -. Seed Transfer .-> J1
-        J1 --> K[Elite Pool Migration: Swap Top 20% Solutions]
-        J1 --> L{Stagnation Detected?}
-        L -- Yes --> M[Random Latent Injection: Replace Bottom 20%]
-        L -- No --> N[Continue Search Loop]
+        J1 --> K[Pairwise Elite Sharing: exchange top 20%]
+        J1 --> L{Checkpoint every k iterations}
+        L -- Tier 1 family beats weakest Tier 2 by > 0.10 --> S[SWAP]
+        L -- No improvement --> M[Random Latent Injection]
+        L --> N[Continue Search Loop]
     end
 
     subgraph Step6["Step 6: Output & Observability"]
-        N --> O[Optimal Architecture & Hyperparameters Discovered]
-        O --> P[Single Standalone Model Output: Zero Inference Penalty]
+        N --> O[Confirm Before Select: top 5 re-scored with 5-fold CV]
+        O --> R[Refit on train rows, score once on held-out test rows]
+        R --> P[Single Standalone Model + measured inference cost]
         G & H & J1 -. Live Telemetry SSE .-> Q[React Glass-Box Dashboard]
     end
 ```
@@ -128,10 +130,10 @@ EvoSynth overcomes the NFL limitation by maintaining a **dynamic portfolio of co
 | :--- | :--- | :--- | :--- | :--- |
 | **Search Paradigm** | Single Bayesian (TPE/CMA) | Cost-Frugal Optimization (CFO) | Random/Grid + Bayesian | **UCB1 Dynamic Multi-Armed Bandit** |
 | **Algorithm Strategy** | Single static sampler | Single randomized local search | Static portfolio / sequential | **Cooperative Co-evolution (4-Optimizer Swarm)** |
-| **Strategy Switching** | ❌ None (Fixed sampler) | ❌ None | ❌ None | **✅ Live Tier SWAPs ($>10\%$ UCB delta)** |
+| **Strategy Switching** | ❌ None (Fixed sampler) | ❌ None | ❌ None | **✅ Live Tier SWAPs (UCB margin 0.10)** |
 | **Diversity Safeguard** | ❌ None | ❌ None | ❌ None | **✅ Explicit Latent Space Diversity Tracking** |
 | **Feature Engineering** | ❌ Manual | Limited heuristics | Fixed preprocessing | **✅ Searchable Dataset-Agnostic Gene** |
-| **Production Deliverable** | Single model | Single model | Heavy Stacked Ensemble (10+ models) | **Single fast model (~2ms latency)** |
+| **Production Deliverable** | Single model | Single model | Stacked ensemble (many models) | **Single model (latency and size measured per run)** |
 | **Observability** | Optuna Dashboard (Static polling) | Terminal logs | Web tables | **Real-Time "Glass-Box" SSE Telemetry Dashboard** |
 
 *(For complete mathematical derivations and empirical comparisons, see [docs/research/comparative_analysis.md](docs/research/comparative_analysis.md).)*
@@ -314,4 +316,4 @@ The complete project handbook (architecture, engine internals, experiments, resu
 
 ## 📄 License & Attribution
 
-Developed as an Academic / College Capstone Project. All rights reserved.
+Released under the [MIT License](LICENSE). Developed by Group G002 as an academic capstone project.

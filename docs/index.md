@@ -14,7 +14,7 @@ hero:
       link: /guide/introduction
     - theme: alt
       text: Comparative Analysis
-      link: /comparative_analysis
+      link: /research/comparative_analysis
     - theme: alt
       text: GitHub
       link: https://github.com/paarthureddy/EvoSynth
@@ -25,16 +25,16 @@ features:
     details: Intelligently allocates computational budget to the most effective search algorithm in real time, balancing exploration and exploitation.
   - icon: 🧬
     title: Multi-Algorithm Metaheuristic Portfolio
-    details: Simultanously deploys Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, and CMA-ES in a tiered island architecture.
+    details: Simultaneously deploys Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, and CMA-ES in a tiered island architecture.
   - icon: 🌐
     title: Universal Latent Space Continuous Mapping
     details: Projects mixed continuous, discrete, and categorical hyperparameters into an n-dimensional [0, 1] hypercube, enabling continuous velocity physics across all data types.
   - icon: 🔀
     title: Automated Model & Architecture Selection
-    details: Dynamically switches model families (XGBoost, LightGBM, Random Forest) and Neural Network architectures (PyTorch CNN) within the same search loop.
+    details: Dynamically switches model families (XGBoost, LightGBM, Random Forest, ExtraTrees) and Neural Network architectures (PyTorch CNN) within the same search loop.
   - icon: ⚡
     title: High-Throughput Parallel Evaluations
-    details: Asynchronous multi-threading combined with Early Stopping prunes dead-end configurations, reducing multi-hour runs down to minutes.
+    details: Candidate configurations are evaluated in parallel threads, and boosted models stop early on a slice of the training data, so unpromising configurations cost less.
   - icon: 📊
     title: Glass-Box Observability
     details: Real-time telemetry via FastAPI Server-Sent Events (SSE) and an interactive React dashboard for live inspection of bandit decisions.

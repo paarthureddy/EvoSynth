@@ -14,7 +14,7 @@ optimizer = DynamicOptimizer(
     pop_size=100,
     t1_iters=30,
     k_iters=10,
-    swap_threshold=0.10,
+    swap_margin=0.10,
     stagnation_limit=3,
     elite_pct=0.20,
     inject_pct=0.20,
@@ -33,12 +33,13 @@ Every argument left as `None` takes its value from the active settings
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `search_space` | `ConfigSpace.ConfigurationSpace` | *Required* | The hyperparameter boundaries and distributions. |
-| `evaluator` | `BaseEvaluator` | *Required* | Object with an `.evaluate(individual)` method returning accuracy. |
+| `evaluator` | object | *Required* | Object with an `.evaluate(individual)` method returning a score in % (higher is better). |
 | `budget` | `int` | `2000` | Total number of candidate model evaluations before stopping. |
-| `pop_size` | `int` | `100` | Size of the total population across Tier 1 and Tier 2. |
+| `pop_size` | `int` | `100` | Initial population N. 40% goes to Tier 1 (four islands, at least 4 members each, so N ≥ 40), 60% to the Tier 2 reserve. The command presets use 40. |
 | `t1_iters` | `int` | `30` | Number of iterations for the Tier 1 exploration tournament. |
-| `k_iters` | `int` | `10` | Checkpoint frequency for composite scoring and elite migration. |
-| `stagnation_limit` | `int` | `3` | Consecutive intervals of zero improvement before random injection. |
+| `k_iters` | `int` | `10` | Checkpoint interval in Tier 2 iterations. With `engine.auto_k` it is an upper bound, lowered so Tier 2 reaches at least 2 checkpoints. |
+| `swap_margin` | `float` | `0.10` | A Tier 1 family replaces the weakest Tier 2 family when its UCB score is higher by more than this (absolute) margin. |
+| `stagnation_limit` | `int` | `3` | Consecutive checkpoints without improvement before a Tier 2 island gets random injection. |
 | `elite_pct` | `float` | `0.20` | Fraction of top solutions shared between Tier 2 islands. |
 | `inject_pct` | `float` | `0.20` | Fraction of stagnant population replaced by random vectors. |
 | `max_workers` | `int` or `None` | `None` | Max CPU threads for asynchronous parallel evaluations (`run.max_workers = 0` means `min(8, os.cpu_count())`). |
@@ -51,7 +52,10 @@ Every argument left as `None` takes its value from the active settings
 ### `run() -> Individual`
 Executes the full optimization lifecycle:
 1. Generates and evaluates the initial population in parallel.
-2. Runs the Tier 1 exploration competition across GA, PSO, DE, and CMA-ES.
-3. Computes UCB1 composite rankings and promotes the top 2 algorithms to Tier 2.
-4. Executes the Tier 2 exploitation loop with elite migration and stagnation safeguards until budget depletion.
-5. Returns the best `Individual` found.
+2. Splits it into four Tier 1 islands and two reserve groups (stratified by fitness rank, `engine.tier_split`).
+3. Runs the Tier 1 competition across GA, PSO, DE and CMA-ES.
+4. Scores the islands (composite + UCB1) and promotes the top 2 families to Tier 2.
+5. Runs the Tier 2 loop until the budget is used; at every checkpoint: rescoring, SWAP with grace period and rollback, random injection on stagnation, pairwise elite sharing.
+6. Returns the best `Individual` found.
+
+After `run()`, `optimizer.evaluated` holds every evaluated individual (used by confirm-before-select), `optimizer.scoring_history` every scoring call with each island's metrics, composite and UCB score, and `optimizer.decisions` every promotion, SWAP, rollback, injection and elite exchange.

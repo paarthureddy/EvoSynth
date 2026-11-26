@@ -30,7 +30,7 @@ Thank you for your interest in contributing to **EvoSynth**! We welcome contribu
    evosynth nas
    ```
 
-5. **Run the tests** (about 5 seconds, no model training):
+5. **Run the tests** (about 20 seconds, small synthetic data only):
    ```bash
    python -m pytest
    ```
@@ -55,7 +55,7 @@ Thank you for your interest in contributing to **EvoSynth**! We welcome contribu
 ## 🧩 Adding a New Optimizer
 
 EvoSynth's modular architecture makes it easy to add new optimization algorithms:
-1. Implement the ask / tell interface (`ask(n)` returns latent vectors in $[0, 1]^d$, `tell(individuals)` updates the optimizer) in `src/evosynth/optimizers/`.
+1. Subclass `BaseOptimizer` in `src/evosynth/optimizers/` and implement `ask(n)` (returns latent vectors in $[0, 1]^d$) and `tell(individuals)` (updates the optimizer); override `inject(individuals)` if the optimizer keeps internal search state (as PSO and CMA-ES do). Draw all randomness from `self.rng`.
 2. Put its constants in `settings/optimizers.toml` (with "Used in" comments).
 3. Register it in `src/evosynth/engine/controller.py` (`_make_optimizer`) so the UCB1 Multi-Armed Bandit can assign exploration arms to it.
 

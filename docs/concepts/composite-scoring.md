@@ -2,48 +2,36 @@
 
 ## Beyond Raw Accuracy
 
-A naive meta-optimizer would judge algorithms solely on their highest single accuracy value. However, this creates severe failure modes:
-* An algorithm might hit an isolated, ungeneralizable spike while having a stagnant, collapsed population.
-* An algorithm might be making rapid, consistent improvements from a lower baseline, but get discarded before reaching its peak.
+A naive meta-optimizer would judge algorithms only by their best accuracy so far. That fails in two ways:
+* An algorithm can hold one lucky high score while its population has collapsed and stopped improving.
+* An algorithm can be improving quickly from a lower starting point and be discarded before it catches up.
 
-To make robust meta-optimization decisions, EvoSynth employs a multi-dimensional **Composite Scoring Engine**.
-
----
-
-## The Four Evaluation Pillars
-
-Every algorithm island is continuously evaluated across 4 normalized metrics:
-
-```text
-                  Composite Score
-                        │
-    ┌───────────┬───────┴───────┬───────────┐
-    ▼           ▼               ▼           ▼
- Fitness      Speed         Diversity     Trend
- (Accuracy) (Velocity)     (Spread/Std)  (Delta)
-```
-
-1. **Fitness ($F$):**
-   $$\text{Fitness} = \frac{\max(\text{pop}) - \text{baseline}}{\text{global\_best} - \text{baseline} + \epsilon}$$
-   Measures absolute peak accuracy achieved by the algorithm's best individual.
-
-2. **Speed / Velocity ($S$):**
-   $$S = \max(\text{Best}_t - \text{Best}_{t-1}, 0.0)$$
-   Measures the rate of fitness improvement per iteration.
-
-3. **Population Diversity ($D$):**
-   $$D = \min\left( \frac{\sigma(\text{fitnesses})}{\text{spread} + \epsilon}, 1.0 \right)$$
-   Standard deviation of fitness across the island divided by spread. High diversity indicates the algorithm is still exploring wide areas of the search space rather than prematurely converging.
-
-4. **Convergence Trend ($T$):**
-   Evaluates momentum across rolling checkpoint windows to distinguish between accelerating and plateaued searches.
+EvoSynth therefore scores every island with five metrics and combines them into one **composite score**, which the [UCB1 bandit](./meta-optimizer.md) then uses for every promotion and SWAP decision.
 
 ---
 
-## Formula Integration
+## The Five Metrics
 
-The composite score is combined as:
+The metrics are measured at every scoring call (after Tier 1, and at every Tier 2 checkpoint), per island:
 
-$$\bar{X}_i = w_f \cdot F + w_s \cdot S + w_d \cdot D + w_t \cdot T$$
+| Metric | Definition | What it rewards |
+| :--- | :--- | :--- |
+| **Fitness** $F$ | Best score in the island (the dataset's metric, in %) | Being good now |
+| **Speed** $S$ | $\max(\text{best}_t - \text{best}_{t-1},\ 0)$: improvement of the family's best since its last scoring call | Making progress |
+| **Efficiency** $E$ | $S$ divided by the seconds of evaluation time spent on that family since its last scoring call | Progress per unit of compute |
+| **Diversity** $D$ | Mean pairwise Euclidean distance between the island's latent vectors, divided by $\sqrt{d}$ (so $D \in [0, 1]$) | Still exploring, not collapsed |
+| **Trend** $T$ | Least-squares slope of the family's best over its last 3 scoring calls | Sustained momentum |
 
-This balanced score is then fed directly into the **UCB1 Multi-Armed Bandit** formula, allowing EvoSynth to reward algorithms that balance high accuracy with healthy diversity and forward momentum.
+Diversity is measured in the search space itself, on the configurations, not on their scores: two configurations with the same accuracy but very different hyperparameters count as diverse.
+
+---
+
+## Normalisation and Weights
+
+Each metric is min-max normalised across the islands scored together, so every metric lies in $[0, 1]$ and the best island on a metric gets 1. When all islands tie on a metric, each gets 0.5. The composite is a weighted sum:
+
+$$\text{composite}_i = 0.30\,F_i + 0.25\,S_i + 0.15\,E_i + 0.15\,D_i + 0.15\,T_i$$
+
+The weights live in `settings/engine.toml` (`[composite]`) and must sum to 1. Because the score is relative to the islands scored at the same moment, it compares algorithms against each other; it is not an absolute quality measure.
+
+The composite then enters the [UCB1 formula](./meta-optimizer.md#ucb1-formulation), which adds an exploration bonus for families that have used fewer evaluations.

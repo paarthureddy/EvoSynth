@@ -9,10 +9,9 @@ Custom evaluators enable EvoSynth to optimize arbitrary machine learning tasks, 
 An evaluator requires only a `.space` attribute and an `.evaluate(individual)` method:
 
 ```python
-import numpy as np
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
-from ConfigSpace import Configuration
+from evosynth.core.decoding import decode_vector_to_dict
 
 class CustomModelEvaluator:
     def __init__(self):
@@ -30,11 +29,11 @@ class CustomModelEvaluator:
         Decodes the vector, trains your model, and returns a fitness score
         (higher is better, e.g. 0 - 100%).
         """
-        # Decode [0, 1] vector back to real hyperparameter domain
-        valid_vec = np.copy(individual.vector)
-        config = Configuration(self.space, vector=valid_vec)
+        # Decode the [0, 1] vector into real hyperparameter values (handles log scales,
+        # integers and categorical bins the same way as EvoSynth's own evaluators)
+        params = decode_vector_to_dict(individual.vector, self.space)
 
-        learning_rate = config["learning_rate"]
+        learning_rate = params["learning_rate"]
 
         # Train and validate your model
         accuracy = train_and_eval(learning_rate)

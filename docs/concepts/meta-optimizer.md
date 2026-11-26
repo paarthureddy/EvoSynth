@@ -24,7 +24,9 @@ Where:
 * $\bar{X}_i \in [0, 1]$ is the normalized **Composite Score** for algorithm $i$.
 * $N$ is the total number of evaluations consumed across all algorithms.
 * $n_i$ is the number of evaluations consumed specifically by algorithm $i$.
-* $c$ is the exploration coefficient (default: $c = 0.1$).
+* $c$ is the exploration coefficient (default: $c = 0.1$, `[bandit]` in `settings/engine.toml`).
+
+The bandit (`src/evosynth/engine/bandit.py`, class `UCB1Bandit`) is updated at every scoring call and makes every ranking decision: which two families are promoted to Tier 2 after the Tier 1 competition, and, at each checkpoint, whether the best Tier 1 family should SWAP with the weakest Tier 2 family (when its score is higher by more than 0.10). See [Cooperative Co-evolution](./cooperative-coevolution.md) for the safeguards around a SWAP.
 
 ### Why This Prevents Local Minima Trapping
 If an aggressive optimizer like Particle Swarm Optimization (PSO) gets stuck in a local minimum, its composite improvement rate drops ($\bar{X}_{PSO} \to 0$). Simultaneously, the exploration bonus for Genetic Algorithm (GA) or Differential Evolution (DE) grows as $N$ increases. The UCB1 score forces the controller to divert resources to GA/DE, which break out of the local basin via stochastic crossover and differential mutations.

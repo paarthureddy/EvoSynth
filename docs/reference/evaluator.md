@@ -9,29 +9,31 @@ All defaults below come from the [`settings/`](https://github.com/paarthureddy/E
 ## 1. `TabularEvaluator`
 
 * **Source:** [`src/evosynth/evaluators/tabular.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/evaluators/tabular.py)
-* **Functionality:** Decodes a latent vector into a model family, a feature-engineering strategy and hyperparameters, then scores it with stratified cross-validation on a subsample of a registered dataset:
-  * `XGBoost` and `LightGBM`: gradient boosted trees with early stopping.
+* **Functionality:** Decodes a latent vector into a model family, a feature-engineering strategy and hyperparameters, then scores it with stratified cross-validation on the dataset's search rows (the held-out test rows are never used), with the dataset's metric (accuracy or ROC AUC):
+  * `XGBoost` and `LightGBM`: gradient boosted trees, early-stopped on a slice of the training fold.
   * `RandomForest` and `ExtraTrees`: bagged tree ensembles via `scikit-learn`.
   * Feature engineering: `none`, `stats` (row statistics) or `interactions` (pairwise interactions of continuous columns).
 
 ```python
 from evosynth.evaluators.tabular import TabularEvaluator
 
-evaluator = TabularEvaluator("covertype", subsample_size=20000)
-score = evaluator.evaluate(individual)   # mean CV accuracy in %
+evaluator = TabularEvaluator("covertype", subsample_size=10000)   # optional: a subset of the search rows
+score = evaluator.evaluate(individual)                            # mean CV score in % (dataset metric)
+confirmed = evaluator.evaluate_config(params, folds=5)            # used by confirm-before-select
 ```
 
 ### Features:
 * **Stratified Cross-Validation:** `evaluation.cv_folds` folds (default 2).
-* **Early Stopping:** boosting stops after `evaluation.early_stopping_rounds` stagnant rounds (default 10).
-* **Datasets:** registered in `settings/datasets.toml` (`evosynth datasets list`); downloaded once into `.data/`.
+* **Early Stopping:** boosting stops after `evaluation.early_stopping_rounds` stagnant rounds (default 10) on `evaluation.early_stopping_fraction` (15%) of the training fold.
+* **Failed fits:** a fold whose model raises an error scores 0; the error is printed and counted in `evaluator.failed_folds`.
+* **Datasets:** Covertype, HIGGS, Adult, Airlines, Poker Hand, MiniBooNE, Jannis (registered in `settings/datasets.toml`, `evosynth datasets list`); downloaded once into `.data/`.
 
 ---
 
 ## 2. `ImageCNNEvaluator` (Vision NAS)
 
 * **Source:** [`src/evosynth/evaluators/image.py`](https://github.com/paarthureddy/EvoSynth/blob/main/src/evosynth/evaluators/image.py)
-* **Functionality:** Evaluates Convolutional Neural Network topologies and training hyperparameters in PyTorch.
+* **Functionality:** Evaluates Convolutional Neural Network topologies and training hyperparameters in PyTorch on Fashion-MNIST (10,000 training and 2,500 validation images drawn from the official training set; the official test set is held out).
 
 ```python
 from evosynth.evaluators.image import ImageCNNEvaluator

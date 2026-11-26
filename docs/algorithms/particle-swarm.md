@@ -18,10 +18,12 @@ $$\mathbf{v}_i^{t+1} = w \cdot \mathbf{v}_i^t + c_1 r_1 (\mathbf{p}_i - \mathbf{
 $$\mathbf{x}_i^{t+1} = \text{clip}(\mathbf{x}_i^t + \mathbf{v}_i^{t+1}, 0, 1)$$
 
 Where:
-* $w \approx 0.7$ is the inertia weight controlling momentum.
+* $w = 0.5$ is the inertia weight controlling momentum (EvoSynth default).
 * $c_1 \approx 1.5$ is the cognitive coefficient pulling the particle towards its personal best $\mathbf{p}_i$.
 * $c_2 \approx 1.5$ is the social coefficient pulling the particle towards the global swarm best $\mathbf{g}$.
 * $r_1, r_2 \sim U(0, 1)$ are stochastic weights.
+
+When PSO is seeded with an already-evaluated population, those members become the particles' starting positions and personal bests, and the first step already moves them, so no evaluation is spent re-scoring a known configuration. Particles are moved round-robin, so every particle moves even when the controller asks for fewer candidates than the swarm size. When members are injected (stagnation or elite sharing), the worst particles are reset to the injected positions.
 
 ---
 

@@ -8,7 +8,7 @@ Search spaces define the configuration boundaries and distributions for hyperpar
 
 ## 1. `get_tabular_search_space()`
 
-Defines the multi-model tabular search space (9 dimensions):
+Defines the multi-model tabular search space (8 dimensions):
 
 ```python
 from evosynth.search_spaces.tabular import get_tabular_search_space
@@ -23,7 +23,6 @@ space = get_tabular_search_space(include_model_type=True, include_fe_strategy=Tr
 * `n_estimators` (UniformInteger): `[50, 500]`
 * `max_depth` (UniformInteger): `[3, 10]`
 * `subsample` (UniformFloat): `[0.5, 1.0]`
-* `booster` (Categorical): `['gbtree', 'dart']`
 * `colsample_bytree` (UniformFloat): `[0.3, 1.0]`
 * `reg_alpha` (UniformFloat): `[0.0, 10.0]`
 

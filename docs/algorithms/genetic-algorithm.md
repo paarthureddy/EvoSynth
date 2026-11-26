@@ -12,13 +12,13 @@ The Genetic Algorithm component simulates biological natural selection using chr
 ## Key Operators
 
 1. **Tournament Selection:**
-   * Samples $k$ individuals at random and selects the highest fitness individual as a parent.
-2. **Simulated Binary Crossover (SBX):**
-   * Combines parental chromosomes to create novel offspring vectors with adjustable spread.
+   * Samples $k = 2$ individuals at random and selects the fitter one as a parent.
+2. **Arithmetic Crossover:**
+   * Each gene of the child is a random blend of the two parents: $z_j = \alpha_j p_{1,j} + (1 - \alpha_j) p_{2,j}$ with $\alpha_j \sim U(0, 1)$.
 3. **Gaussian Mutation:**
-   * Applies perturbation: $z_i' = \text{clip}(z_i + \mathcal{N}(0, \sigma^2), 0, 1)$ to maintain genetic variation across generations.
-4. **Elitism:**
-   * Guarantees that the top-performing individuals survive unconditionally into subsequent generations.
+   * Each gene is perturbed with probability 0.1: $z_j' = \text{clip}(z_j + \mathcal{N}(0, 0.1^2), 0, 1)$.
+4. **Elitist Survival:**
+   * Parents and offspring are pooled and the best `pop_size` survive, so the best individual is never lost.
 
 ---
 
