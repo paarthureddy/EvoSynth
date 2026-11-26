@@ -7,13 +7,13 @@ from evosynth.search_spaces.nas import get_image_nas_search_space
 from evosynth.search_spaces.tabular import get_tabular_search_space
 from evosynth.search_spaces.toy import get_dummy_search_space
 
-TABULAR_KEYS = ["booster", "colsample_bytree", "fe_strategy", "learning_rate", "max_depth",
+TABULAR_KEYS = ["colsample_bytree", "fe_strategy", "learning_rate", "max_depth",
                 "model_type", "n_estimators", "reg_alpha", "subsample"]
 
 
 def test_tabular_space_dimensions_are_alphabetical():
     assert list(get_tabular_search_space().keys()) == TABULAR_KEYS
-    assert len(get_tabular_search_space(include_model_type=False, include_fe_strategy=False).keys()) == 7
+    assert len(get_tabular_search_space(include_model_type=False, include_fe_strategy=False).keys()) == 6
 
 
 def test_other_spaces():

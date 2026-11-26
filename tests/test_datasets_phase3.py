@@ -107,7 +107,7 @@ def test_failed_fold_scores_zero_and_is_counted(fake_covertype, monkeypatch, cap
     def boom(*a, **k):
         raise RuntimeError("bad config")
     monkeypatch.setattr(tab, "build_model", boom)
-    assert ev.evaluate(Individual(np.full(9, 0.5))) == 0.0
+    assert ev.evaluate(Individual(np.full(8, 0.5))) == 0.0
     assert ev.failed_folds == 2 and "fold 1/2 failed" in capsys.readouterr().out
 
 
@@ -121,7 +121,7 @@ def test_early_stopping_set_comes_from_the_training_fold(fake_covertype, monkeyp
         return factory.fit_model(model, model_type, X_tr, y_tr, X_es, y_es, **kw)
     monkeypatch.setattr(tab, "fit_model", spy)
     cfg = {"model_type": "LightGBM", "fe_strategy": "none", "n_estimators": 20, "learning_rate": 0.1,
-           "max_depth": 3, "subsample": 0.8, "colsample_bytree": 0.8, "reg_alpha": 0.0, "booster": "gbtree"}
+           "max_depth": 3, "subsample": 0.8, "colsample_bytree": 0.8, "reg_alpha": 0.0}
     ev.evaluate_config(cfg, folds=2)
     for (train_ids, es_ids), (_, val_idx) in zip(seen, _folds(ev)):
         val_ids = set(ev.X[val_idx][:, 1])
@@ -137,7 +137,7 @@ def _folds(ev):
 def test_real_fit_scores_above_chance(fake_covertype):
     ev = _evaluator(fake_covertype)
     for z in (0.0, 0.3, 0.6, 0.99):                    # XGBoost, RandomForest, LightGBM, ExtraTrees
-        v = np.full(9, 0.5); v[5] = z
+        v = np.full(8, 0.5); v[4] = z
         assert ev.evaluate(Individual(v)) > 50.0
     assert ev.failed_folds == 0
 
@@ -156,7 +156,7 @@ class _FakeEvaluator:
 def test_confirm_best_picks_the_best_confirmed_distinct_config():
     space = get_tabular_search_space()
     def ind(z_model, fit):
-        v = np.full(9, 0.5); v[5] = z_model
+        v = np.full(8, 0.5); v[4] = z_model
         i = Individual(v); i.set_fitness(fit); i.source_algorithm = "T1_GA"
         return i
     pop = [ind(0.0, 90.0), ind(0.0, 89.0), ind(0.3, 88.0), ind(0.6, 70.0)]   # first two decode the same

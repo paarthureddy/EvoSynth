@@ -1,5 +1,5 @@
 """
-The tabular search space: model family + feature-engineering strategy + 7 hyperparameters.
+The tabular search space: model family + feature-engineering strategy + 6 hyperparameters (8-D).
 Values come from [search_space.tabular] in settings/search_spaces.toml.
 """
 import ConfigSpace as CS
@@ -26,7 +26,6 @@ def get_tabular_search_space(include_model_type=True, include_fe_strategy=True, 
         numeric("n_estimators", t.n_estimators),
         numeric("max_depth", t.max_depth),
         numeric("subsample", t.subsample),
-        categorical("booster", t.boosters),
         numeric("colsample_bytree", t.colsample_bytree),
         numeric("reg_alpha", t.reg_alpha),
     ])

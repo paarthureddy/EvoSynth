@@ -9,7 +9,9 @@
 
 # -------------------------------------------------------------------------------------
 [search_space.tabular]
-# The 9-dimensional tabular search space (model family + FE strategy + 7 hyperparameters).
+# The 8-dimensional tabular search space (model family + FE strategy + 6 hyperparameters).
+# XGBoost always uses the gbtree booster: the 'booster' gene (gbtree / dart) was removed because
+# XGBoost 3.4 deprecates dart (src/evosynth/models/factory.py → build_model).
 # Used in: src/evosynth/search_spaces/tabular.py → get_tabular_search_space (alias get_xgboost_search_space)
 # Ranges are {low, high} (inclusive); log = true means log-uniform scaling;
 # int = true makes it an integer hyperparameter (otherwise it is a float).
@@ -17,7 +19,6 @@
 
 model_types      = ["XGBoost", "RandomForest", "LightGBM", "ExtraTrees"]   # categorical, order = latent bins
 fe_strategies    = ["none", "stats", "interactions"]                        # categorical (see [features])
-boosters         = ["gbtree", "dart"]                                       # XGBoost only
 learning_rate    = { low = 0.01, high = 0.3, log = true }                   # XGBoost / LightGBM
 n_estimators     = { low = 50,   high = 500, int = true }                   # all models
 max_depth        = { low = 3,    high = 10, int = true }                    # all models

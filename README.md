@@ -195,7 +195,7 @@ EvoSynth/
 │   ├── cli.py                    # `evosynth run | scale | ablation | baselines | nas | serve | settings | datasets`
 │   ├── config.py                 # Loads, merges and validates settings/
 │   ├── core/                     # Individual, latent-vector decoding
-│   ├── search_spaces/            # Tabular (9D), NAS and toy ConfigSpace spaces
+│   ├── search_spaces/            # Tabular (8D), NAS and toy ConfigSpace spaces
 │   ├── datasets/                 # Dataset registry, loaders (download to .data/), splits
 │   ├── features/                 # Dataset-agnostic feature engineering
 │   ├── models/                   # Model factory, post-search refit, CNN

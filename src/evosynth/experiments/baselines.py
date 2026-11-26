@@ -5,7 +5,7 @@ Command: `evosynth baselines`. Settings: [experiments.baselines], [refit], [data
 (metric, split sizes), [run].seed (search) and data_seed (split).
 Runs and logs the baseline comparisons on the exact same refit train / test split:
   1. Default ExtraTrees Classifier (Untuned Floor)
-  2. Random Search (120 evaluations across the 9-dimensional search space)
+  2. Random Search (120 evaluations across the 8-dimensional search space)
   3. Optuna TPE (120 trials, with SQLite persistence for auto-resume)
   4. FLAML AutoML (Time-budget matched to EvoSynth's ~10 min runtime)
 

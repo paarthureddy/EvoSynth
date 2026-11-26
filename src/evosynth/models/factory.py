@@ -72,10 +72,10 @@ def build_model(params, phase="search", xgb_eval_metric="mlogloss", settings=Non
         return xgb.XGBClassifier(
             learning_rate=params.get("learning_rate", 0.1), n_estimators=n_est,
             max_depth=params.get("max_depth", 6), subsample=params.get("subsample", 0.8),
-            booster=params.get("booster", "gbtree"), colsample_bytree=params.get("colsample_bytree", 0.8),
+            booster="gbtree", colsample_bytree=params.get("colsample_bytree", 0.8),
             reg_alpha=params.get("reg_alpha", 0.0), early_stopping_rounds=s.evaluation.early_stopping_rounds,
             eval_metric=xgb_eval_metric, random_state=rs, n_jobs=jobs)
-    # refit (booster is not passed at refit time, as in the original code; see fix plan)
+    # refit (gbtree, the XGBoost default, as in search)
     return xgb.XGBClassifier(
         learning_rate=params.get("learning_rate", 0.1), n_estimators=max(n_est, s.refit.min_trees_xgb),
         max_depth=params.get("max_depth", 8), subsample=params.get("subsample", 0.8),

@@ -320,7 +320,7 @@ def validate(data: Mapping) -> None:
             _check_range_table(f"search_space.tabular.{k}", tab[k], e)
         else:
             e.append(f"missing setting 'search_space.tabular.{k}'")
-    for k in ("model_types", "fe_strategies", "boosters"):
+    for k in ("model_types", "fe_strategies"):
         _require(isinstance(tab.get(k), list) and len(tab.get(k)) >= 1,
                  f"search_space.tabular.{k} must be a non-empty list", e)
     allowed_models = {"XGBoost", "RandomForest", "LightGBM", "ExtraTrees"}
