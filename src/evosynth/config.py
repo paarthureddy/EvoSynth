@@ -335,17 +335,38 @@ def validate(data: Mapping) -> None:
     pos_int("evaluation.search_tree_cap")
     pos_int("evaluation.bagging_depth_multiplier")
     frac("evaluation.failed_fold_score")
+    frac("evaluation.early_stopping_fraction", 0.05, 0.5)
+    _require(isinstance(_get(data, "selection.enabled", e), bool), "selection.enabled must be true or false", e)
+    pos_int("selection.top_k", 1)
+    pos_int("selection.confirm_folds", 2)
     pos_int("features.continuous_unique_threshold", 2)
     pos_int("features.detection_sample_rows", 10)
     pos_int("features.max_interaction_features", 2)
-    for k in ("train_rows", "test_rows", "min_trees_bagging", "min_trees_lgbm", "min_trees_xgb"):
+    for k in ("min_trees_bagging", "min_trees_lgbm", "min_trees_xgb"):
         pos_int(f"refit.{k}")
 
     # datasets
     ds = _get(data, "datasets", e) or {}
     _require(isinstance(ds, Mapping) and len(ds) >= 1, "at least one [datasets.<name>] is required", e)
+    sources = ("sklearn.fetch_covtype", "openml", "torchvision.FashionMNIST")
+    metrics = ("accuracy", "balanced_accuracy", "roc_auc")      # models/metrics.py → METRICS
     for name, spec in (ds.items() if isinstance(ds, Mapping) else []):
-        _require(isinstance(spec, Mapping) and "source" in spec, f"datasets.{name}.source is required", e)
+        if not isinstance(spec, Mapping):
+            e.append(f"datasets.{name} must be a table")
+            continue
+        _require(spec.get("source") in sources, f"datasets.{name}.source must be one of {sources}", e)
+        _require(spec.get("kind") in ("tabular", "image"), f"datasets.{name}.kind must be 'tabular' or 'image'", e)
+        _require(spec.get("metric") in metrics, f"datasets.{name}.metric must be one of {metrics}", e)
+        if spec.get("source") == "openml":
+            _require(isinstance(spec.get("openml_id"), int), f"datasets.{name}.openml_id (integer) is required", e)
+        keys = (("test_rows", "search_subsample", "refit_train_rows") if spec.get("kind") == "tabular"
+                else ("search_train_rows", "search_val_rows"))
+        for k in keys:
+            pos_int(f"datasets.{name}.{k}")
+    nas_ds = (data.get("experiments", {}).get("nas", {}) or {}).get("dataset")
+    if nas_ds is not None:
+        _require(isinstance(ds, Mapping) and nas_ds in ds and ds[nas_ds].get("kind") == "image",
+                 f"experiments.nas.dataset = {nas_ds!r} must name a [datasets.<name>] of kind 'image'", e)
 
     # telemetry
     pos_int("telemetry.server_port", 1)

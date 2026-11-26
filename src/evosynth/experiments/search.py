@@ -3,7 +3,7 @@ Single EvoSynth search on a tabular dataset, followed by the post-search general
 refit (Step 6). Command: `evosynth run` (presets: search_demo [default], search_full).
 
 Settings: [engine] (budget / pop_size / t1_iters / k_iters, set by the preset or --set),
-[datasets.<name>] (search_subsample, display_name), [refit].
+[datasets.<name>] (metric, split sizes, display_name), [selection], [refit].
 
 Output: results/search/<dataset>/<variant>/seed_<k>/ (variant = preset name unless --variant).
 """
@@ -17,7 +17,7 @@ from evosynth.experiments.run_context import RunContext
 def run_search(dataset="covertype", mode_label="Fast Demo", subsample=None, refit=True,
                variant="search_demo", results_dir=None):
     """Run DynamicOptimizer with the active settings (inside a run folder); optionally refit the winner.
-    Returns the best Individual."""
+    Returns the selected Individual (after confirm-before-select)."""
     with RunContext("search", dataset, variant, results_dir=results_dir) as run:
         return _run_search(run, dataset, mode_label, subsample, refit)
 
@@ -47,47 +47,56 @@ def _run_search(run, dataset, mode_label, subsample, refit):
                                  population_csv=run.file("population.csv"))
     t0 = time.time()
     best = optimizer.run()
-    from evosynth.core.decoding import decode_vector_to_dict
+    search_seconds = round(time.time() - t0, 2)
+
+    # 4. Confirm before select (Phase 3.7): re-score the top configurations with more folds
+    from evosynth.experiments.selection import confirm_best
+    selected, selected_cfg, confirmation = confirm_best(evaluator, optimizer.evaluated, space)
+    metric = evaluator.metric
     result = {
-        "metric": "cv_accuracy",
+        "metric": metric,
         "best_cv_score": float(best.fitness),
-        "best_config": decode_vector_to_dict(best.vector, space),
-        "winning_algorithm": best.source_algorithm,
+        "selected_cv_score": float(selected.fitness),
+        "selected_config": selected_cfg,
+        "winning_algorithm": selected.source_algorithm,
+        "confirmation": confirmation,
+        "failed_folds": evaluator.failed_folds,
         "evals_used": optimizer.evals_used,
-        "search_seconds": round(time.time() - t0, 2),
+        "search_seconds": search_seconds,
         "refit": None,
     }
 
     if not refit:
         run.write_result(result)
-        return best
+        return selected
 
-    # 4. Generalization evaluation on the held-out refit split
-    r = s.refit
+    # 5. Generalization evaluation on the held-out test rows
     print("\n" + "=" * 80)
     print(" STEP 6: POST-SEARCH GENERALIZATION REFIT ON HELD-OUT TEST DATA")
     print("=" * 80)
-    print("  Evaluating winning architecture & hyperparameters at full capacity...")
+    print("  Evaluating the selected architecture & hyperparameters at full capacity...")
     try:
         from evosynth.models.refit import refit_and_score
 
-        refit_res = refit_and_score(result["best_config"], dataset=dataset, phase="refit")
-        test_acc, m_type, fe_strat = refit_res["test_accuracy"], refit_res["model_type"], refit_res["fe_strategy"]
-        result["refit"] = {"test_accuracy": float(test_acc), "model_type": m_type, "fe_strategy": fe_strat,
-                           "train_rows": r.train_rows, "test_rows": r.test_rows}
-
+        refit_res = refit_and_score(selected_cfg, dataset=dataset, phase="refit")
+        result["refit"] = {k: refit_res[k] for k in ("test_score", "metric", "model_type", "fe_strategy",
+                                                      "train_rows", "test_rows")}
+        conf = ""
+        if confirmation:
+            picked = confirmation["candidates"][confirmation["selected_search_rank"] - 1]
+            conf = f" / confirmed {picked['confirmed_score']:.2f}% ({confirmation['confirm_folds']}-fold)"
         print(f"\n  +----------------------------------------------------------------+")
-        print(f"  | EVO-SYNTH FINAL BENCHMARK SUMMARY                             |")
+        print(f"  | EVO-SYNTH FINAL BENCHMARK SUMMARY ({metric})")
         print(f"  +----------------------------------------------------------------+")
-        print(f"  | Search Phase CV Accuracy       : {best.fitness:.2f}% (Search slice)")
-        print(f"  | Generalization Test Accuracy   : {test_acc:.2f}% "
-              f"({r.train_rows // 1000}k train, {r.test_rows // 1000}k test)")
-        print(f"  | Optimal Architecture           : {m_type}")
-        print(f"  | Optimal Feature Engineering    : {fe_strat}")
+        print(f"  | Search CV score (selected)     : {selected.fitness:.2f}%{conf}")
+        print(f"  | Held-out test score            : {refit_res['test_score']:.2f}% "
+              f"({refit_res['train_rows']:,} train, {refit_res['test_rows']:,} test)")
+        print(f"  | Optimal Architecture           : {refit_res['model_type']}")
+        print(f"  | Optimal Feature Engineering    : {refit_res['fe_strategy']}")
         print(f"  +----------------------------------------------------------------+")
     except Exception as e:
         print(f"  Refit skipped: {e}")
         result["refit"] = {"error": f"{type(e).__name__}: {e}"}
 
     run.write_result(result)
-    return best
+    return selected

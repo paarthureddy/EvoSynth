@@ -238,7 +238,8 @@ pip install -e ".[all]"
 ```
 
 This installs the `evosynth` command (also available as `python -m evosynth`). Datasets are
-downloaded on first use into `.data/`.
+downloaded on first use into `.data/` (git-ignored), or all at once with `evosynth datasets download`
+(about 150 MB). `evosynth datasets list` shows every registered dataset, its metric and whether it is cached.
 
 ### 2. Run Real-World Benchmark (UCI Forest Covertype)
 Executes dynamic meta-optimization across 4 model families (XGBoost, LightGBM, RandomForest, ExtraTrees) with automated dataset-agnostic feature engineering and post-search generalization refit:
@@ -248,7 +249,14 @@ evosynth run --full                  # Full benchmark (preset search_full: 500 e
 evosynth scale --budget 500          # Budget-scaling run with checkpoints (300 / 500 / 1000)
 evosynth ablation --setup CVGS-500   # Isolated GA / PSO / DE / CMA-ES vs EvoSynth
 evosynth baselines --test all        # Default ExtraTrees, Random Search, Optuna, FLAML
+evosynth run --dataset higgs         # any registered dataset: covertype (default), higgs, adult,
+                                     # airlines, poker_hand, miniboone, jannis
 ```
+
+Every method sees the same rows: a held-out test set is split off first, and the search and the
+refit draw from the rest (`settings/datasets.toml`). Each dataset is scored with its own metric
+(accuracy for the multiclass datasets, ROC AUC for the binary ones). After the search, the top 5
+configurations are re-scored with 5-fold CV before the winner is chosen (`[selection]`).
 
 Each run writes to `results/<experiment>/<dataset>/<variant>/seed_<k>/` (`manifest.json` with the
 exact settings, git commit and library versions; `result.json`; `run.log`; ...).
@@ -262,7 +270,7 @@ evosynth run --set bandit.c=0.2 --set composite.fitness=0.4 --set composite.spee
 ```
 
 ### 4. Run Deep Learning Vision NAS
-Discovers optimal CNN layer topology (convolutional channels, fully connected units, activation functions) and training hyperparameters in PyTorch:
+Discovers optimal CNN layer topology (convolutional channels, fully connected units, activation functions) and training hyperparameters in PyTorch, on Fashion-MNIST (10,000 training / 2,500 validation images during search; the official test set is held out):
 ```bash
 evosynth nas
 ```

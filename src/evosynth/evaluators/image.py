@@ -16,13 +16,21 @@ from evosynth.search_spaces.nas import get_image_nas_search_space
 
 class ImageCNNEvaluator:
     """
-    Neural Architecture Search (NAS) and Hyperparameter Evaluator for non-tabular vision data.
-    Trains and validates dynamic PyTorch CNN models on image classification (Handwritten Digits/MNIST).
+    Neural Architecture Search (NAS) and hyperparameter evaluator for image classification.
+    Trains and validates dynamic PyTorch CNNs on a registered image dataset
+    ([experiments.nas].dataset, default Fashion-MNIST). The search trains on search_train_rows
+    and validates on search_val_rows, both stratified samples of the dataset's training images;
+    the official test images are held out.
     """
-    def __init__(self, space=None, epochs=None, batch_size=None, device=None):
-        # Defaults come from [experiments.nas] in settings/experiments.toml
+    def __init__(self, space=None, epochs=None, batch_size=None, device=None, dataset=None):
+        # Defaults come from [experiments.nas] (settings/experiments.toml) and
+        # [datasets.<name>] (settings/datasets.toml)
+        from evosynth import datasets
+
         s = get_settings()
         nas = s.experiments.nas
+        self.dataset = nas.dataset if dataset is None else dataset
+        spec = datasets.get_spec(self.dataset, s, kind="image")
         self.space = space or get_image_nas_search_space()
         self.epochs = nas.epochs if epochs is None else epochs
         self.batch_size = nas.batch_size if batch_size is None else batch_size
@@ -30,17 +38,16 @@ class ImageCNNEvaluator:
         device = nas.device if device is None else device
         self.device = torch.device(device if torch.cuda.is_available() and device == "cuda" else "cpu")
 
-        # Load image dataset (8x8 digits scaled to image tensors, zero-latency setup)
-        from sklearn.datasets import load_digits
+        print(f"  [DATASET] Loading {spec.display_name}...")
+        X, y = datasets.load(self.dataset, s)["train"]
+        X_s, y_s = datasets.sample(X, y, spec.search_train_rows + spec.search_val_rows, s.run.data_seed)
         from sklearn.model_selection import train_test_split
-
-        raw = load_digits()
-        X = raw.images[:, np.newaxis, :, :].astype(np.float32) / 16.0  # (N, 1, 8, 8) normalized
-        y = raw.target.astype(np.int64)
-
         X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=nas.validation_fraction, random_state=s.run.data_seed, stratify=y
-        )
+            X_s, y_s, test_size=spec.search_val_rows, random_state=s.run.data_seed, stratify=y_s)
+        self.in_channels = int(X_train.shape[1])
+        self.num_classes = int(len(np.unique(y)))
+        print(f"  [DATASET] Search: {len(y_train):,} training / {len(y_val):,} validation images "
+              f"(test images held out), {self.num_classes} classes")
 
         # Training batches are shuffled per evaluation with a seeded generator (see evaluate)
         self.train_set = TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train))
@@ -92,13 +99,13 @@ class ImageCNNEvaluator:
         train_loader = DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, generator=g)
 
         model = DynamicCNN(
-            in_channels=1,
+            in_channels=self.in_channels,
             conv1_ch=conv1_ch,
             conv2_ch=conv2_ch,
             fc_units=fc_units,
             dropout=dropout,
             activation=activation,
-            num_classes=10
+            num_classes=self.num_classes
         ).to(self.device)
 
         criterion = nn.CrossEntropyLoss()

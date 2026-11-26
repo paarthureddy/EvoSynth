@@ -5,7 +5,7 @@ Runs EvoSynth at a given budget on a tabular dataset, writes an atomic checkpoin
 N evaluations, captures the full log and finishes with the post-search refit.
 
 Settings: [experiments.scaling] (budgets, default_budget, pop_size, t1/k schedule,
-checkpoint_interval), [datasets.<name>], [refit], [evaluation].cv_folds.
+checkpoint_interval), [datasets.<name>] (metric, split sizes), [selection], [refit], [evaluation].cv_folds.
 
 Output: results/scaling/<dataset>/budget_<N>/seed_<k>/ (variant = budget_<N> unless --variant):
   run.log, events.jsonl, population.csv, checkpoint.json (every N evals), result.json, manifest.json
@@ -51,7 +51,7 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
     ckpt_path = run.file("checkpoint.json")
     start_time = time.time()
     print("=" * 80)
-    print(f" EVOSYNTH SCALED EXPERIMENT — UCI FOREST COVERTYPE (BUDGET: {budget})")
+    print(f" EVOSYNTH SCALED EXPERIMENT — {datasets.get_spec(dataset).display_name} (BUDGET: {budget})")
     print(f" Population: {pop_size} | Checkpoint Interval: Every {checkpoint_interval} evals")
     print(f" Dataset Subsample: {subsample:,} ({s.evaluation.cv_folds}-Fold Stratified CV) | Latent Dims: "
           f"{len(list(get_tabular_search_space().keys()))}")
@@ -78,7 +78,7 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
             ckpt_data = {
                 "budget": budget,
                 "evals_used": eval_count,
-                "best_cv_accuracy": float(best_so_far),
+                "best_cv_score": float(best_so_far),
                 "best_config": best_cfg,
                 "elapsed_seconds": round(time.time() - start_time, 2),
                 "status": "in_progress" if eval_count < budget else "completed",
@@ -104,25 +104,26 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
 
     best = optimizer.run()
 
-    # Step 6: Full Generalization Refit on 60k / 20k unseen test data
+    # Confirm before select (Phase 3.7), then Step 6: refit on the held-out test rows
+    from evosynth.experiments.selection import confirm_best
+    from evosynth.models.refit import refit_and_score
+
+    selected, winning_cfg, confirmation = confirm_best(evaluator, optimizer.evaluated, space)
     print("\n" + "=" * 80)
     print(" STEP 6: POST-SEARCH GENERALIZATION REFIT ON HELD-OUT TEST DATA")
     print("=" * 80)
-    print("  Evaluating winning architecture & hyperparameters at full capacity...")
-
-    from evosynth.models.refit import refit_and_score
-
-    winning_cfg = decode_vector_to_dict(best.vector, space)
+    print("  Evaluating the selected architecture & hyperparameters at full capacity...")
     refit = refit_and_score(winning_cfg, dataset=dataset, phase="refit")
-    test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
+    m_type, fe_strat = refit["model_type"], refit["fe_strategy"]
 
     elapsed = time.time() - start_time
     print("\n  +----------------------------------------------------------------+")
-    print(f"  | EVO-SYNTH FINAL BENCHMARK SUMMARY (BUDGET: {budget})          |")
+    print(f"  | EVO-SYNTH FINAL BENCHMARK SUMMARY (BUDGET: {budget}, {refit['metric']})")
     print("  +----------------------------------------------------------------+")
     print(f"  | Total Search Time              : {elapsed/60:.1f} minutes")
-    print(f"  | Search Phase CV Accuracy       : {best.fitness:.2f}% (20k slice)")
-    print(f"  | Generalization Test Accuracy   : {test_acc:.2f}% (60k train, 20k test)")
+    print(f"  | Search CV score (selected)     : {selected.fitness:.2f}% (best seen {best.fitness:.2f}%)")
+    print(f"  | Held-out test score            : {refit['test_score']:.2f}% "
+          f"({refit['train_rows']:,} train, {refit['test_rows']:,} test)")
     print(f"  | Optimal Architecture           : {m_type}")
     print(f"  | Optimal Feature Engineering    : {fe_strat}")
     print("  +----------------------------------------------------------------+")
@@ -130,16 +131,20 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
     final_ckpt = {
         "budget": budget,
         "evals_used": budget,
-        "best_cv_accuracy": float(best.fitness),
-        "generalization_test_accuracy": float(test_acc),
+        "metric": refit["metric"],
+        "best_cv_score": float(best.fitness),
+        "selected_cv_score": float(selected.fitness),
+        "test_score": float(refit["test_score"]),
         "optimal_architecture": m_type,
         "optimal_fe_strategy": fe_strat,
-        "best_config": winning_cfg,
+        "selected_config": winning_cfg,
+        "confirmation": confirmation,
+        "failed_folds": evaluator.failed_folds,
         "elapsed_seconds": round(elapsed, 2),
         "status": "completed",
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
     save_atomic_checkpoint(ckpt_path, final_ckpt)
     run.write_result({k: v for k, v in final_ckpt.items() if k not in ("status", "timestamp")}
-                     | {"winning_algorithm": best.source_algorithm})
+                     | {"winning_algorithm": selected.source_algorithm})
 

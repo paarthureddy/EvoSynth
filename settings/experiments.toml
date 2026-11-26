@@ -84,14 +84,13 @@ default_extratrees_trees = 100     # run_default_extratrees (untuned floor)
 random_search_trials = 120         # run_random_search (--trials overrides)
 optuna_trials = 120                # run_optuna_baseline (--trials overrides)
 flaml_time_budget = 585            # seconds; run_flaml_baseline (--time-budget overrides)
-flaml_metric = "accuracy"          # run_flaml_baseline
 flaml_estimators = ["lgbm", "rf", "extra_tree", "xgboost"]   # run_flaml_baseline
 refit_trees = 150                  # models/factory.py build_model(phase="baseline_default") (Phase 4.4 unifies refits)
 
 # -------------------------------------------------------------------------------------
 [experiments.nas]
 # CNN architecture search.
-# epochs / batch_size / validation_fraction / sgd_momentum / device are read by
+# epochs / batch_size / sgd_momentum / device are read by
 # src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__ (defaults) and .evaluate (momentum).
 # budget / pop_size / t1_iters / k_iters: src/evosynth/experiments/nas.py → run_nas (command: evosynth nas).
 # -------------------------------------------------------------------------------------
@@ -101,6 +100,6 @@ t1_iters = 3
 k_iters = 2
 epochs = 2                 # ImageCNNEvaluator.__init__ default
 batch_size = 64            # ImageCNNEvaluator.__init__
-validation_fraction = 0.25 # ImageCNNEvaluator.__init__ (train/val split)
+dataset = "fashion_mnist"  # [datasets.<name>] of kind "image": run_nas, ImageCNNEvaluator.__init__
 sgd_momentum = 0.9         # ImageCNNEvaluator.evaluate (when optimizer = SGD)
 device = "cpu"             # ImageCNNEvaluator.__init__ ("cuda" used only if available)

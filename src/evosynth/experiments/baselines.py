@@ -1,7 +1,8 @@
 """
-Competitor & Floor Baselines Runner — UCI Forest Covertype
-===========================================================
-Command: `evosynth baselines`. Settings: [experiments.baselines], [refit], [run].seed (search) and data_seed (split).
+Competitor & Floor Baselines Runner (any registered tabular dataset, --dataset)
+================================================================================
+Command: `evosynth baselines`. Settings: [experiments.baselines], [refit], [datasets.<name>]
+(metric, split sizes), [run].seed (search) and data_seed (split).
 Runs and logs the baseline comparisons on the exact same refit train / test split:
   1. Default ExtraTrees Classifier (Untuned Floor)
   2. Random Search (120 evaluations across the 9-dimensional search space)
@@ -28,22 +29,25 @@ from sklearn.ensemble import ExtraTreesClassifier
 
 from evosynth.config import get_settings
 from evosynth.core.decoding import decode_vector_to_dict
+from evosynth.datasets import get_spec
+from evosynth.models.metrics import score
 from evosynth.models.refit import refit_and_score, refit_split
 
 
-def load_covertype_splits():
-    """Same stratified refit split as EvoSynth ([refit] train_rows / test_rows)."""
-    r = get_settings().refit
-    print(f"  [DATA] Loading Covertype dataset ({r.train_rows:,} train / {r.test_rows:,} test)...")
-    return refit_split("covertype")
+def load_splits(dataset):
+    """Same train / held-out test rows as EvoSynth's refit (datasets.partition)."""
+    spec = get_spec(dataset, kind="tabular")
+    print(f"  [DATA] Loading {spec.display_name} ({spec.refit_train_rows:,} train / {spec.test_rows:,} test)...")
+    return refit_split(dataset)
 
 
-def run_default_extratrees(out_dir):
+def run_default_extratrees(out_dir, dataset="covertype"):
     log_file = os.path.join(out_dir, "report.txt")
     print("\n" + "=" * 70)
     print(" RUNNING BASELINE 1: DEFAULT EXTRATREES (UNTUNED FLOOR)")
     print("=" * 70)
-    X_tr, X_te, y_tr, y_te = load_covertype_splits()
+    X_tr, X_te, y_tr, y_te = load_splits(dataset)
+    metric = get_spec(dataset).metric
 
     start = time.time()
     s = get_settings()
@@ -52,10 +56,9 @@ def run_default_extratrees(out_dir):
     model.fit(X_tr, y_tr)
     fit_time = time.time() - start
 
-    preds = model.predict(X_te)
-    acc = float(np.mean(preds == y_te)) * 100.0
+    acc = score(model, X_te, y_te, metric) * 100.0
 
-    print(f"  [RESULT] Default ExtraTrees Accuracy : {acc:.2f}%")
+    print(f"  [RESULT] Default ExtraTrees {metric} : {acc:.2f}%")
     print(f"  [TIME]   Training Time               : {fit_time:.1f}s")
 
     with open(log_file, "w", encoding="utf-8") as f:
@@ -63,16 +66,16 @@ def run_default_extratrees(out_dir):
         f.write(" BASELINE REPORT: DEFAULT EXTRATREES (UNTUNED)\n")
         f.write("=" * 70 + "\n")
         f.write(f" Model                : ExtraTreesClassifier (sklearn defaults)\n")
-        f.write(f" Train Split          : 60,000 samples\n")
-        f.write(f" Test Split           : 20,000 samples (held-out)\n")
-        f.write(f" Accuracy             : {acc:.2f}%\n")
+        f.write(f" Train Split          : {len(y_tr):,} samples\n")
+        f.write(f" Test Split           : {len(y_te):,} samples (held-out)\n")
+        f.write(f" Test {metric:<16}: {acc:.2f}%\n")
         f.write(f" Fit Duration         : {fit_time:.1f} seconds\n")
         f.write("=" * 70 + "\n")
-    return {"metric": "test_accuracy", "test_accuracy": acc, "model_type": "ExtraTrees",
+    return {"metric": metric, "test_score": acc, "model_type": "ExtraTrees",
             "n_estimators": s.experiments.baselines.default_extratrees_trees, "fit_seconds": round(fit_time, 2)}
 
 
-def run_random_search(out_dir, n_trials=None):
+def run_random_search(out_dir, n_trials=None, dataset="covertype"):
     n_trials = get_settings().experiments.baselines.random_search_trials if n_trials is None else n_trials
     log_file = os.path.join(out_dir, "report.txt")
     print("\n" + "=" * 70)
@@ -84,7 +87,7 @@ def run_random_search(out_dir, n_trials=None):
     from evosynth.core.individual import Individual
 
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
-    evaluator = TabularEvaluator("covertype")
+    evaluator = TabularEvaluator(dataset)
     dims = len(list(space.keys()))
 
     best_acc = 0.0
@@ -103,10 +106,10 @@ def run_random_search(out_dir, n_trials=None):
             print(f"  Trial {trial:>3}/{n_trials} | Best CV Accuracy: {best_acc:.2f}% | Elapsed: {(time.time()-start):.1f}s")
 
     # Refit winning vector on the shared refit split (library-default model of the chosen family)
-    load_covertype_splits()
+    load_splits(dataset)
     best_cfg = decode_vector_to_dict(best_vec, space)
-    refit = refit_and_score(best_cfg, dataset="covertype", phase="baseline_default", verbose=False)
-    test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
+    refit = refit_and_score(best_cfg, dataset=dataset, phase="baseline_default", verbose=False)
+    test_acc, m_type, fe_strat = refit["test_score"], refit["model_type"], refit["fe_strategy"]
 
     total_time = time.time() - start
     print(f"  [RESULT] Random Search Test Accuracy: {test_acc:.2f}% (Model: {m_type})")
@@ -121,12 +124,12 @@ def run_random_search(out_dir, n_trials=None):
         f.write(f" Discovered FE        : {fe_strat}\n")
         f.write(f" Total Runtime        : {total_time/60:.1f} minutes\n")
         f.write("=" * 70 + "\n")
-    return {"metric": "test_accuracy", "test_accuracy": float(test_acc), "best_cv_accuracy": float(best_acc),
+    return {"metric": refit["metric"], "test_score": float(test_acc), "best_cv_score": float(best_acc),
             "model_type": m_type, "fe_strategy": fe_strat, "best_config": best_cfg, "trials": n_trials,
-            "total_seconds": round(total_time, 2)}
+            "failed_folds": evaluator.failed_folds, "total_seconds": round(total_time, 2)}
 
 
-def run_optuna_baseline(out_dir, n_trials=None):
+def run_optuna_baseline(out_dir, n_trials=None, dataset="covertype"):
     n_trials = get_settings().experiments.baselines.optuna_trials if n_trials is None else n_trials
     log_file = os.path.join(out_dir, "report.txt")
     db_file = os.path.join(out_dir, "optuna.db")
@@ -145,13 +148,13 @@ def run_optuna_baseline(out_dir, n_trials=None):
     from evosynth.search_spaces.tabular import get_xgboost_search_space
     from evosynth.core.individual import Individual
 
-    evaluator = TabularEvaluator("covertype")
+    evaluator = TabularEvaluator(dataset)
     space = get_xgboost_search_space(include_model_type=True, include_fe_strategy=True)
     dims = len(list(space.keys()))
 
     storage_url = f"sqlite:///{os.path.abspath(db_file)}"
     study = optuna.create_study(
-        study_name="covertype_hpo",
+        study_name=f"{dataset}_hpo",
         storage=storage_url,
         load_if_exists=True,
         direction="maximize",
@@ -176,9 +179,9 @@ def run_optuna_baseline(out_dir, n_trials=None):
     best_vec = np.array([study.best_params[f"x_{i}"] for i in range(dims)])
 
     best_cfg = decode_vector_to_dict(best_vec, space)
-    load_covertype_splits()
-    refit = refit_and_score(best_cfg, dataset="covertype", phase="baseline_default", verbose=False)
-    test_acc, m_type, fe_strat = refit["test_accuracy"], refit["model_type"], refit["fe_strategy"]
+    load_splits(dataset)
+    refit = refit_and_score(best_cfg, dataset=dataset, phase="baseline_default", verbose=False)
+    test_acc, m_type, fe_strat = refit["test_score"], refit["model_type"], refit["fe_strategy"]
 
     print(f"  [RESULT] Optuna TPE Test Accuracy: {test_acc:.2f}% (CV: {best_cv:.2f}%)")
     with open(log_file, "w", encoding="utf-8") as f:
@@ -191,12 +194,12 @@ def run_optuna_baseline(out_dir, n_trials=None):
         f.write(f" Discovered FE        : {fe_strat}\n")
         f.write(f" Search Runtime       : {search_time/60:.1f} minutes\n")
         f.write("=" * 70 + "\n")
-    return {"metric": "test_accuracy", "test_accuracy": float(test_acc), "best_cv_accuracy": float(best_cv),
+    return {"metric": refit["metric"], "test_score": float(test_acc), "best_cv_score": float(best_cv),
             "model_type": m_type, "fe_strategy": fe_strat, "best_config": best_cfg, "trials": n_trials,
-            "search_seconds": round(search_time, 2)}
+            "failed_folds": evaluator.failed_folds, "search_seconds": round(search_time, 2)}
 
 
-def run_flaml_baseline(out_dir, time_budget=None):
+def run_flaml_baseline(out_dir, time_budget=None, dataset="covertype"):
     bl = get_settings().experiments.baselines
     time_budget = bl.flaml_time_budget if time_budget is None else time_budget
     log_file = os.path.join(out_dir, "report.txt")
@@ -210,11 +213,12 @@ def run_flaml_baseline(out_dir, time_budget=None):
         print("  [!] FLAML not installed. Please run: pip install flaml")
         return {"skipped": "flaml not installed"}
 
-    X_tr, X_te, y_tr, y_te = load_covertype_splits()
+    X_tr, X_te, y_tr, y_te = load_splits(dataset)
+    metric = get_spec(dataset).metric
     automl = AutoML()
     settings = {
         "time_budget": time_budget,
-        "metric": bl.flaml_metric,
+        "metric": metric,              # FLAML optimises the dataset's own metric
         "task": "classification",
         "log_file_name": os.path.join(out_dir, "flaml.log"),
         "seed": get_settings().run.seed,
@@ -225,10 +229,9 @@ def run_flaml_baseline(out_dir, time_budget=None):
     automl.fit(X_train=X_tr, y_train=y_tr, **settings)
     total_time = time.time() - start
 
-    preds = automl.predict(X_te)
-    test_acc = float(np.mean(preds == y_te)) * 100.0
+    test_acc = score(automl, X_te, y_te, metric) * 100.0
 
-    print(f"  [RESULT] FLAML Test Accuracy : {test_acc:.2f}%")
+    print(f"  [RESULT] FLAML Test {metric} : {test_acc:.2f}%")
     print(f"  [RESULT] FLAML Best Model    : {automl.best_estimator}")
 
     with open(log_file, "w", encoding="utf-8") as f:
@@ -241,7 +244,7 @@ def run_flaml_baseline(out_dir, time_budget=None):
         f.write(f" Actual Search Time   : {total_time/60:.1f} minutes\n")
         f.write(f" Best Config          : {json.dumps(automl.best_config, indent=2)}\n")
         f.write("=" * 70 + "\n")
-    return {"metric": "test_accuracy", "test_accuracy": float(test_acc), "model_type": str(automl.best_estimator),
+    return {"metric": metric, "test_score": float(test_acc), "model_type": str(automl.best_estimator),
             "best_config": automl.best_config, "time_budget_seconds": time_budget,
             "total_seconds": round(total_time, 2)}
 
@@ -251,20 +254,21 @@ BASELINE_TESTS = ("all", "extratrees", "random", "optuna", "flaml")
 
 # --test name -> (run-folder name, function); Optuna resumes from its SQLite study
 _BASELINES = {
-    "extratrees": ("default_extratrees", lambda d, a: run_default_extratrees(d)),
-    "random": ("random_search", lambda d, a: run_random_search(d, n_trials=a["trials"])),
-    "optuna": ("optuna_tpe", lambda d, a: run_optuna_baseline(d, n_trials=a["trials"])),
-    "flaml": ("flaml", lambda d, a: run_flaml_baseline(d, time_budget=a["time_budget"])),
+    "extratrees": ("default_extratrees", lambda d, a: run_default_extratrees(d, dataset=a["dataset"])),
+    "random": ("random_search", lambda d, a: run_random_search(d, n_trials=a["trials"], dataset=a["dataset"])),
+    "optuna": ("optuna_tpe", lambda d, a: run_optuna_baseline(d, n_trials=a["trials"], dataset=a["dataset"])),
+    "flaml": ("flaml", lambda d, a: run_flaml_baseline(d, time_budget=a["time_budget"], dataset=a["dataset"])),
 }
 
 
-def run_baselines(test="all", trials=None, time_budget=None, results_dir=None):
-    """Run one or all baselines, each in its own run folder (Covertype only until Phase 3)."""
+def run_baselines(test="all", trials=None, time_budget=None, results_dir=None, dataset="covertype"):
+    """Run one or all baselines on `dataset`, each in its own run folder."""
     if test not in BASELINE_TESTS:
         raise ValueError(f"unknown baseline '{test}'. Choose from {BASELINE_TESTS}")
-    args = {"trials": trials, "time_budget": time_budget}
+    get_spec(dataset, kind="tabular")            # fail early on an unknown dataset
+    args = {"trials": trials, "time_budget": time_budget, "dataset": dataset}
     for name, (variant, fn) in _BASELINES.items():
         if test not in ("all", name):
             continue
-        with RunContext("baselines", "covertype", variant, results_dir=results_dir, resume=(name == "optuna")) as run:
+        with RunContext("baselines", dataset, variant, results_dir=results_dir, resume=(name == "optuna")) as run:
             run.write_result(fn(run.path, args))

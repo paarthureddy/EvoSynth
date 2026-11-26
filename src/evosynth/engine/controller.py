@@ -101,6 +101,7 @@ class DynamicOptimizer:
         self.evals_used = 0
         self.best_individual = None
         self.history = []
+        self.evaluated = []          # every evaluated Individual (confirm-before-select, Phase 3.7)
         self.cooldowns = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
         self.active_grace_period = None
         # One CSV row per evaluation (population.csv of the run folder), if a path is given
@@ -153,6 +154,7 @@ class DynamicOptimizer:
 
         for ind in evaluated_inds:
             inds.append(ind)
+            self.evaluated.append(ind)
             self.evals_used += 1
             if algo_key in self.algo_evals:
                 self.algo_evals[algo_key] += 1

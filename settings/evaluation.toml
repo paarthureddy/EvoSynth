@@ -12,15 +12,22 @@
 # How a candidate configuration is scored during search (tabular).
 # -------------------------------------------------------------------------------------
 
-# Cross-validation folds (StratifiedKFold, shuffled).
-# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.evaluate      Range: 2–10
+# Cross-validation folds (StratifiedKFold, shuffled, run.data_seed).
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.evaluate → _cv_score   Range: 2–10
 cv_folds = 2
 
-# Boosted models stop after this many rounds without validation improvement.
+# Boosted models stop after this many rounds without improvement on the early-stopping set.
 # Used in: src/evosynth/models/factory.py → build_model (XGBoost early_stopping_rounds),
 #          fit_model (LightGBM early_stopping callback)
 # Range: 5–50
 early_stopping_rounds = 10
+
+# Share of each TRAINING fold held back as the early-stopping set for XGBoost / LightGBM
+# (Phase 3.3: the scoring fold is never used for early stopping). RandomForest / ExtraTrees
+# train on the whole training fold.
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator._fit_and_score
+# Range: 0.05–0.5
+early_stopping_fraction = 0.15
 
 # RandomForest / ExtraTrees are capped at this many trees during search (n_estimators = min(n, cap)).
 # Used in: src/evosynth/models/factory.py → build_model (phase="search")      Range: ≥ 10
@@ -31,16 +38,30 @@ search_tree_cap = 150
 # Range: ≥ 1
 bagging_depth_multiplier = 3
 
-# Score recorded for a CV fold whose model raised an exception (fraction, 0.5 = 50%).
-# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.evaluate (except branch).
-#          Phase 3.4 changes this to 0.0 + logging.
+# Score recorded for a CV fold whose model raised an exception (fraction of the metric).
+# Phase 3.4: 0.0 (was 0.5), and every failure is printed and counted (TabularEvaluator.failed_folds).
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator._cv_score (except branch)
 # Range: 0–1
-failed_fold_score = 0.5
+failed_fold_score = 0.0
 
 # Threads per individual model during search (parallelism comes from max_workers instead).
 # Used in: src/evosynth/models/factory.py → build_model (phase="search")
 # Range: 1
 model_n_jobs = 1
+
+# -------------------------------------------------------------------------------------
+[selection]
+# Confirm before select (Phase 3.7): the search's best CV score is the maximum of many noisy
+# cv_folds-fold estimates, so it is biased upwards. After the search, the top_k distinct
+# configurations (by search score) are re-scored with confirm_folds-fold CV on the same search
+# rows, and the best confirmed one is refitted. These extra fits are not counted in the
+# evaluation budget; result.json records them under "confirmation".
+# Used in: src/evosynth/experiments/selection.py → confirm_best, called from
+#          src/evosynth/experiments/search.py → run_search and scaling.py → run_benchmark
+# -------------------------------------------------------------------------------------
+enabled = true
+top_k = 5            # Range: ≥ 1
+confirm_folds = 5    # Range: 2–10
 
 # -------------------------------------------------------------------------------------
 [features]
@@ -70,10 +91,7 @@ max_interaction_features = 6
 #           src/evosynth/experiments/scaling.py → run_benchmark ("STEP 6").
 # -------------------------------------------------------------------------------------
 
-# Rows used to train / test the winner (stratified split of the full dataset).
-# Also used by every baseline: src/evosynth/experiments/baselines.py → load_covertype_splits (via models/refit.refit_split)
-train_rows = 60000
-test_rows  = 20000
+# Train / test rows are set per dataset (refit_train_rows, test_rows in settings/datasets.toml).
 
 # Minimum trees in the refit model: n_estimators = max(tuned value, minimum).
 min_trees_bagging = 150   # RandomForest / ExtraTrees

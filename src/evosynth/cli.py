@@ -8,7 +8,7 @@
     evosynth nas
     evosynth serve      [--host H] [--port P]
     evosynth settings   [show [SECTION] | check] [--preset NAME]
-    evosynth datasets   list
+    evosynth datasets   list | download [NAME ...]
 
 Every command also accepts:
     --set SECTION.KEY=VALUE   override any setting for this run (repeatable), e.g.
@@ -115,7 +115,7 @@ def cmd_ablation(args):
 def cmd_baselines(args):
     from evosynth.experiments.baselines import run_baselines
     _per_seed(args, lambda: run_baselines(test=args.test, trials=args.trials, time_budget=args.time_budget,
-                                          results_dir=args.results_dir))
+                                          results_dir=args.results_dir, dataset=args.dataset))
 
 
 def cmd_nas(args):
@@ -148,9 +148,23 @@ def cmd_datasets(args):
     _activate(args)
     from evosynth import datasets
     from evosynth.config import get_settings
-    for name in datasets.available():
+    from evosynth.paths import DATA_DIR
+
+    names = args.names or datasets.available()
+    if args.action == "download":
+        for name in names:
+            print(f"--- {name}")
+            data = datasets.load(name)
+            if isinstance(data, dict):
+                print(f"    ready: {', '.join(f'{k} {v[0].shape}' for k, v in data.items())}")
+            else:
+                print(f"    ready: X {data[0].shape}, {len(set(data[1].tolist()))} classes")
+        return
+    for name in names:
         spec = get_settings().datasets[name]
-        print(f"{name:<12} {spec.get('display_name', '')}  [source: {spec.source}, metric: {spec.metric}]")
+        cached = (DATA_DIR / name).exists()
+        print(f"{name:<14} {'cached ' if cached else 'missing'}  {spec.kind:<7} {spec.metric:<17} "
+              f"{spec.get('display_name', '')}")
 
 
 # ---------------------------------------------------------------------------------
@@ -192,6 +206,7 @@ def build_parser():
     b.add_argument("--test", default="all", choices=["all", "extratrees", "random", "optuna", "flaml"])
     b.add_argument("--trials", type=int, help="Random Search / Optuna trials")
     b.add_argument("--time-budget", "--time_budget", dest="time_budget", type=int, help="FLAML seconds")
+    b.add_argument("--dataset", default="covertype")
     b.set_defaults(func=cmd_baselines)
 
     n = sub.add_parser("nas", help="CNN architecture search demo")
@@ -208,8 +223,9 @@ def build_parser():
     st.add_argument("--preset", default=None)
     st.set_defaults(func=cmd_settings)
 
-    d = sub.add_parser("datasets", help="list registered datasets")
-    d.add_argument("action", nargs="?", default="list", choices=["list"])
+    d = sub.add_parser("datasets", help="list registered datasets, or download them into .data/")
+    d.add_argument("action", nargs="?", default="list", choices=["list", "download"])
+    d.add_argument("names", nargs="*", help="dataset names (default: all)")
     d.set_defaults(func=cmd_datasets)
 
     for sp in (r, sc, a, b, n, sv, st, d):

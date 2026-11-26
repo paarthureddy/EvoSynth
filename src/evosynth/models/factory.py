@@ -13,6 +13,8 @@ Settings: [evaluation], [refit], [experiments.baselines], [run].seed,
 """
 import warnings
 
+import numpy as np
+
 from evosynth.config import get_settings
 
 
@@ -72,7 +74,7 @@ def build_model(params, phase="search", xgb_eval_metric="mlogloss", settings=Non
             max_depth=params.get("max_depth", 6), subsample=params.get("subsample", 0.8),
             booster=params.get("booster", "gbtree"), colsample_bytree=params.get("colsample_bytree", 0.8),
             reg_alpha=params.get("reg_alpha", 0.0), early_stopping_rounds=s.evaluation.early_stopping_rounds,
-            eval_metric=xgb_eval_metric, random_state=rs, n_jobs=jobs, use_label_encoder=False)
+            eval_metric=xgb_eval_metric, random_state=rs, n_jobs=jobs)
     # refit (booster is not passed at refit time, as in the original code; see fix plan)
     return xgb.XGBClassifier(
         learning_rate=params.get("learning_rate", 0.1), n_estimators=max(n_est, s.refit.min_trees_xgb),
@@ -81,20 +83,57 @@ def build_model(params, phase="search", xgb_eval_metric="mlogloss", settings=Non
         random_state=rs, n_jobs=jobs, eval_metric=xgb_eval_metric)
 
 
-def fit_model(model, model_type, X_tr, y_tr, X_va=None, y_va=None, phase="search", settings=None):
-    """Fit `model`. In the search phase boosted models early-stop on (X_va, y_va)."""
-    if phase != "search":
-        model.fit(X_tr, y_tr)
-        return model
+class _Relabeled:
+    """
+    XGBoost requires the training labels to be exactly 0..K-1. When a training sample lacks a
+    class (rare classes, e.g. Poker Hand), the model is fitted on re-coded labels and this
+    wrapper maps predictions back to the dataset's labels.
+    """
+
+    def __init__(self, model, classes):
+        self.model, self.classes_ = model, np.asarray(classes)
+
+    def predict(self, X):
+        return self.classes_[np.asarray(self.model.predict(X)).astype(int)]
+
+    def predict_proba(self, X):
+        return self.model.predict_proba(X)
+
+
+def fit_model(model, model_type, X_tr, y_tr, X_es=None, y_es=None, phase="search", settings=None):
+    """
+    Fit `model` and return the fitted model (use the return value: it may be a _Relabeled wrapper).
+    In the search phase boosted models early-stop on (X_es, y_es), a split of the TRAINING fold
+    made by the caller (Phase 3.3); the scoring fold is never used for early stopping.
+    """
     s = settings or get_settings()
-    if model_type == "XGBoost":
-        model.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
-    elif model_type == "LightGBM":
+    classes = np.unique(y_tr)
+    relabel = model_type == "XGBoost" and not np.array_equal(classes, np.arange(len(classes)))
+    if relabel:
+        code = {c: i for i, c in enumerate(classes)}
+        y_tr = np.array([code[c] for c in y_tr])
+        if y_es is not None:
+            keep = np.isin(y_es, classes)
+            X_es, y_es = X_es[keep], np.array([code[c] for c in y_es[keep]])
+
+    if model_type == "XGBoost" and getattr(model, "eval_metric", None) in ("logloss", "mlogloss"):
+        # XGBoost picks a binary or multiclass objective from the labels it sees; the loss must match
+        model.set_params(eval_metric="logloss" if len(classes) <= 2 else "mlogloss")
+
+    early_stop = phase == "search" and X_es is not None and len(y_es) > 0
+    if model_type == "XGBoost" and early_stop:
+        model.fit(X_tr, y_tr, eval_set=[(X_es, y_es)], verbose=False)
+    elif model_type == "XGBoost" and phase == "search":
+        model.set_params(early_stopping_rounds=None)
+        model.fit(X_tr, y_tr, verbose=False)
+    elif model_type == "LightGBM" and early_stop:
         import lightgbm as lgb
         callbacks = [lgb.early_stopping(stopping_rounds=s.evaluation.early_stopping_rounds, verbose=False)]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            model.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], callbacks=callbacks)
+            model.fit(X_tr, y_tr, eval_set=[(X_es, y_es)], callbacks=callbacks)
     else:
-        model.fit(X_tr, y_tr)
-    return model
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model.fit(X_tr, y_tr)
+    return _Relabeled(model, classes) if relabel else model

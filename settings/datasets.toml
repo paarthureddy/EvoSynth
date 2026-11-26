@@ -4,24 +4,150 @@
 #  One of the files in settings/ (index and rules: settings/README.md). Every *.toml file
 #  in this folder is merged into one set of settings; a section may appear in one file only.
 #  Each setting: what it controls / Used in: <file> → <function> / Range.
+#
+#  Keys of a tabular dataset:
+#    kind              "tabular" (TabularEvaluator, refit, baselines) or "image" (NAS)
+#    source            loader: "sklearn.fetch_covtype" | "openml" | "torchvision.FashionMNIST"
+#                      (src/evosynth/datasets/loaders.py → LOADERS; registry.py → load)
+#    openml_id         OpenML data id (source = "openml" only) → loaders.load_openml
+#    display_name      printed when the dataset is loaded (TabularEvaluator.__init__)
+#    metric            "accuracy" | "balanced_accuracy" | "roc_auc" (binary only); the score used
+#                      for search fitness, confirmation and the test score
+#                      → src/evosynth/models/metrics.py → score, called from
+#                      evaluators/tabular.py → TabularEvaluator._cv_score, models/refit.py →
+#                      refit_and_score, experiments/baselines.py
+#    xgb_eval_metric   XGBoost early-stopping loss ("logloss" binary, "mlogloss" multiclass)
+#                      → models/factory.py → build_model
+#    test_rows         held-out test rows, split off FIRST, never seen by any search
+#                      → src/evosynth/datasets/splits.py → partition (via registry.partition)
+#    search_subsample  rows the search cross-validates on (drawn from the rest) → partition
+#    refit_train_rows  rows the winner / every baseline is retrained on (drawn from the rest)
+#                      → partition → models/refit.py → refit_split
+#  Rule (checked by registry.partition when the data is split): test_rows + max(search_subsample,
+#  refit_train_rows) ≤ dataset rows; otherwise the run stops with a message naming the sizes.
+#
+#  Labels are re-coded to 0..K-1 and categorical columns to integer codes by the loader;
+#  missing numeric values are filled with the column median, missing categories get their own
+#  code. Processed arrays are cached in .data/<name>/<name>.npz (git-ignored).
+#  Download everything ahead of time with `evosynth datasets download`.
 # =====================================================================================
 
 
 # -------------------------------------------------------------------------------------
 [datasets.covertype]
-# UCI Forest Covertype — 581,012 rows × 54 features, 7 classes.
-# Used in: src/evosynth/datasets/registry.py → get_spec, load;
-#          src/evosynth/datasets/loaders.py → load_covertype (source, label_offset);
-#          src/evosynth/evaluators/tabular.py → TabularEvaluator.__init__ (display_name, search_subsample),
-#          TabularEvaluator.evaluate (xgb_eval_metric);
-#          src/evosynth/models/refit.py → refit_and_score (xgb_eval_metric)
-# More datasets (HIGGS via OpenML, Adult, Airlines, Poker Hand, MiniBooNE, Jannis,
-# Fashion-MNIST) are added here in Phase 3.
+# UCI Forest Covertype — 581,012 rows × 54 numeric features, 7 classes (primary benchmark).
 # -------------------------------------------------------------------------------------
-
-display_name = "UCI Forest Covertype (581,012 samples, 54 features, 7 classes)"   # printed when loading
-source = "sklearn.fetch_covtype"     # cached under .data/ (src/evosynth/paths.py → DATA_DIR)
-search_subsample = 20000             # stratified rows used during search (TabularEvaluator subsample)
-label_offset = 1                     # labels are 1..7 in the source; y − 1 gives 0..6 for XGBoost/LightGBM
+kind = "tabular"
+source = "sklearn.fetch_covtype"
+display_name = "UCI Forest Covertype (581,012 samples, 54 features, 7 classes)"
 metric = "accuracy"
-xgb_eval_metric = "mlogloss"         # XGBoost eval_metric (multiclass); used at search and refit time
+xgb_eval_metric = "mlogloss"
+test_rows = 20000
+search_subsample = 20000
+refit_train_rows = 60000
+
+# -------------------------------------------------------------------------------------
+[datasets.higgs]
+# HIGGS (OpenML 23512, the 98,050-row version) — 28 numeric physics features, binary,
+# 53/47 classes. 1 row has missing values (median-filled).
+# -------------------------------------------------------------------------------------
+kind = "tabular"
+source = "openml"
+openml_id = 23512
+display_name = "HIGGS, OpenML 23512 (98,050 samples, 28 features, 2 classes)"
+metric = "roc_auc"
+xgb_eval_metric = "logloss"
+test_rows = 20000
+search_subsample = 20000
+refit_train_rows = 60000
+
+# -------------------------------------------------------------------------------------
+[datasets.adult]
+# Adult / Census Income (OpenML 1590) — 48,842 rows × 14 features (8 categorical), binary,
+# 76/24 classes. 3,620 rows have missing categories (own code). Smaller dataset → smaller splits.
+# -------------------------------------------------------------------------------------
+kind = "tabular"
+source = "openml"
+openml_id = 1590
+display_name = "Adult (Census Income), OpenML 1590 (48,842 samples, 14 features, 2 classes)"
+metric = "roc_auc"
+xgb_eval_metric = "logloss"
+test_rows = 12000
+search_subsample = 20000
+refit_train_rows = 36000
+
+# -------------------------------------------------------------------------------------
+[datasets.airlines]
+# Airlines delay (OpenML 1169) — 539,383 rows × 7 features (4 categorical: airline, airports,
+# day of week), binary, 55/45 classes. Large and noisy.
+# -------------------------------------------------------------------------------------
+kind = "tabular"
+source = "openml"
+openml_id = 1169
+display_name = "Airlines delay, OpenML 1169 (539,383 samples, 7 features, 2 classes)"
+metric = "roc_auc"
+xgb_eval_metric = "logloss"
+test_rows = 20000
+search_subsample = 20000
+refit_train_rows = 60000
+
+# -------------------------------------------------------------------------------------
+[datasets.poker_hand]
+# Poker Hand (OpenML 1569, v2) — 1,025,000 rows × 10 features, 9 classes (heavily
+# imbalanced: the two largest classes hold 92%; the smallest has 17 rows). v2 is used
+# because v1 has a class of 8 rows. Card interactions decide the class.
+# -------------------------------------------------------------------------------------
+kind = "tabular"
+source = "openml"
+openml_id = 1569
+display_name = "Poker Hand, OpenML 1569 (1,025,000 samples, 10 features, 9 classes)"
+metric = "accuracy"
+xgb_eval_metric = "mlogloss"
+test_rows = 20000
+search_subsample = 20000
+refit_train_rows = 60000
+
+# -------------------------------------------------------------------------------------
+[datasets.miniboone]
+# MiniBooNE particle identification (OpenML 41150) — 130,064 rows × 50 numeric features,
+# binary, 72/28 classes.
+# -------------------------------------------------------------------------------------
+kind = "tabular"
+source = "openml"
+openml_id = 41150
+display_name = "MiniBooNE, OpenML 41150 (130,064 samples, 50 features, 2 classes)"
+metric = "roc_auc"
+xgb_eval_metric = "logloss"
+test_rows = 20000
+search_subsample = 20000
+refit_train_rows = 60000
+
+# -------------------------------------------------------------------------------------
+[datasets.jannis]
+# Jannis (OpenML 41168, AutoML benchmark) — 83,733 rows × 54 numeric features, 4 classes
+# (46% majority).
+# -------------------------------------------------------------------------------------
+kind = "tabular"
+source = "openml"
+openml_id = 41168
+display_name = "Jannis, OpenML 41168 (83,733 samples, 54 features, 4 classes)"
+metric = "accuracy"
+xgb_eval_metric = "mlogloss"
+test_rows = 20000
+search_subsample = 20000
+refit_train_rows = 60000
+
+# -------------------------------------------------------------------------------------
+[datasets.fashion_mnist]
+# Fashion-MNIST — 70,000 grayscale 28×28 images, 10 balanced classes (NAS).
+# The official 10,000-image test set is held out; the search trains on search_train_rows and
+# validates on search_val_rows, both stratified samples of the 60,000 training images.
+# Used in: src/evosynth/evaluators/image.py → ImageCNNEvaluator.__init__;
+#          src/evosynth/experiments/nas.py → run_nas (dataset from [experiments.nas].dataset)
+# -------------------------------------------------------------------------------------
+kind = "image"
+source = "torchvision.FashionMNIST"
+display_name = "Fashion-MNIST (70,000 images, 28×28 grayscale, 10 classes)"
+metric = "accuracy"
+search_train_rows = 10000
+search_val_rows = 2500

@@ -11,8 +11,8 @@ no Python file holds its own copy of a setting.
 | [engine.toml](engine.toml) | `[engine]`, `[bandit]`, `[composite]`, `[safeguards]` | Budget, population, Tier 1 iterations, checkpoint interval `k`, Tier 1 share; UCB exploration constant `c`; the five composite-score weights; SWAP margin, grace period, cooldown, stagnation limit, injection and elite-sharing percentages |
 | [optimizers.toml](optimizers.toml) | `[optimizers.ga]`, `.pso`, `.de`, `.cmaes` | GA mutation rate/σ/tournament size; PSO `w`, `c1`, `c2`, initial velocity; DE `F`, `CR`; CMA-ES σ0, minimum population, default mean |
 | [search_spaces.toml](search_spaces.toml) | `[search_space.tabular]`, `.nas`, `.toy` | Model families, feature-engineering strategies and every hyperparameter range (tabular); CNN channels/units/dropout/LR/optimizers/activations (NAS); toy test space |
-| [evaluation.toml](evaluation.toml) | `[evaluation]`, `[features]`, `[refit]` | CV folds, early stopping, search-time tree cap, RF/ET depth rule, failed-fold score; feature-engineering detection thresholds; refit train/test rows and minimum tree counts |
-| [datasets.toml](datasets.toml) | `[datasets.<name>]` | One section per dataset: source, search subsample size, label offset, metric, XGBoost eval metric |
+| [evaluation.toml](evaluation.toml) | `[evaluation]`, `[selection]`, `[features]`, `[refit]` | CV folds, early stopping (rounds, early-stopping share of each training fold), search-time tree cap, RF/ET depth rule, failed-fold score; confirm-before-select (top k, folds); feature-engineering detection thresholds; refit minimum tree counts |
+| [datasets.toml](datasets.toml) | `[datasets.<name>]` | One section per dataset (Covertype, HIGGS, Adult, Airlines, Poker Hand, MiniBooNE, Jannis, Fashion-MNIST): kind, source / OpenML id, metric, XGBoost loss, held-out test rows, search rows, refit train rows |
 | [telemetry.toml](telemetry.toml) | `[telemetry]` | Dashboard server host/port, the address the engine reports to, timeouts |
 | [experiments.toml](experiments.toml) | `[experiments.<name>]` | Presets for each command: `search_demo`, `search_full` (`evosynth run`), `scaling` (`evosynth scale`), `ablation` (+ `passive_telemetry`), `baselines`, `nas` |
 
@@ -24,8 +24,9 @@ Inside every file, each setting has a comment saying **what it controls**, **whe
 - All `*.toml` files in this folder are merged into one set of settings. A top-level section
   (e.g. `[engine]`) may be defined in **one file only**; defining it twice is an error.
 - Values are checked when loaded (`src/evosynth/config.py → validate`): e.g. composite weights
-  must sum to 1.0, percentages must be in range, Tier 1 islands need at least 2 members,
-  budget must exceed population. Invalid settings stop the run with a clear message.
+  must sum to 1.0, percentages must be in range, Tier 1 islands need at least
+  `engine.min_island_size` members, budget must exceed population, each dataset needs a known
+  source, kind and metric. Invalid settings stop the run with a clear message.
 
 ## How a value is chosen for a run (later wins)
 

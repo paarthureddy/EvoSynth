@@ -3,17 +3,17 @@ CNN Neural Architecture Search demo. Command: `evosynth nas`.
 Runs the Dynamic Multi-Armed Bandit optimizer to find the CNN topology and training
 hyperparameters for image data.
 
-Settings: [experiments.nas] (budget, pop_size, t1_iters, k_iters, epochs, batch_size, ...),
-[search_space.nas].
+Settings: [experiments.nas] (dataset, budget, pop_size, t1_iters, k_iters, epochs, batch_size, ...),
+[datasets.<dataset>] (search_train_rows, search_val_rows), [search_space.nas].
 
-Output: results/nas/digits/<variant>/seed_<k>/ (dataset becomes fashion_mnist in Phase 3).
+Output: results/nas/<dataset>/<variant>/seed_<k>/ (default dataset: fashion_mnist).
 """
 from evosynth.config import get_settings
 from evosynth.experiments.run_context import RunContext
 
 
 def run_nas(variant="default", results_dir=None):
-    with RunContext("nas", "digits", variant, results_dir=results_dir) as run:
+    with RunContext("nas", get_settings().experiments.nas.dataset, variant, results_dir=results_dir) as run:
         return _run_nas(run)
 
 
@@ -25,7 +25,7 @@ def _run_nas(run):
     nas = get_settings().experiments.nas
     print("=" * 60)
     print(" EVOSYNTH: DEEP LEARNING NEURAL ARCHITECTURE SEARCH (NAS)")
-    print(" Dataset: Vision / Handwritten Digits (PyTorch CNN)")
+    print(f" Dataset: {nas.dataset} (PyTorch CNN)")
     print("=" * 60)
 
     # 1. Image NAS search space (channels, units, activation, dropout, LR, optimizer)
