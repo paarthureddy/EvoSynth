@@ -6,7 +6,7 @@ import pytest
 from evosynth.config import ConfigError, get_settings, load_config, read_settings
 from evosynth.paths import SETTINGS_DIR
 
-SECTIONS = {"bandit", "composite", "datasets", "engine", "evaluation", "experiments", "features", "selection",
+SECTIONS = {"bandit", "composite", "datasets", "engine", "evaluation", "experiments", "features", "inference", "selection",
             "optimizers", "refit", "run", "safeguards", "search_space", "telemetry"}
 
 

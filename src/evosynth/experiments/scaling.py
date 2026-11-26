@@ -113,7 +113,7 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
     print(" STEP 6: POST-SEARCH GENERALIZATION REFIT ON HELD-OUT TEST DATA")
     print("=" * 80)
     print("  Evaluating the selected architecture & hyperparameters at full capacity...")
-    refit = refit_and_score(winning_cfg, dataset=dataset, phase="refit")
+    refit = refit_and_score(winning_cfg, dataset=dataset, model_path=run.file("model.pkl"))
     m_type, fe_strat = refit["model_type"], refit["fe_strategy"]
 
     elapsed = time.time() - start_time
@@ -126,6 +126,8 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
           f"({refit['train_rows']:,} train, {refit['test_rows']:,} test)")
     print(f"  | Optimal Architecture           : {m_type}")
     print(f"  | Optimal Feature Engineering    : {fe_strat}")
+    print(f"  | Inference (measured)           : {refit['inference']['single_row_ms']:.2f} ms / row, "
+          f"model {refit['inference']['model_mb']:.1f} MB")
     print("  +----------------------------------------------------------------+")
 
     final_ckpt = {
@@ -137,6 +139,7 @@ def _run_benchmark(run, s, budget, pop_size, subsample, checkpoint_interval, dat
         "test_score": float(refit["test_score"]),
         "optimal_architecture": m_type,
         "optimal_fe_strategy": fe_strat,
+        "inference": refit["inference"],
         "selected_config": winning_cfg,
         "confirmation": confirmation,
         "failed_folds": evaluator.failed_folds,

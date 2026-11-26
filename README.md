@@ -248,15 +248,20 @@ evosynth run                         # Fast benchmark (preset search_demo: 200 e
 evosynth run --full                  # Full benchmark (preset search_full: 500 evals, pop=40)
 evosynth scale --budget 500          # Budget-scaling run with checkpoints (300 / 500 / 1000)
 evosynth ablation --setup CVGS-500   # Isolated GA / PSO / DE / CMA-ES vs EvoSynth
-evosynth baselines --test all        # Default ExtraTrees, Random Search, Optuna, FLAML
+                                     #   (--splits stratified,random,elite adds the tier-split ablation)
+evosynth baselines --test all        # Untuned defaults (4 families), Random Search, Optuna, FLAML
 evosynth run --dataset higgs         # any registered dataset: covertype (default), higgs, adult,
                                      # airlines, poker_hand, miniboone, jannis
+evosynth speedup                     # measure the parallel-workers + early-stopping speed-up
+evosynth summary                     # results/summary/: mean ± std tables over seeds, convergence curves
 ```
 
 Every method sees the same rows: a held-out test set is split off first, and the search and the
 refit draw from the rest (`settings/datasets.toml`). Each dataset is scored with its own metric
 (accuracy for the multiclass datasets, ROC AUC for the binary ones). After the search, the top 5
 configurations are re-scored with 5-fold CV before the winner is chosen (`[selection]`).
+Random Search and Optuna go through exactly the same evaluator, confirmation and refit, and every
+refitted model's inference latency and size are measured and stored in `result.json`.
 
 Each run writes to `results/<experiment>/<dataset>/<variant>/seed_<k>/` (`manifest.json` with the
 exact settings, git commit and library versions; `result.json`; `run.log`; ...).

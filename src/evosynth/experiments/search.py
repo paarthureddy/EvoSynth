@@ -78,9 +78,9 @@ def _run_search(run, dataset, mode_label, subsample, refit):
     try:
         from evosynth.models.refit import refit_and_score
 
-        refit_res = refit_and_score(selected_cfg, dataset=dataset, phase="refit")
+        refit_res = refit_and_score(selected_cfg, dataset=dataset, model_path=run.file("model.pkl"))
         result["refit"] = {k: refit_res[k] for k in ("test_score", "metric", "model_type", "fe_strategy",
-                                                      "train_rows", "test_rows")}
+                                                      "train_rows", "test_rows", "inference")}
         conf = ""
         if confirmation:
             picked = confirmation["candidates"][confirmation["selected_search_rank"] - 1]
@@ -93,6 +93,9 @@ def _run_search(run, dataset, mode_label, subsample, refit):
               f"({refit_res['train_rows']:,} train, {refit_res['test_rows']:,} test)")
         print(f"  | Optimal Architecture           : {refit_res['model_type']}")
         print(f"  | Optimal Feature Engineering    : {refit_res['fe_strategy']}")
+        inf = refit_res["inference"]
+        print(f"  | Inference (measured)           : {inf['single_row_ms']:.2f} ms / row, "
+              f"{inf['batch_rows_per_s']:,.0f} rows/s in batch, model {inf['model_mb']:.1f} MB")
         print(f"  +----------------------------------------------------------------+")
     except Exception as e:
         print(f"  Refit skipped: {e}")

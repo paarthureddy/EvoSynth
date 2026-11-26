@@ -1,15 +1,16 @@
 """
 The ONE place where tabular models are built from decoded hyperparameters.
 
-phase = "search"           model used while scoring a candidate (cheap: tree cap,
-                           early stopping on boosted models, n_jobs from [evaluation])
-phase = "refit"            winner retrained on the refit split (min tree counts from [refit])
-phase = "baseline_default" library-default model of the chosen family with
-                           [experiments.baselines].refit_trees trees (Random Search / Optuna
-                           refit as currently implemented; Phase 4.4 replaces it with "refit")
+phase = "search"   model used while scoring a candidate (cheap: tree cap, n_jobs from [evaluation])
+phase = "refit"    the selected configuration of ANY tuned method (EvoSynth, Random Search, Optuna)
+                   retrained on the refit train rows (min tree counts from [refit]); Phase 4.4
+build_default_model(model_type)  untuned library defaults (baseline `--test defaults`)
 
-Settings: [evaluation], [refit], [experiments.baselines], [run].seed,
-[search_space.tabular].max_depth.high, and the dataset's xgb_eval_metric.
+Boosted models (XGBoost, LightGBM) early-stop in both phases on a split of the TRAINING rows
+made by the caller (fit_model's X_es / y_es), when [evaluation].early_stopping is on.
+
+Settings: [evaluation], [refit], [run].seed, [search_space.tabular].max_depth.high, and the
+dataset's xgb_eval_metric.
 """
 import warnings
 
@@ -30,20 +31,6 @@ def build_model(params, phase="search", xgb_eval_metric="mlogloss", settings=Non
     s = settings or get_settings()
     m = params.get("model_type", "XGBoost")
     rs = s.run.seed
-
-    if phase == "baseline_default":
-        n = s.experiments.baselines.refit_trees
-        if m == "ExtraTrees":
-            from sklearn.ensemble import ExtraTreesClassifier
-            return ExtraTreesClassifier(n_estimators=n, random_state=rs, n_jobs=-1)
-        if m == "RandomForest":
-            from sklearn.ensemble import RandomForestClassifier
-            return RandomForestClassifier(n_estimators=n, random_state=rs, n_jobs=-1)
-        if m == "LightGBM":
-            import lightgbm as lgb
-            return lgb.LGBMClassifier(n_estimators=n, random_state=rs, n_jobs=-1, verbose=-1)
-        import xgboost as xgb
-        return xgb.XGBClassifier(n_estimators=n, random_state=rs, n_jobs=-1, eval_metric=xgb_eval_metric)
 
     if phase not in ("search", "refit"):
         raise ValueError(f"unknown phase '{phase}'")
@@ -68,19 +55,32 @@ def build_model(params, phase="search", xgb_eval_metric="mlogloss", settings=Non
             random_state=rs, n_jobs=jobs, verbose=-1)
 
     import xgboost as xgb
-    if search:
-        return xgb.XGBClassifier(
-            learning_rate=params.get("learning_rate", 0.1), n_estimators=n_est,
-            max_depth=params.get("max_depth", 6), subsample=params.get("subsample", 0.8),
-            booster="gbtree", colsample_bytree=params.get("colsample_bytree", 0.8),
-            reg_alpha=params.get("reg_alpha", 0.0), early_stopping_rounds=s.evaluation.early_stopping_rounds,
-            eval_metric=xgb_eval_metric, random_state=rs, n_jobs=jobs)
-    # refit (gbtree, the XGBoost default, as in search)
     return xgb.XGBClassifier(
-        learning_rate=params.get("learning_rate", 0.1), n_estimators=max(n_est, s.refit.min_trees_xgb),
-        max_depth=params.get("max_depth", 8), subsample=params.get("subsample", 0.8),
-        colsample_bytree=params.get("colsample_bytree", 0.8), reg_alpha=params.get("reg_alpha", 0.0),
-        random_state=rs, n_jobs=jobs, eval_metric=xgb_eval_metric)
+        learning_rate=params.get("learning_rate", 0.1),
+        n_estimators=n_est if search else max(n_est, s.refit.min_trees_xgb),
+        max_depth=params.get("max_depth", 6), subsample=params.get("subsample", 0.8),
+        booster="gbtree", colsample_bytree=params.get("colsample_bytree", 0.8),
+        reg_alpha=params.get("reg_alpha", 0.0), early_stopping_rounds=s.evaluation.early_stopping_rounds,
+        eval_metric=xgb_eval_metric, random_state=rs, n_jobs=jobs)
+
+
+def build_default_model(model_type, xgb_eval_metric="mlogloss", settings=None):
+    """Untuned library defaults of a model family (seeded, all cores) for the `defaults` baseline."""
+    s = settings or get_settings()
+    rs, jobs = s.run.seed, s.refit.model_n_jobs
+    if model_type == "ExtraTrees":
+        from sklearn.ensemble import ExtraTreesClassifier
+        return ExtraTreesClassifier(random_state=rs, n_jobs=jobs)
+    if model_type == "RandomForest":
+        from sklearn.ensemble import RandomForestClassifier
+        return RandomForestClassifier(random_state=rs, n_jobs=jobs)
+    if model_type == "LightGBM":
+        import lightgbm as lgb
+        return lgb.LGBMClassifier(random_state=rs, n_jobs=jobs, verbose=-1)
+    if model_type == "XGBoost":
+        import xgboost as xgb
+        return xgb.XGBClassifier(random_state=rs, n_jobs=jobs, eval_metric=xgb_eval_metric)
+    raise ValueError(f"unknown model type '{model_type}'")
 
 
 class _Relabeled:
@@ -103,8 +103,8 @@ class _Relabeled:
 def fit_model(model, model_type, X_tr, y_tr, X_es=None, y_es=None, phase="search", settings=None):
     """
     Fit `model` and return the fitted model (use the return value: it may be a _Relabeled wrapper).
-    In the search phase boosted models early-stop on (X_es, y_es), a split of the TRAINING fold
-    made by the caller (Phase 3.3); the scoring fold is never used for early stopping.
+    Boosted models early-stop on (X_es, y_es) when given: a split of the TRAINING rows made by the
+    caller (Phase 3.3 / 4.4); the scored rows are never used for early stopping.
     """
     s = settings or get_settings()
     classes = np.unique(y_tr)
@@ -120,11 +120,12 @@ def fit_model(model, model_type, X_tr, y_tr, X_es=None, y_es=None, phase="search
         # XGBoost picks a binary or multiclass objective from the labels it sees; the loss must match
         model.set_params(eval_metric="logloss" if len(classes) <= 2 else "mlogloss")
 
-    early_stop = phase == "search" and X_es is not None and len(y_es) > 0
+    early_stop = X_es is not None and len(y_es) > 0
     if model_type == "XGBoost" and early_stop:
         model.fit(X_tr, y_tr, eval_set=[(X_es, y_es)], verbose=False)
-    elif model_type == "XGBoost" and phase == "search":
-        model.set_params(early_stopping_rounds=None)
+    elif model_type == "XGBoost":
+        if model.get_params().get("early_stopping_rounds") is not None:
+            model.set_params(early_stopping_rounds=None)
         model.fit(X_tr, y_tr, verbose=False)
     elif model_type == "LightGBM" and early_stop:
         import lightgbm as lgb

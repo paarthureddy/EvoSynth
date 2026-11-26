@@ -3,9 +3,11 @@
 
     evosynth run        [--full | --preset NAME] [--dataset covertype] [--budget N ...] [--no-refit]
     evosynth scale      --budget 500 [--pop-size N] [--checkpoint-interval N]
-    evosynth ablation   [--setup CVGS-500] [--pop-size N] [--max-workers N]
-    evosynth baselines  [--test all|extratrees|random|optuna|flaml] [--trials N] [--time-budget S]
+    evosynth ablation   [--setup CVGS-500] [--splits stratified,random,elite] [--pop-size N] [--max-workers N]
+    evosynth baselines  [--test all|defaults|random|optuna|flaml] [--trials N] [--time-budget S]
     evosynth nas
+    evosynth speedup    [--dataset covertype] [--configurations N] [--workers N]
+    evosynth summary    [--results-dir PATH]      tables (mean ± std over seeds) -> results/summary/
     evosynth serve      [--host H] [--port P]
     evosynth settings   [show [SECTION] | check] [--preset NAME]
     evosynth datasets   list | download [NAME ...]
@@ -109,7 +111,20 @@ def cmd_ablation(args):
     from evosynth.experiments.ablation import run_ablation
     _per_seed(args, lambda: run_ablation(setup=args.setup, pop_size=args.pop_size, max_workers=args.max_workers,
                                          checkpoint_interval=args.checkpoint_interval,
-                                         results_dir=args.results_dir, dataset=args.dataset))
+                                         results_dir=args.results_dir, dataset=args.dataset,
+                                         splits=_split_list(args.splits)))
+
+
+def _split_list(text):
+    """--splits "stratified,random,elite" -> list (None = experiments.ablation.evosynth_splits)."""
+    if not text:
+        return None
+    splits = [p.strip() for p in text.split(",") if p.strip()]
+    from evosynth.engine.tiers import SPLITS
+    bad = [p for p in splits if p not in SPLITS]
+    if bad:
+        raise ConfigError(f"--splits: unknown tier split(s) {bad}; choose from {list(SPLITS)}")
+    return splits
 
 
 def cmd_baselines(args):
@@ -121,6 +136,19 @@ def cmd_baselines(args):
 def cmd_nas(args):
     from evosynth.experiments.nas import run_nas
     _per_seed(args, lambda: run_nas(variant=args.variant or "default", results_dir=args.results_dir))
+
+
+def cmd_summary(args):
+    _activate(args)
+    from evosynth.experiments.summary import build_summary
+    build_summary(args.results_dir)
+
+
+def cmd_speedup(args):
+    from evosynth.experiments.speedup import run_speedup
+    _per_seed(args, lambda: run_speedup(dataset=args.dataset, configurations=args.configurations,
+                                        workers=args.workers, variant=args.variant or "default",
+                                        results_dir=args.results_dir))
 
 
 def cmd_serve(args):
@@ -200,10 +228,12 @@ def build_parser():
     a.add_argument("--max-workers", "--max_workers", dest="max_workers", type=int)
     a.add_argument("--checkpoint-interval", "--checkpoint_interval", dest="checkpoint_interval", type=int)
     a.add_argument("--dataset", default="covertype")
+    a.add_argument("--splits", help='EvoSynth tier splits to run, e.g. "stratified,random,elite" '
+                                    "(default: experiments.ablation.evosynth_splits)")
     a.set_defaults(func=cmd_ablation)
 
-    b = sub.add_parser("baselines", help="default ExtraTrees, Random Search, Optuna TPE, FLAML")
-    b.add_argument("--test", default="all", choices=["all", "extratrees", "random", "optuna", "flaml"])
+    b = sub.add_parser("baselines", help="untuned defaults, Random Search, Optuna TPE, FLAML")
+    b.add_argument("--test", default="all", choices=["all", "defaults", "random", "optuna", "flaml"])
     b.add_argument("--trials", type=int, help="Random Search / Optuna trials")
     b.add_argument("--time-budget", "--time_budget", dest="time_budget", type=int, help="FLAML seconds")
     b.add_argument("--dataset", default="covertype")
@@ -211,6 +241,16 @@ def build_parser():
 
     n = sub.add_parser("nas", help="CNN architecture search demo")
     n.set_defaults(func=cmd_nas)
+
+    sm = sub.add_parser("summary", help="build results/summary/ tables (mean ± std over seeds) from the run folders")
+    sm.add_argument("--results-dir", "--results_dir", dest="results_dir", help="results folder (default: results/)")
+    sm.set_defaults(func=cmd_summary)
+
+    su = sub.add_parser("speedup", help="measure the parallel-workers + early-stopping speed-up")
+    su.add_argument("--dataset", default="covertype")
+    su.add_argument("--configurations", type=int, help="configurations per condition (default: experiments.speedup)")
+    su.add_argument("--workers", type=int, help="parallel threads (default: experiments.speedup.workers)")
+    su.set_defaults(func=cmd_speedup)
 
     sv = sub.add_parser("serve", help="start the telemetry relay for the live dashboard")
     sv.add_argument("--host")
@@ -228,11 +268,11 @@ def build_parser():
     d.add_argument("names", nargs="*", help="dataset names (default: all)")
     d.set_defaults(func=cmd_datasets)
 
-    for sp in (r, sc, a, b, n, sv, st, d):
+    for sp in (r, sc, a, b, n, sv, st, d, su, sm):
         _common(sp)
-    for sp in (r, sc, n):
+    for sp in (r, sc, n, su):
         sp.add_argument("--variant", help="run folder name (default: preset / budget_<N> / default)")
-    for sp in (r, sc, a, b, n):
+    for sp in (r, sc, a, b, n, su):
         seeds = sp.add_mutually_exclusive_group()
         seeds.add_argument("--seed", type=int, help="search seed (sets run.seed)")
         seeds.add_argument("--seeds", metavar="LIST", help="comma-separated seeds; one run (and folder) per seed")

@@ -102,6 +102,9 @@ class DynamicOptimizer:
         self.best_individual = None
         self.history = []
         self.evaluated = []          # every evaluated Individual (confirm-before-select, Phase 3.7)
+        # Phase 4.1: what the controller measured and decided, for the ablation and the summary
+        self.scoring_history = []    # one entry per scoring call: evals used + every island's metrics
+        self.decisions = []          # promotions, swaps, rollbacks, injections, elite sharing
         self.cooldowns = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
         self.active_grace_period = None
         # One CSV row per evaluation (population.csv of the run folder), if a path is given
@@ -239,7 +242,19 @@ class DynamicOptimizer:
             ucb_scores[name] = self.bandit.score(algo_key, comp, n_algo, self.evals_used)
             algo_data[name]['raw_composite'] = comp
             algo_data[name]['ucb_bonus'] = self.bandit.bonus(n_algo, self.evals_used)
+        self.scoring_history.append({
+            "evals": self.evals_used,
+            "islands": {name: {"fitness": d["fitness"], "speed": d["speed"], "efficiency": d["efficiency"],
+                               "diversity": d["diversity"], "trend": d["trend"],
+                               "composite": d["raw_composite"], "ucb": ucb_scores[name]}
+                        for name, d in algo_data.items()},
+        })
         return ucb_scores, algo_data
+
+    def _switch(self, details):
+        """Emit a 'switch' event to the dashboard and record it in self.decisions."""
+        self.decisions.append({"evals": self.evals_used, **details})
+        self.reporter.emit("switch", details)
 
     def _print_scoring_table(self, algo_pops, scores, raw):
         print(f"\n  {'Algorithm':<12} {'Best Acc':>9} {'Diversity':>10} {'Composite':>10} {'Bonus':>7} {'UCB Score':>10}")
@@ -256,7 +271,7 @@ class DynamicOptimizer:
     def _random_inject(self, optimizer, inject_pct, dims, tag):
         n_inject = max(1, int(len(optimizer.population) * inject_pct))
         print(f"\n  [INJECT] Replacing bottom {n_inject} in {tag} with fresh random vectors.")
-        self.reporter.emit("switch", {"action": "Injection", "algo": tag, "details": f"Replaced bottom {n_inject} due to stagnation"})
+        self._switch({"action": "Injection", "algo": tag, "details": f"Replaced bottom {n_inject} due to stagnation"})
         fresh = self._evaluate_batch([self.rng.random(dims) for _ in range(n_inject)], tag)
         optimizer.inject(fresh)     # Phase 1.8: the optimizer updates its own search state too
         return optimizer
@@ -407,7 +422,7 @@ class DynamicOptimizer:
         t2_clean = [t.replace("T1_","") for t in top2]
         t1_clean = [t.replace("T1_","") for t in bot2]
         self.reporter.emit("tier_state", {"T1": t1_clean, "T2": t2_clean})
-        self.reporter.emit("switch", {"action": "Promotion", "algo": "System", "details": f"Promoted {t2_clean} to Tier 2"})
+        self._switch({"action": "Promotion", "algo": "System", "details": f"Promoted {t2_clean} to Tier 2"})
 
         # Build T2 Optimizers
         t2_optims = {}
@@ -487,7 +502,7 @@ class DynamicOptimizer:
                     p_algo = self.active_grace_period['algo']
                     d_algo = self.active_grace_period['target_t1']
                     print(f"\n  [ROLLBACK] {p_algo} failed to improve global best. Rolling back to {d_algo}.")
-                    self.reporter.emit("switch", {"action": "Rollback", "algo": f"{p_algo} -> {d_algo}", "details": "Promoted algorithm failed grace period"})
+                    self._switch({"action": "Rollback", "algo": f"{p_algo} -> {d_algo}", "details": "Promoted algorithm failed grace period"})
                     
                     t2_optims[d_algo] = self.active_grace_period['snapshot']
                     del t2_optims[p_algo]
@@ -526,7 +541,7 @@ class DynamicOptimizer:
                 if t1_scores[best_t1_name] > t2_scores[worst_t2_name] + self.swap_margin and self.cooldowns[best_t1_key] == 0 and self.active_grace_period is None:
                     print(f"\n  [SWAP] {best_t1_name} (UCB {t1_scores[best_t1_name]:.3f}) beats {worst_t2_name} "
                           f"(UCB {t2_scores[worst_t2_name]:.3f}) by more than the margin {self.swap_margin:.2f}")
-                    self.reporter.emit("switch", {"action": "Swap", "algo": f"{best_t1_key} <-> {worst_t2_key}", "details": "Demoting T2 algorithm due to low composite score"})
+                    self._switch({"action": "Swap", "algo": f"{best_t1_key} <-> {worst_t2_key}", "details": "Demoting T2 algorithm due to low composite score"})
                     
                     import copy
                     self.active_grace_period = {
@@ -578,7 +593,7 @@ class DynamicOptimizer:
                 elites_b = TierManager.select_elites(ob.population, n_share / max(1, len(ob.population)))[:n_share]
                 print(f"\n  [ELITE SHARE] T2_{ka} <-> T2_{kb}: exchanging the top {n_share} "
                       f"({int(self.elite_pct*100)}%) of each island")
-                self.reporter.emit("switch", {"action": "Elite Sharing", "algo": f"{ka} <-> {kb}",
+                self._switch({"action": "Elite Sharing", "algo": f"{ka} <-> {kb}",
                                               "details": f"Pairwise exchange of the top {n_share} between T2 islands"})
                 oa.inject(elites_b)
                 ob.inject(elites_a)

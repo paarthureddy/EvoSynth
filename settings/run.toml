@@ -23,7 +23,7 @@
 #          src/evosynth/models/factory.py → build_model (every model's random_state);
 #          src/evosynth/evaluators/image.py → ImageCNNEvaluator.evaluate (torch seed per configuration);
 #          src/evosynth/experiments/ablation.py → run_isolated_optimizer (warm-up vectors);
-#          src/evosynth/experiments/baselines.py → run_default_extratrees (model), run_random_search
+#          src/evosynth/experiments/baselines.py → build_default_model via run_defaults (model), run_random_search
 #          (vectors), run_optuna_baseline (TPESampler), run_flaml_baseline (FLAML seed);
 #          src/evosynth/experiments/run_context.py → run_path, RunContext (run folder name seed_<k>)
 # Range: any integer >= 0

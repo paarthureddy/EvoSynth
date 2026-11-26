@@ -45,16 +45,20 @@ checkpoint_interval = 10          # write checkpoint JSON every N evaluations (r
 
 # -------------------------------------------------------------------------------------
 [experiments.ablation]
-# Isolated optimizers vs EvoSynth. Command: `evosynth ablation --setup NAME`.
+# Isolated optimizers vs EvoSynth. Command: `evosynth ablation --setup NAME [--splits ...]`.
 # Used in: src/evosynth/experiments/ablation.py → run_ablation (setups, pop_size, max_workers,
-#          checkpoint_interval, share_checkpoint_fraction), run_isolated_optimizer (batch_*),
-#          run_benchmark_setup (t1/k schedule for the EvoSynth run).
+#          checkpoint_interval, share_checkpoint_fraction), run_isolated_optimizer (batch_*,
+#          checkpoint_interval), run_evosynth (t1/k schedule), run_benchmark_setup (evosynth_splits,
+#          passive_marks). Passive scoring of the isolated runs uses [composite] and [bandit] (Phase 4.2).
 # -------------------------------------------------------------------------------------
 setups = { "CVGS-500" = 500, "CVGS-1000" = 1000 }   # setup name → budget (run_ablation)
 pop_size = 40                      # run_ablation (--pop-size default)
 max_workers = 2                    # run_ablation (--max-workers default; low to limit RAM)
-checkpoint_interval = 10           # run_isolated_optimizer (resume checkpoint every N evals)
-share_checkpoint_fraction = 0.25   # run_ablation: checkpoint_eval = int(budget · fraction) ("25% budget share")
+checkpoint_interval = 10           # run_isolated_optimizer (resume state saved every N evals)
+share_checkpoint_fraction = 0.25   # run_ablation: comparison mark = int(budget · fraction) ("25% budget share")
+passive_marks = 10                 # run_benchmark_setup: isolated runs scored together at budget·i/10 (+ the mark)
+evosynth_splits = ["stratified"]   # run_benchmark_setup: one EvoSynth run per tier split (--splits overrides;
+                                   # "stratified,random,elite" = the split ablation of Phase 1.6)
 batch_min = 5                      # run_isolated_optimizer: batch = max(batch_min, min(batch_max, pop // batch_divisor))
 batch_max = 10
 batch_divisor = 3
@@ -63,29 +67,18 @@ t1_iters_min = 3
 k_iters_fraction = 0.02            # run_benchmark_setup: EvoSynth k_iters = max(2, int(0.02 · budget))
 k_iters_min = 2
 
-[experiments.ablation.passive_telemetry]
-# Constants of the passive (decision-free) metrics logged for isolated optimizers.
-# Used in: src/evosynth/experiments/ablation.py → _compute_passive_metrics.
-# Phase 4.2 replaces these with the controller's own scoring formulas, then this table is removed.
-c = 0.5
-fitness_scale = 100.0
-speed_scale = 10.0
-efficiency_scale = 100.0
-trend_scale = 10.0
-
 # -------------------------------------------------------------------------------------
 [experiments.baselines]
 # Competitor and floor baselines. Command: `evosynth baselines --test ...`.
-# Used in: src/evosynth/experiments/baselines.py → run_default_extratrees, run_random_search,
-#          run_optuna_baseline, run_flaml_baseline; refit_trees by src/evosynth/models/factory.py →
-#          build_model (phase="baseline_default").
+# Used in: src/evosynth/experiments/baselines.py → run_defaults, run_random_search,
+#          run_optuna_baseline, run_flaml_baseline. Random Search / Optuna use the same evaluator,
+#          [selection] and refit as EvoSynth (Phase 4.4); give them EvoSynth's budget with --trials.
 # -------------------------------------------------------------------------------------
-default_extratrees_trees = 100     # run_default_extratrees (untuned floor)
+default_models = ["XGBoost", "LightGBM", "RandomForest", "ExtraTrees"]   # run_defaults (untuned floors)
 random_search_trials = 120         # run_random_search (--trials overrides)
 optuna_trials = 120                # run_optuna_baseline (--trials overrides)
 flaml_time_budget = 585            # seconds; run_flaml_baseline (--time-budget overrides)
 flaml_estimators = ["lgbm", "rf", "extra_tree", "xgboost"]   # run_flaml_baseline
-refit_trees = 150                  # models/factory.py build_model(phase="baseline_default") (Phase 4.4 unifies refits)
 
 # -------------------------------------------------------------------------------------
 [experiments.nas]
@@ -103,3 +96,11 @@ batch_size = 64            # ImageCNNEvaluator.__init__
 dataset = "fashion_mnist"  # [datasets.<name>] of kind "image": run_nas, ImageCNNEvaluator.__init__
 sgd_momentum = 0.9         # ImageCNNEvaluator.evaluate (when optimizer = SGD)
 device = "cpu"             # ImageCNNEvaluator.__init__ ("cuda" used only if available)
+
+# -------------------------------------------------------------------------------------
+[experiments.speedup]
+# Parallel-workers + early-stopping speed-up benchmark (Phase 4.9). Command: `evosynth speedup`.
+# Used in: src/evosynth/experiments/speedup.py → run_speedup (configurations, workers)
+# -------------------------------------------------------------------------------------
+configurations = 40      # random configurations evaluated under each condition (one population). Range: ≥ 4
+workers = 0              # parallel threads; 0 = all CPU cores (os.cpu_count()). Range: ≥ 0

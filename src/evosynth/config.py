@@ -168,6 +168,16 @@ def load_config(
     return Settings(data)
 
 
+def with_overrides(settings: Settings, overrides: Iterable[str]) -> Settings:
+    """A copy of `settings` (already resolved, e.g. with --set values) with more overrides applied."""
+    import copy
+    data = copy.deepcopy(settings._data)
+    for keys, value in (_parse_override(o) for o in overrides):
+        _apply_override(data, keys.split(".") if isinstance(keys, str) else keys, value)
+    validate(data)
+    return Settings(data)
+
+
 # ---------------------------------------------------------------------------------
 # Active settings (what library code reads its defaults from)
 # ---------------------------------------------------------------------------------
@@ -336,6 +346,9 @@ def validate(data: Mapping) -> None:
     pos_int("evaluation.bagging_depth_multiplier")
     frac("evaluation.failed_fold_score")
     frac("evaluation.early_stopping_fraction", 0.05, 0.5)
+    _require(isinstance(_get(data, "evaluation.early_stopping", e), bool),
+             "evaluation.early_stopping must be true or false", e)
+    pos_int("inference.single_row_repeats", 10)
     _require(isinstance(_get(data, "selection.enabled", e), bool), "selection.enabled must be true or false", e)
     pos_int("selection.top_k", 1)
     pos_int("selection.confirm_folds", 2)

@@ -94,7 +94,7 @@ class TabularEvaluator:
             X_va = fe.transform(X_va)
 
         X_es = y_es = None
-        if model_type in ("XGBoost", "LightGBM"):
+        if model_type in ("XGBoost", "LightGBM") and s.evaluation.early_stopping:
             # Phase 3.3: early stopping on a split of the TRAINING fold, never on the scoring fold
             X_tr, X_es, y_tr, y_es = train_test_split(
                 X_tr, y_tr, test_size=s.evaluation.early_stopping_fraction, stratify=_stratify(y_tr),

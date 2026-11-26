@@ -16,6 +16,13 @@
 # Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator.evaluate → _cv_score   Range: 2–10
 cv_folds = 2
 
+# Early stopping for XGBoost / LightGBM, in the search AND in the refit (Phase 4.4). Off: they
+# train all n_estimators rounds on the whole training fold (used by `evosynth speedup`).
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator._fit_and_score;
+#          src/evosynth/models/refit.py → refit_and_score
+# Range: true / false
+early_stopping = true
+
 # Boosted models stop after this many rounds without improvement on the early-stopping set.
 # Used in: src/evosynth/models/factory.py → build_model (XGBoost early_stopping_rounds),
 #          fit_model (LightGBM early_stopping callback)
@@ -25,7 +32,8 @@ early_stopping_rounds = 10
 # Share of each TRAINING fold held back as the early-stopping set for XGBoost / LightGBM
 # (Phase 3.3: the scoring fold is never used for early stopping). RandomForest / ExtraTrees
 # train on the whole training fold.
-# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator._fit_and_score
+# Used in: src/evosynth/evaluators/tabular.py → TabularEvaluator._fit_and_score;
+#          src/evosynth/models/refit.py → refit_and_score (same share of the refit train rows)
 # Range: 0.05–0.5
 early_stopping_fraction = 0.15
 
@@ -84,11 +92,12 @@ max_interaction_features = 6
 
 # -------------------------------------------------------------------------------------
 [refit]
-# Post-search generalisation refit of the winning configuration (held-out test).
+# Post-search generalisation refit of the selected configuration (held-out test). The SAME refit
+# is used for every tuned method (Phase 4.4): EvoSynth, Random Search and Optuna.
 # Used in: src/evosynth/models/refit.py → refit_split, refit_and_score;
-#          src/evosynth/models/factory.py → build_model (phase="refit").
-# Called by src/evosynth/experiments/search.py → run_search and
-#           src/evosynth/experiments/scaling.py → run_benchmark ("STEP 6").
+#          src/evosynth/models/factory.py → build_model (phase="refit"), build_default_model.
+# Called by src/evosynth/experiments/search.py → run_search, scaling.py → run_benchmark ("STEP 6"),
+#           baselines.py → run_random_search, run_optuna_baseline (and run_defaults: model_n_jobs).
 # -------------------------------------------------------------------------------------
 
 # Train / test rows are set per dataset (refit_train_rows, test_rows in settings/datasets.toml).
@@ -100,3 +109,11 @@ min_trees_xgb     = 200   # XGBoost
 
 # Threads per model at refit time (-1 = all cores).
 model_n_jobs = -1
+
+# -------------------------------------------------------------------------------------
+[inference]
+# Measured inference cost of every refitted model (Phase 4.8), stored in result.json "inference".
+# Used in: src/evosynth/models/inference.py → measure, called from models/refit.py → refit_and_score
+#          and experiments/baselines.py → run_defaults, run_flaml_baseline
+# -------------------------------------------------------------------------------------
+single_row_repeats = 200   # one-row predictions timed (median and 95th percentile reported). Range: ≥ 10
