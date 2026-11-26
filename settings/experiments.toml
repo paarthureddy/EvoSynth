@@ -34,8 +34,8 @@ k_iters = 3
 #          checkpoint_interval) and schedule():
 # t1_iters = max(t1_iters_min, int(t1_iters_fraction · budget)); k_iters likewise.
 # -------------------------------------------------------------------------------------
-budgets = [120, 300, 500, 1000]   # allowed `evosynth scale --budget` values
-default_budget = 300
+budgets = [300, 500, 1000]        # allowed `evosynth scale --budget` values (120 removed: no Tier 2 at pop 40)
+default_budget = 500
 pop_size = 40
 t1_iters_fraction = 0.03
 t1_iters_min = 3

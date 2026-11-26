@@ -75,7 +75,7 @@ def environment_info():
 
 class RunContext:
     """
-    with RunContext("scaling", "covertype", "budget_300") as run:
+    with RunContext("scaling", "covertype", "budget_500") as run:
         ...                                   # console output -> run.log, events -> events.jsonl
         run.write_result({...})               # -> result.json
 
