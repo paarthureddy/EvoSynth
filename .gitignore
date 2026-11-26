@@ -56,3 +56,6 @@ results/**
 !results/archive/**
 results/archive/**/checkpoints/
 results/archive/**/csv/
+
+# diagram source (rendered to arch.png)
+!paper/figures/arch_source.html

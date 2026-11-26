@@ -1,0 +1,159 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 1900px; height: 900px; background: #fff; font-family: "Segoe UI", Arial, sans-serif; color: #1f2937; position: relative; }
+  .title { position: absolute; left: 20px; top: 12px; font-size: 22px; font-weight: 700; }
+  .title span { font-weight: 400; color: #6b7280; font-size: 16px; margin-left: 10px; }
+  .panel { position: absolute; top: 84px; height: 684px; border-radius: 14px; border: 2px solid; padding: 12px 12px; }
+  .ph { font-size: 15px; font-weight: 700; letter-spacing: .4px; margin-bottom: 10px; }
+  .card { background: #fff; border: 1.5px solid; border-radius: 10px; padding: 9px 11px; margin-bottom: 11px; font-size: 13px; line-height: 1.38; }
+  .card h4 { font-size: 15px; margin-bottom: 4px; }
+  .muted { color: #4b5563; }
+  .small { font-size: 12px; }
+  .blue  { background: #eef4fd; border-color: #7aa7e6; } .blue .card { border-color: #7aa7e6; } .blue .ph { color: #1d4f9a; }
+  .green { background: #edf7ee; border-color: #7cbf82; } .green .card { border-color: #7cbf82; } .green .ph { color: #24692b; }
+  .red   { background: #fdeeec; border-color: #e58c80; } .red .card { border-color: #e58c80; } .red .ph { color: #a3352a; }
+  .ctrl  { background: #eef7ea; border-color: #5aa65f; } .ctrl .card { border-color: #5aa65f; } .ctrl .ph { color: #24692b; }
+  .purple{ background: #f4effb; border-color: #a98bd6; } .purple .card { border-color: #a98bd6; } .purple .ph { color: #5b3a96; }
+  .orange{ background: #fdf3e4; border-color: #e9ad5a; } .orange .card { border-color: #e9ad5a; } .orange .ph { color: #9a5a0c; }
+  .bar { border-radius: 6px; padding: 5px 8px; margin-top: 5px; font-size: 12px; }
+  .island { background: #fff; border: 1.5px solid #e58c80; border-radius: 10px; padding: 10px; margin-bottom: 12px; text-align: center; }
+  .island b { font-size: 18px; display: block; }
+  .w { display: grid; grid-template-columns: 78px 1fr 36px; gap: 4px; align-items: center; font-size: 12px; margin-top: 3px; }
+  .w i { display: block; height: 9px; background: #5aa65f; border-radius: 3px; }
+  .formula { white-space: nowrap; font-family: "Cambria Math", "Times New Roman", serif; font-size: 15px; text-align: center; margin: 4px 0; }
+  ul { padding-left: 16px; } li { margin-bottom: 4px; }
+  .t2 { background: #fff; border: 1.5px solid #a98bd6; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+  .t2 b { font-size: 16px; }
+  .footer { position: absolute; left: 20px; right: 20px; top: 786px; height: 96px; border: 2px dashed #9ca3af; border-radius: 12px; padding: 12px 16px; font-size: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .footer b { display: block; font-size: 14px; margin-bottom: 3px; color: #111827; }
+  .footer div { color: #4b5563; font-size: 13px; line-height: 1.35; }
+  svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .lbl { font-size: 12.5px; fill: #374151; font-family: "Segoe UI", Arial, sans-serif; }
+  .lblb { font-size: 12.5px; fill: #111827; font-weight: 600; font-family: "Segoe UI", Arial, sans-serif; }
+</style></head>
+<body>
+<div class="title">EvoSynth — system architecture <span>dynamic multi-armed-bandit meta-optimizer over GA, PSO, DE and CMA-ES</span></div>
+
+<!-- 1 DATA -->
+<div class="panel blue" style="left:20px; width:255px;">
+  <div class="ph">1 · DATA</div>
+  <div class="card"><h4>Dataset registry</h4>
+    7 tabular datasets (Covertype, HIGGS, Adult, Airlines, Poker Hand, MiniBooNE, Jannis) + Fashion-MNIST for NAS
+    <div class="muted small" style="margin-top:4px">Metric per dataset: accuracy (multiclass), ROC AUC (binary)</div></div>
+  <div class="card"><h4>Fixed split <span class="muted small">(data_seed)</span></h4>
+    <div class="bar" style="background:#e5e7eb">Test rows: split off first, never searched</div>
+    <div class="bar" style="background:#dbeafe">Search rows: cross-validation during search</div>
+    <div class="bar" style="background:#fde7c4">Train rows: refit of the selected configuration</div></div>
+  <div class="card"><h4>Latent search space [0,1]<sup>8</sup></h4>
+    <b>model_type</b>: XGBoost · LightGBM · RandomForest · ExtraTrees<br>
+    <b>fe_strategy</b>: none · stats · interactions<br>
+    <b>6 hyperparameters</b>: learning_rate, n_estimators, max_depth, subsample, colsample_bytree, reg_alpha
+    <div class="muted small" style="margin-top:4px">Every optimizer works on the same vectors; decoding happens only at evaluation</div></div>
+</div>
+
+<!-- 2 INITIALIZATION -->
+<div class="panel green" style="left:323px; width:265px;">
+  <div class="ph">2 · EVALUATION &amp; INITIALIZATION</div>
+  <div class="card"><h4>Fitness evaluator</h4>
+    k-fold CV on the search rows (k = 2)<br>
+    Boosted models early-stop on a slice of the <i>training</i> fold<br>
+    A failed fit scores 0 and is logged</div>
+  <div class="card"><h4>Population generator</h4>
+    N random vectors (population size, default 40), evaluated in parallel threads</div>
+  <div class="card"><h4>Stratified tier split</h4>
+    <div class="bar" style="background:#fbe0dc"><b>40% of N → Tier 1</b>: 4 equal islands, each with a mix of good and weak members</div>
+    <div class="bar" style="background:#ebe3f7"><b>60% of N → Tier 2 reserve</b>: 2 equal groups, same mix</div>
+    <div class="muted small" style="margin-top:5px">Split share and method (stratified, random, elite) are settings</div></div>
+</div>
+
+<!-- 3 TIER 1 -->
+<div class="panel red" style="left:636px; width:240px;">
+  <div class="ph">3 · TIER 1 — COMPETITION</div>
+  <div class="island"><b>GA</b><span class="small muted">Genetic Algorithm · N/10 members</span></div>
+  <div class="island"><b>PSO</b><span class="small muted">Particle Swarm · N/10 members</span></div>
+  <div class="island"><b>DE</b><span class="small muted">Differential Evolution · N/10 members</span></div>
+  <div class="island"><b>CMA-ES</b><span class="small muted">Covariance Matrix Adaptation · N/10 members</span></div>
+  <div class="card small">Each island runs t1_iters generations.<br>After promotion the two other families keep running in Tier 1 and can SWAP back in.</div>
+</div>
+
+<!-- 4 SCORING & CONTROL -->
+<div class="panel ctrl" style="left:924px; width:310px;">
+  <div class="ph">4 · SCORING &amp; CONTROL</div>
+  <div class="card"><h4>Composite score</h4><div class="muted small" style="margin:-3px 0 3px">min-max normalised over the islands scored together</div>
+    <div class="w"><span>Fitness</span><i style="width:100%"></i><span>0.30</span></div>
+    <div class="w"><span>Speed</span><i style="width:83%"></i><span>0.25</span></div>
+    <div class="w"><span>Efficiency</span><i style="width:50%"></i><span>0.15</span></div>
+    <div class="w"><span>Diversity</span><i style="width:50%"></i><span>0.15</span></div>
+    <div class="w"><span>Trend</span><i style="width:50%"></i><span>0.15</span></div>
+    <div class="muted small" style="margin-top:5px">speed = gain since last check · efficiency = gain per eval-second · diversity = mean latent distance · trend = slope over 3 checks</div></div>
+  <div class="card"><h4>UCB1 bandit</h4>
+    <div class="formula">UCB = composite + c·√(ln N / n<sub>family</sub>)</div>
+    <div class="muted small" style="text-align:center">c = 0.1 · ranks the families for every decision</div></div>
+  <div class="card"><h4>Decisions</h4><ul class="small">
+    <li><b>Promote</b> the top 2 families to Tier 2</li>
+    <li><b>SWAP</b> when the best Tier 1 UCB beats the worst Tier 2 UCB by &gt; 0.10 (grace period with rollback, cooldown)</li>
+    <li><b>Inject</b> fresh vectors into islands without improvement (PSO resets particles, CMA-ES restarts)</li></ul></div>
+</div>
+
+<!-- 5 TIER 2 -->
+<div class="panel purple" style="left:1282px; width:270px;">
+  <div class="ph">5 · TIER 2 — EXPLOITATION</div>
+  <div class="t2"><b>Rank-1 family</b><div class="small muted">its Tier 1 island + one reserve group</div></div>
+  <div class="t2"><b>Rank-2 family</b><div class="small muted">its Tier 1 island + the other reserve group</div></div>
+  <div class="card"><h4>Pairwise elite sharing</h4>
+    The two islands exchange their top 20% every k iterations</div>
+  <div class="card"><h4>Checkpoint every k iterations</h4>
+    Rescore all islands → SWAP / inject<br>
+    <span class="muted small">k is sized automatically so Tier 2 reaches ≥ 2 checkpoints within the budget</span></div>
+</div>
+
+<!-- 6 OUTPUT -->
+<div class="panel orange" style="left:1600px; width:280px;">
+  <div class="ph">6 · SELECTION &amp; OUTPUT</div>
+  <div class="card"><h4>Confirm before select</h4>
+    Top 5 distinct configurations re-scored with 5-fold CV; the best confirmed one is selected</div>
+  <div class="card"><h4>Refit</h4>
+    Selected configuration retrained on the train rows (boosted models early-stop on a train slice)</div>
+  <div class="card"><h4>Held-out test</h4>
+    Scored once on the test rows with the dataset’s metric; inference latency and model size measured</div>
+  <div class="card" style="background:#fff7ea"><h4>Single deployable model</h4>
+    No ensemble · model.pkl + result.json</div>
+</div>
+
+<div class="footer">
+  <div><b>Reproducible</b>run.seed drives every random choice; data_seed fixes the splits. Same seed, same run.</div>
+  <div><b>Configurable</b>Every value lives in settings/*.toml, overridable per run with --set.</div>
+  <div><b>Recorded</b>Each run writes manifest.json, result.json, run.log, population.csv and the controller’s scoring history.</div>
+  <div><b>Observable</b>Live telemetry dashboard: islands, scores, promotions, SWAPs and injections as they happen.</div>
+</div>
+
+<svg width="1900" height="900" viewBox="0 0 1900 900">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3f8f45"/></marker>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c5cc4"/></marker>
+  </defs>
+  <path d="M277 200 L321 200" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M590 480 L634 480" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <text x="612" y="458" class="lblb" text-anchor="middle" style="font-size:11.5px">40%</text>
+  <text x="612" y="472" class="lblb" text-anchor="middle" style="font-size:11.5px">of N</text>
+  <path d="M455 84 L455 64 L1417 64 L1417 82" stroke="#7c5cc4" stroke-width="2" fill="none" marker-end="url(#p)"/>
+  <text x="936" y="57" class="lblb" text-anchor="middle" style="fill:#5b3a96">Reserve (60% of N, 2 groups) seeds the promoted Tier 2 islands</text>
+  <path d="M878 300 L922 300" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <path d="M1236 200 L1280 200" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <text x="1258" y="190" class="lblb" text-anchor="middle" style="font-size:11.5px">promote</text>
+  <path d="M1280 450 L1238 450" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)" stroke-dasharray="6 4"/>
+  <text x="1258" y="440" class="lbl" text-anchor="middle" style="font-size:11.5px">rescore</text>
+  <path d="M922 600 L880 600" stroke="#3f8f45" stroke-width="2" fill="none" marker-end="url(#g)" stroke-dasharray="6 4"/>
+  <text x="900" y="618" class="lbl" text-anchor="middle" style="fill:#24692b;font-size:11.5px">SWAP /</text>
+  <text x="900" y="632" class="lbl" text-anchor="middle" style="fill:#24692b;font-size:11.5px">inject</text>
+  <path d="M1236 600 L1278 600" stroke="#3f8f45" stroke-width="2" fill="none" marker-end="url(#g)" stroke-dasharray="6 4"/>
+  <text x="1258" y="618" class="lbl" text-anchor="middle" style="fill:#24692b;font-size:11.5px">SWAP /</text>
+  <text x="1258" y="632" class="lbl" text-anchor="middle" style="fill:#24692b;font-size:11.5px">inject</text>
+  <path d="M1554 200 L1598 200" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <text x="1576" y="176" class="lblb" text-anchor="middle" style="font-size:11.5px">best</text>
+  <text x="1576" y="190" class="lblb" text-anchor="middle" style="font-size:11.5px">configs</text>
+</svg>
+</body></html>
