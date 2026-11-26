@@ -77,9 +77,13 @@ Some hyperparameters only matter for some models: `learning_rate` does nothing f
 
 ### 3.1 Decision tree
 
+![Decision tree example](figures/tree.svg)
+
 A **decision tree** asks a sequence of yes/no questions about the features, such as "elevation > 2800?" then "distance to water < 100?", until it reaches a leaf that gives a class. Training chooses the questions that best separate the classes. One deep tree tends to **overfit** (§4.2): it memorises the training rows.
 
 ### 3.2 Ensembles of trees
+
+![Bagging versus boosting](figures/bagging_boosting.svg)
 
 An **ensemble** combines many trees, which is far more accurate than one tree.
 
@@ -103,6 +107,8 @@ A **neural network** is a stack of layers of simple units ("neurons"); each laye
 
 ### 4.1 Training, validation and test data
 
+![Dataset split into test, search and train rows](figures/split.svg)
+
 If we score a model on the rows it was trained on, it looks excellent because it has seen the answers. So data is divided:
 
 - **Training data:** used to fit the model.
@@ -113,9 +119,13 @@ In EvoSynth each dataset is split once, with a fixed seed: **test rows** are tak
 
 ### 4.2 Overfitting and generalisation
 
+![Overfitting curve](figures/overfitting.svg)
+
 A model **overfits** when it learns noise or quirks of the training rows instead of the real pattern: high training score, lower score on new data. **Generalisation** is how well a model does on new data, which is what the test score measures. Deeper trees, more trees and weaker regularisation all raise the risk of overfitting.
 
 ### 4.3 Cross-validation
+
+![Two-fold cross-validation](figures/cv.svg)
 
 A single validation split can be lucky or unlucky. **k-fold cross-validation (CV)** splits the data into k parts ("folds"); the model is trained k times, each time validated on a different fold and trained on the rest; the k scores are averaged. **Stratified** CV keeps each fold's class proportions the same as the whole dataset's, which matters for rare classes.
 

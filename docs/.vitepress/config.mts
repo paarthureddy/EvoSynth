@@ -30,6 +30,7 @@ export default defineConfig({
             { text: "Introduction", link: "/guide/introduction" },
             { text: "System Architecture", link: "/guide/architecture" },
             { text: "Installation", link: "/guide/installation" },
+            { text: "Commands", link: "/guide/commands" },
           ],
         },
         {
@@ -54,6 +55,7 @@ export default defineConfig({
             { text: "Introduction", link: "/guide/introduction" },
             { text: "System Architecture", link: "/guide/architecture" },
             { text: "Installation", link: "/guide/installation" },
+            { text: "Commands", link: "/guide/commands" },
           ],
         },
         {

@@ -16,6 +16,21 @@ Every run folder contains `manifest.json`, `result.json`, `run.log` and `events.
 
 ## Shared protocol
 
+```mermaid
+flowchart LR
+    D[Dataset] --> P["partition (data_seed)"]
+    P --> TE[test rows]
+    P --> SE[search rows]
+    P --> TR[train rows]
+    SE --> E1["EvoSynth search"] & RS["Random Search"] & OP["Optuna TPE"]
+    E1 & RS & OP --> CF["confirm before select"]
+    CF --> RF["shared refit on train rows"]
+    TR --> RF
+    TR --> DF["untuned defaults"] & FL["FLAML"]
+    RF & DF & FL --> SC["one score on test rows"]
+    TE --> SC
+```
+
 - **Splits** (`datasets.partition`, `run.data_seed = 42`): held-out **test rows** split off first; **search rows** for every method's cross-validation; **train rows** for every refit. Test rows are never seen by any search.
 - **Search score:** `TabularEvaluator`, 2-fold stratified CV on the search rows, in the dataset's metric (accuracy multiclass, ROC AUC binary); boosted models early-stop on a slice of the training fold.
 - **Selection:** confirm before select. The top 5 distinct configurations are re-scored with 5-fold CV and the best confirmed one is selected (`[selection]`). These fits are not counted in the evaluation budget.
@@ -74,6 +89,14 @@ Reads every completed run and writes `results/summary/`: `main_table` (held-out 
 ---
 
 ## 8. `tools/run_experiments.py`, the experiment runner
+
+```mermaid
+flowchart TB
+    START([run_experiments.py PLAN]) --> J{next job}
+    J -->|"run folder completed"| SKIP[skip] --> J
+    J -->|"not done"| RUN["evosynth ... (own run folder, run.log)"] --> LOG["append to results/runner.log"] --> J
+    J -->|"no jobs left"| SUM["evosynth summary"] --> END([results/summary/])
+```
 
 ```
 py -3.14 tools/run_experiments.py smoke            # run a plan

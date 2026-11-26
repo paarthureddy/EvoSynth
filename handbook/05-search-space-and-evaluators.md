@@ -44,6 +44,8 @@ Without the two flags the space is 6-dimensional. XGBoost always uses the `gbtre
 
 ## 2. Decoding the universal latent space
 
+![Latent vector decoding](figures/decode.svg)
+
 Every individual is a vector `z ∈ [0,1]^d`. `evosynth.core.decoding.decode_vector_to_dict(vector, space)`, used by the evaluators, the controller and the refit, decodes it like this:
 
 ```python
@@ -83,6 +85,10 @@ score = max(0, 100 − error)
 ```
 
 ### 3.2 `TabularEvaluator(dataset="covertype", subsample_size=None)` (`tabular.py`), the real-world benchmark
+
+![Dataset split](figures/split.svg)
+
+![Two-fold cross-validation](figures/cv.svg)
 
 The evaluator is generic over the datasets registered in `settings/datasets.toml` (`evosynth datasets list`). Loading and splitting live in `src/evosynth/datasets/`, models in `src/evosynth/models/factory.py`, scoring in `models/metrics.py`.
 

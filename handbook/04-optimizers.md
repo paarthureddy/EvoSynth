@@ -6,6 +6,22 @@ All optimizers live in `src/evosynth/optimizers/`; their constants are in `setti
 
 ## 1. The ask/tell contract (`base.py`)
 
+```mermaid
+sequenceDiagram
+    participant C as Controller
+    participant O as Optimizer (e.g. PSO)
+    participant E as Evaluator
+    C->>O: tell(seed island)  (first call seeds it)
+    loop each iteration
+        C->>O: ask(n)
+        O-->>C: n vectors in [0,1]^d
+        C->>E: evaluate each (parallel)
+        E-->>C: scores
+        C->>O: tell(individuals with fitness)
+    end
+    C->>O: inject(elites or random members)
+```
+
 ```python
 class BaseOptimizer:
     def __init__(self, search_space, pop_size, rng=None):

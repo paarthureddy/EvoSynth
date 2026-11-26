@@ -51,6 +51,8 @@ Try every combination of a few values per hyperparameter. Simple, but the number
 
 ### 3.2 Random search
 
+![Grid search versus random search](figures/grid_random.svg)
+
 Sample configurations uniformly at random. Surprisingly strong, because usually only a few hyperparameters matter and random sampling tries many different values of each. It does not learn from earlier results. EvoSynth uses it as a baseline.
 
 ### 3.3 Bayesian optimisation and TPE
@@ -75,7 +77,17 @@ The **No Free Lunch theorem** for optimisation says that, averaged over all poss
 
 ## 4. From the search to a final model
 
+```mermaid
+flowchart LR
+    S["Search<br/>500 evaluations<br/>2-fold CV on search rows"] --> C["Confirm before select<br/>top 5 × 5-fold CV"]
+    C --> R["Refit<br/>selected config on train rows"]
+    R --> T["Test<br/>scored once on held-out rows"]
+    T --> O["result.json<br/>+ model.pkl"]
+```
+
 ### 4.1 Overtuning
+
+![Overtuning illustration](figures/overtuning.svg)
 
 The search's best score is the **maximum of many noisy estimates**, so it tends to be the configuration that was luckiest on the validation folds, not necessarily the best one. Picking it and reporting its validation score is **overtuning**: the score is too optimistic and the configuration may generalise worse. This was the topic of the AutoML 2025 best paper.
 

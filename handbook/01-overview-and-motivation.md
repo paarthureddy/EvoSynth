@@ -120,6 +120,8 @@ flowchart TD
 
 ## 7. The architecture figure (`docs/public/arch.png`), described
 
+![EvoSynth architecture](../paper/figures/arch.png)
+
 The figure (also `paper/figures/arch.png`; source `paper/figures/arch_source.html`) reads left to right in six coloured panels, with a footer of cross-cutting properties. The panel-review figure is kept as `arch_legacy.png`.
 
 1. **Data (blue).**

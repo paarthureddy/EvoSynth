@@ -29,6 +29,8 @@ Every algorithm below balances **exploration** and **exploitation** differently,
 
 ## 2. Genetic Algorithm (GA)
 
+![GA crossover example](figures/ga.svg)
+
 Inspired by natural selection.
 
 1. **Selection (tournament):** pick 2 individuals at random and keep the fitter one as parent 1; repeat for parent 2.
@@ -44,6 +46,8 @@ child = (0.25·0.20 + 0.75·0.60, 0.50·0.80 + 0.50·0.40) = (0.50, 0.60). If th
 ---
 
 ## 3. Particle Swarm Optimization (PSO)
+
+![PSO velocity example](figures/pso.svg)
 
 Inspired by a flock of birds. Each **particle** has a **position** x (a configuration) and a **velocity** v. It remembers its own best position (**pbest**), and the swarm shares the best position anyone has found (**gbest**). Each step:
 
@@ -63,6 +67,8 @@ v = 0.5·0.10 + 1.5·0.5·(0.50 − 0.40) + 1.5·0.4·(0.80 − 0.40) = 0.05 + 0
 
 ## 4. Differential Evolution (DE)
 
+![DE donor example](figures/de.svg)
+
 Mutation directions come from the population itself. For each **target** x_i:
 
 1. **Mutation:** pick three other individuals a, b, c and form a donor `v = a + F·(b − c)` with F = 0.8.
@@ -76,6 +82,8 @@ Mutation directions come from the population itself. For each **target** x_i:
 ---
 
 ## 5. CMA-ES (Covariance Matrix Adaptation Evolution Strategy)
+
+![CMA-ES distribution adaptation](figures/cmaes.svg)
 
 CMA-ES does not keep a population of points between generations; it keeps a **probability distribution**: a multivariate normal (bell-shaped) distribution with a **mean** m (where it thinks good solutions are), a **step size** σ (how far to search) and a **covariance matrix** C (the shape and orientation of the search cloud). Each generation:
 
@@ -103,6 +111,18 @@ So a PSO particle moving from 0.20 to 0.30 in that dimension switches from XGBoo
 
 ## 7. Island models and co-evolution
 
+```mermaid
+flowchart TB
+    subgraph T1["Tier 1: competition (4 small islands)"]
+        GA[GA] --- PSO[PSO] --- DE[DE] --- CMA[CMA-ES]
+    end
+    T1 -->|"bandit promotes top 2"| T2
+    subgraph T2["Tier 2: exploitation (2 large islands)"]
+        A["island A"] <-->|"elite sharing"| B["island B"]
+    end
+    T1 <-.->|"SWAP if a Tier 1 family clearly overtakes"| T2
+```
+
 An **island model** keeps several separate populations (**islands**), each evolving on its own; occasionally they exchange good individuals (**migration**). Separate islands keep **diversity** (they explore different regions); migration spreads discoveries.
 
 **Cooperative co-evolution** means the islands help each other rather than only competing. In EvoSynth:
@@ -125,6 +145,8 @@ Imagine several slot machines ("one-armed bandits"), each paying out with an unk
 In EvoSynth, the **arms are the four optimizer families** and the **reward** is how well each is doing (its composite score, see §8.3). The question "which machine to play" becomes "which algorithms get the Tier 2 budget".
 
 ### 8.2 UCB1
+
+![UCB1 exploration bonus](figures/ucb.svg)
 
 **UCB1 (Upper Confidence Bound)** scores each arm as its average reward plus a bonus that is larger for arms that have been tried less:
 

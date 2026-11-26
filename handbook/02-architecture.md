@@ -82,7 +82,11 @@ cli.py ──► config (load settings) ──► experiments/<command>.py
                                           ├──► run_context.RunContext ──► telemetry.reporter / run_logger
                                           ├──► search_spaces.* ──► ConfigSpace
                                           ├──► evaluators.* ──► datasets / features / models ──► sklearn / xgboost / lightgbm / torch
+                                          ├──► experiments.selection.confirm_best ──► evaluator.evaluate_config
+                                          ├──► models.refit.refit_and_score ──► models.factory / metrics / inference
                                           └──► engine.controller.DynamicOptimizer
+                                                     ├──► seeding.stream (one generator per component)
+                                                     ├──► engine.tiers.TierManager (split, elite sharing)
                                                      ├──► engine.scoring.CompositeScoringEngine
                                                      ├──► engine.bandit.UCB1Bandit
                                                      ├──► optimizers.{ga,pso,de,cmaes} ──► optimizers.base.BaseOptimizer
@@ -98,10 +102,40 @@ The **evaluator contract** is duck-typed: any object with a `.space` (a ConfigSp
 The **optimizer contract** is also small:
 - `ask(n) -> list[np.ndarray]`
 - `tell(list[Individual])`
+- `inject(list[Individual])`
 - `.population` (a list of Individuals, best first)
-- `.pop_size`
+- `.pop_size`, and `.rng` (its own seeded generator)
 
 ## 3. Runtime data flow, one run
+
+```mermaid
+sequenceDiagram
+    participant U as You
+    participant CLI as evosynth (cli.py)
+    participant RC as RunContext
+    participant EV as TabularEvaluator
+    participant DO as DynamicOptimizer
+    participant OPT as GA / PSO / DE / CMA-ES
+    U->>CLI: evosynth run --full
+    CLI->>CLI: load and validate settings
+    CLI->>RC: open run folder (manifest, run.log, seeds)
+    RC->>EV: load dataset, partition, search rows
+    RC->>DO: run()
+    loop until the budget is used
+        DO->>OPT: ask(n)
+        OPT-->>DO: n vectors
+        DO->>EV: evaluate (parallel threads)
+        EV-->>DO: scores
+        DO->>OPT: tell(scored individuals)
+        DO->>DO: score islands, promote, SWAP, inject, share
+    end
+    DO-->>RC: evaluated individuals, best
+    RC->>EV: confirm top 5 (5-fold)
+    RC->>RC: refit on train rows, test score, inference
+    RC-->>U: result.json, manifest status completed
+```
+
+A step-by-step, animated version with failure branches is in [run-walkthrough.html](run-walkthrough.html).
 
 ```
 evosynth run  (cli.cmd_run)

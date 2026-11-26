@@ -47,6 +47,19 @@ Example `switch` payloads emitted by the code:
 
 ## 3. FastAPI relay (`src/evosynth/telemetry/server.py`; command `evosynth serve`)
 
+```mermaid
+sequenceDiagram
+    participant E as Engine (EventReporter)
+    participant F as events.jsonl
+    participant S as FastAPI relay :8000
+    participant D as React dashboard
+    E->>F: append every event
+    E-)S: POST /event (daemon thread, 1 s timeout)
+    S->>S: asyncio.Queue
+    D->>S: GET /stream (EventSource, kept open)
+    S-->>D: data: {type, data} ...
+```
+
 ```python
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,

@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EvoSynth Run Walkthrough</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: header + step rail; below, a two-column stage (animated scene | explanation + outcome chooser); stacks on phones. */
+:root {
+  --bg: #f6f7f4; --surface: #ffffff; --fg: #18201c; --muted: #5b675f; --line: #d9e0db;
+  --accent: #2f6b4f; --accent-soft: #e2efe7; --ok: #2f7d4f; --bad: #b23a2c; --bad-soft: #fbe6e2;
+  --warn: #9a6400; --warn-soft: #f7ecd5;
+  --t1: #d9604f; --t1-soft: #fbe4e0; --t2: #7b5cc4; --t2-soft: #eee8f8; --data: #3d73c4; --data-soft: #e1ebf8;
+  --dot-lo: #c9d2cc; --dot-hi: #1f6b45; --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121815; --surface: #1a221e; --fg: #e3ebe6; --muted: #9ba9a1; --line: #2d3832;
+  --accent: #7fc8a0; --accent-soft: #20352a; --ok: #7fc8a0; --bad: #f08d7e; --bad-soft: #3b211d;
+  --warn: #e6b65c; --warn-soft: #382b18;
+  --t1: #f08d7e; --t1-soft: #3a231f; --t2: #b39ce8; --t2-soft: #2a2338; --data: #8cb3ec; --data-soft: #1e2a3b;
+  --dot-lo: #3c4741; --dot-hi: #8fe0b2; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121815; --surface: #1a221e; --fg: #e3ebe6; --muted: #9ba9a1; --line: #2d3832;
+  --accent: #7fc8a0; --accent-soft: #20352a; --ok: #7fc8a0; --bad: #f08d7e; --bad-soft: #3b211d;
+  --warn: #e6b65c; --warn-soft: #382b18;
+  --t1: #f08d7e; --t1-soft: #3a231f; --t2: #b39ce8; --t2-soft: #2a2338; --data: #8cb3ec; --data-soft: #1e2a3b;
+  --dot-lo: #3c4741; --dot-hi: #8fe0b2; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 1.45rem; margin: 0 0 2px; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0 0 14px; }
+.rail { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
+.rail button { font: 500 .72rem var(--mono); border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+.rail button.done { color: var(--accent); border-color: var(--accent); }
+.rail button.now { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.stage { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 860px) { .stage { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.scene { padding: 8px; position: relative; }
+svg { width: 100%; height: auto; display: block; }
+.info { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.kicker { font: 600 .72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.info h2 { margin: 0; font-size: 1.2rem; text-wrap: balance; }
+.info p { margin: 0; }
+.meta { font-size: .82rem; color: var(--muted); }
+.meta code, .info code { font-family: var(--mono); font-size: .85em; background: var(--accent-soft); padding: 0 4px; border-radius: 4px; color: var(--fg); }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.choices button { font: 600 .86rem var(--sans); border-radius: 8px; padding: 7px 12px; cursor: pointer; border: 1px solid; }
+.btn-ok { background: var(--accent-soft); color: var(--ok); border-color: var(--ok); }
+.btn-bad { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+.btn-ok.sel, .btn-bad.sel { outline: 2px solid currentColor; outline-offset: 2px; }
+.outcome { border-radius: 10px; padding: 12px 14px; font-size: .92rem; }
+.outcome.bad { background: var(--bad-soft); border: 1px solid var(--bad); }
+.outcome.warn { background: var(--warn-soft); border: 1px solid var(--warn); }
+.outcome.good { background: var(--accent-soft); border: 1px solid var(--ok); }
+.outcome b.tag { display: block; font: 700 .72rem var(--mono); letter-spacing: .07em; text-transform: uppercase; margin-bottom: 4px; }
+.outcome.bad b.tag { color: var(--bad); } .outcome.warn b.tag { color: var(--warn); } .outcome.good b.tag { color: var(--ok); }
+.nav { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+.nav button { font: 600 .92rem var(--sans); padding: 9px 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.nav button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.nav button:disabled { opacity: .4; cursor: default; }
+.nav .count { font: .8rem var(--mono); color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dot { transition: transform .9s cubic-bezier(.4,.0,.2,1), fill .6s, opacity .6s; }
+.fade { transition: opacity .6s; }
+.bar { transition: width .9s cubic-bezier(.4,0,.2,1), x .9s, opacity .6s; }
+.lbl { font: 600 12px var(--sans); fill: var(--fg); }
+.small { font: 11px var(--sans); fill: var(--muted); }
+.mono { font: 12px var(--mono); fill: var(--fg); }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+.pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes flow { to { stroke-dashoffset: -24 } }
+.flow { stroke-dasharray: 6 6; animation: flow 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .dot, .fade, .bar { transition: none } .pulse, .flow { animation: none } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>One EvoSynth run, step by step</h1>
+  <p class="sub">Follows <code style="font-family:var(--mono)">evosynth run --full --dataset covertype --subsample 10000</code> from the command line to <code style="font-family:var(--mono)">result.json</code>. Press <b>Next</b> to advance; where a step can go wrong, pick an outcome to see what happens.</p>
+  <div class="rail" id="rail" aria-label="Steps"></div>
+  <div class="stage">
+    <div class="panel scene"><svg id="svg" viewBox="0 0 800 470" role="img" aria-label="Animated view of the current step"></svg></div>
+    <div class="panel info" aria-live="polite">
+      <div class="kicker" id="kicker"></div>
+      <h2 id="title"></h2>
+      <p id="body"></p>
+      <div class="meta" id="meta"></div>
+      <div class="choices" id="choices"></div>
+      <div id="outcome"></div>
+    </div>
+  </div>
+  <div class="nav">
+    <div><button id="restart">Restart</button></div>
+    <span class="count" id="count"></span>
+    <div style="display:flex;gap:8px"><button id="back">Back</button><button id="next" class="primary">Next</button></div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+const N = 40;
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const fit = Array.from({length: N}, () => 70 + rnd() * 16);              // initial CV scores, %
+const cloud = fit.map(() => [70 + rnd() * 660, 70 + rnd() * 300]);
+const order = [...fit.keys()].sort((a, b) => fit[b] - fit[a]);            // best first
+const rankOf = new Array(N); order.forEach((id, r) => rankOf[id] = r);
+// stratified split: 16 strata over the 40 ranks -> one pick each -> Tier 1; dealt in blocks of 4
+const t1 = []; for (let s = 0; s < 16; s++) { const lo = Math.round(s * N / 16), hi = Math.round((s + 1) * N / 16); t1.push(order[lo + Math.floor(rnd() * (hi - lo))]); }
+const fams = ["GA", "PSO", "DE", "CMA-ES"]; const island = {};
+for (let b = 0; b < 4; b++) { const perm = [0,1,2,3].sort(() => rnd() - .5); for (let j = 0; j < 4; j++) island[t1[b * 4 + j]] = perm[j]; }
+const reserve = order.filter(id => island[id] === undefined); const group = {};
+for (let b = 0; b < reserve.length; b += 2) { const flip = rnd() < .5; group[reserve[b]] = flip ? 0 : 1; if (b + 1 < reserve.length) group[reserve[b + 1]] = flip ? 1 : 0; }
+const PROMOTED = [1, 0];                       // PSO -> T2 island A, GA -> T2 island B (as in chapter 03's worked example)
+
+// ---------------------------------------------------------------- geometry
+const T1BOX = [[30, 40], [220, 40], [410, 40], [600, 40]];   // x, y of the 4 Tier 1 boxes (170 x 120)
+const RESBOX = [[30, 250], [410, 250]];                       // reserve groups (360 x 150)
+function posCloud(id) { return cloud[id]; }
+function posSorted(id) { const r = rankOf[id]; return [40 + r * 18.5, 230]; }
+function posT1(id) { const k = island[id], m = t1.filter(x => island[x] === k).indexOf(id); return [T1BOX[k][0] + 55 + (m % 2) * 60, T1BOX[k][1] + 50 + Math.floor(m / 2) * 38]; }
+function posRes(id) { const g = group[id], m = reserve.filter(x => group[x] === g).indexOf(id); return [RESBOX[g][0] + 40 + (m % 6) * 56, RESBOX[g][1] + 60 + Math.floor(m / 6) * 46]; }
+function posT2(id) {   // promoted islands merge with their reserve group in the bottom boxes
+  if (island[id] !== undefined) { const k = island[id]; const idx = PROMOTED.indexOf(k);
+    if (idx < 0) return posT1(id);
+    const m = t1.filter(x => island[x] === k).indexOf(id); return [RESBOX[idx][0] + 40 + (m % 8) * 40, RESBOX[idx][1] + 52 + Math.floor(m / 8) * 34]; }
+  const g = group[id], m = reserve.filter(x => group[x] === g).indexOf(id) + 4; return [RESBOX[g][0] + 40 + (m % 8) * 40, RESBOX[g][1] + 52 + Math.floor(m / 8) * 34];
+}
+
+// ---------------------------------------------------------------- svg helpers
+const NS = "http://www.w3.org/2000/svg", svg = document.getElementById("svg");
+function el(tag, attrs = {}, parent = svg) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+function text(x, y, s, cls = "lbl", parent = svg, anchor = "start") { const t = el("text", {x, y, class: cls, "text-anchor": anchor}, parent); t.textContent = s; return t; }
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function mix(a, b, t) { const p = h => [1,3,5].map(i => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join(""); }
+function dotColor(id, boost = 0) { return mix(css("--dot-lo"), css("--dot-hi"), Math.min(1, (fit[id] - 70) / 16 + boost)); }
+
+let dots = [], layer = null;
+function freshLayer() { if (layer) layer.remove(); layer = el("g", {class: "fade"}); return layer; }
+function ensureDots() {
+  if (dots.length) return;
+  const g = el("g"); dots = fit.map((f, id) => { const c = el("circle", {r: 7, class: "dot"}, g); c.style.transform = `translate(${cloud[id][0]}px,${cloud[id][1]}px)`; c.style.opacity = 0; return c; });
+}
+function placeDots(fn, opts = {}) { ensureDots(); dots.forEach((c, id) => { const p = fn(id); if (!p) { c.style.opacity = 0; return; }
+  c.style.transform = `translate(${p[0]}px,${p[1]}px)`; c.style.opacity = opts.opacity ?? 1; c.setAttribute("fill", opts.color ? opts.color(id) : dotColor(id)); }); }
+function hideDots() { dots.forEach(c => c.style.opacity = 0); }
+function box(x, y, w, h, stroke, fill, label, parent) { el("rect", {x, y, width: w, height: h, rx: 12, fill, stroke, "stroke-width": 1.5}, parent); if (label) text(x + 12, y + 20, label, "lbl", parent); }
+function budget(used, total, parent) { const w = 560; el("rect", {x: 120, y: 444, width: w, height: 12, rx: 6, fill: css("--accent-soft")}, parent);
+  const b = el("rect", {x: 120, y: 444, width: 0, height: 12, rx: 6, fill: css("--accent"), class: "bar"}, parent); setTimeout(() => b.setAttribute("width", w * used / total), 40);
+  text(110, 454, "budget", "small", parent, "end"); text(690, 454, `${used} / ${total} evaluations`, "small", parent); }
+function failStamp(parent, msg) { const g = el("g", {}, parent); el("rect", {x: 0, y: 0, width: 800, height: 470, fill: css("--bad-soft"), opacity: .55}, g);
+  el("circle", {cx: 400, cy: 210, r: 46, fill: "none", stroke: css("--bad"), "stroke-width": 6}, g); el("line", {x1: 367, y1: 177, x2: 433, y2: 243, stroke: css("--bad"), "stroke-width": 6}, g);
+  text(400, 290, msg, "lbl", g, "middle"); }
+function warnStamp(parent, msg) { const g = el("g", {}, parent); el("rect", {x: 250, y: 2, width: 300, height: 26, rx: 13, fill: css("--warn-soft"), stroke: css("--warn")}, g); text(400, 20, msg, "lbl", g, "middle"); }
+function terminal(lines, parent) { el("rect", {x: 60, y: 60, width: 680, height: 300, rx: 12, fill: "#141a17"}, parent);
+  lines.forEach((l, i) => { const t = el("text", {x: 84, y: 100 + i * 26, class: "mono", fill: l.c || "#cfe8d8"}, parent); t.style.fill = l.c || "#cfe8d8"; t.textContent = l.t; }); }
+function families(parent, labels = fams, fade = []) { T1BOX.forEach(([x, y], k) => { const g = el("g", {opacity: fade.includes(k) ? .25 : 1, class: "fade"}, parent); box(x, y, 170, 120, css("--t1"), css("--t1-soft"), labels[k], g); }); }
+function reserveBoxes(parent, labels = ["Reserve group 1 (12)", "Reserve group 2 (12)"]) { RESBOX.forEach(([x, y], g) => box(x, y, 360, 150, css("--t2"), css("--t2-soft"), labels[g], parent)); }
+function scoreBars(parent, rows, title) { text(400, 40, title, "lbl", parent, "middle");
+  rows.forEach((r, i) => { const y = 80 + i * 70; text(150, y + 22, r.name, "lbl", parent, "end");
+    el("rect", {x: 160, y, width: 480, height: 30, rx: 6, fill: css("--accent-soft")}, parent);
+    const b = el("rect", {x: 160, y, width: 0, height: 30, rx: 6, fill: r.hot ? css("--accent") : css("--muted"), class: "bar"}, parent);
+    setTimeout(() => b.setAttribute("width", 480 * r.v), 40);
+    text(650, y + 21, r.label, "mono", parent); if (r.note) text(160, y + 48, r.note, "small", parent); }); }
+
+// ---------------------------------------------------------------- steps
+const OK = "good", BAD = "bad", WARN = "warn";
+const STEPS = [
+ { id: "cli", stage: "Start", title: "You type the command",
+   body: "The command-line interface reads the command and its options: here a full search (preset <code>search_full</code>: budget 500, population 40) on Covertype, searching on 10,000 rows.",
+   meta: "Code: <code>src/evosynth/cli.py</code> (<code>main</code>, <code>cmd_run</code>)",
+   draw: g => { hideDots(); terminal([{t: "$ evosynth run --full --dataset covertype --subsample 10000"}, {t: "  reading options ...", c: "#8aa89a"}], g); },
+   fails: [{label: "Unknown or misspelt option", kind: BAD, text: "argparse prints the usage line and exits with code 2. Nothing is created; fix the option and run again.", draw: g => failStamp(g, "usage error, exit 2")}] },
+ { id: "settings", stage: "Start", title: "Settings are resolved and checked",
+   body: "All <code>settings/*.toml</code> files are merged, then the preset, then command-line flags, then any <code>--set</code> overrides. Every value is validated: ranges, weights summing to 1, population large enough for the tiers, known datasets and metrics.",
+   meta: "Code: <code>config.load_config</code>, <code>config.validate</code>",
+   draw: g => { hideDots(); ["settings/*.toml", "preset search_full", "flags (--dataset, --subsample)", "--set overrides"].forEach((s, i) => { box(140 + i * 18, 60 + i * 56, 480, 44, css("--line"), css("--surface"), s, g); });
+     el("path", {d: "M400 300 L400 340", stroke: css("--accent"), "stroke-width": 2}, g); box(250, 345, 300, 50, css("--accent"), css("--accent-soft"), "validated settings  ✓", g); },
+   fails: [{label: "A value is invalid", kind: BAD, text: "For example <code>--set composite.fitness=0.9</code> makes the weights sum to more than 1. The run stops with <code>evosynth: settings error: …</code> naming every problem, exit code 2. No run folder is created.", draw: g => failStamp(g, "settings error, exit 2")},
+           {label: "Population below 40", kind: BAD, text: "<code>--pop-size 20</code> would give Tier 1 islands of 2 members. Validation rejects it: islands need at least <code>engine.min_island_size</code> = 4 members.", draw: g => failStamp(g, "pop_size too small")}] },
+ { id: "folder", stage: "Start", title: "The run folder opens",
+   body: "<code>results/search/covertype/search_full/seed_42/</code> is created. <code>manifest.json</code> records the command, every resolved setting, the git commit and library versions, with status <i>running</i>. All console output is mirrored to <code>run.log</code>, every random generator is seeded from <code>run.seed</code>, and an existing <code>result.json</code> for this seed is removed.",
+   meta: "Code: <code>experiments/run_context.py</code> (<code>RunContext.__enter__</code>), <code>seeding.py</code>",
+   draw: g => { hideDots(); box(160, 50, 480, 340, css("--line"), css("--surface"), "results/search/covertype/search_full/seed_42/", g);
+     [["manifest.json", "status: running"], ["run.log", "console mirror"], ["events.jsonl", "every engine event"], ["population.csv", "one row per evaluation"]].forEach(([f, d], i) => { text(200, 120 + i * 60, "▤  " + f, "lbl", g); text(420, 120 + i * 60, d, "small", g); }); },
+   fails: [] },
+ { id: "telemetry", stage: "Start", title: "Telemetry connects (or waits)",
+   body: "The event reporter checks whether the dashboard relay (<code>evosynth serve</code>) answers at <code>localhost:8000</code>. Every event is always written to <code>events.jsonl</code>; if the relay is up, events also stream live to the dashboard.",
+   meta: "Code: <code>telemetry/reporter.py</code> (<code>EventReporter</code>)",
+   draw: g => { hideDots(); box(40, 170, 180, 80, css("--accent"), css("--accent-soft"), "Engine", g); box(310, 170, 180, 80, css("--data"), css("--data-soft"), "Relay :8000", g); box(580, 170, 180, 80, css("--t2"), css("--t2-soft"), "Dashboard", g);
+     el("path", {d: "M220 210 L310 210", stroke: css("--accent"), "stroke-width": 3, class: "flow"}, g); el("path", {d: "M490 210 L580 210", stroke: css("--accent"), "stroke-width": 3, class: "flow"}, g);
+     box(40, 320, 180, 50, css("--line"), css("--surface"), "events.jsonl", g); el("path", {d: "M130 250 L130 320", stroke: css("--muted"), "stroke-width": 2, class: "flow"}, g); },
+   fails: [{label: "Dashboard relay not running", kind: WARN, text: "Not an error. The run continues normally and events still go to <code>events.jsonl</code>. The reporter re-checks every 10 s, so starting <code>evosynth serve</code> later connects the dashboard mid-run.", draw: g => warnStamp(g, "relay offline: logging to file, re-checking")}] },
+ { id: "data", stage: "Data", title: "The dataset is loaded and split",
+   body: "Covertype (581,012 rows) is read from <code>.data/</code>. The <b>test rows</b> (20,000) are split off first and are never seen by any search. From the rest come the <b>search rows</b> (20,000, of which this run uses a 10,000-row subset) and the <b>train rows</b> for the refit (60,000).",
+   meta: "Code: <code>datasets/registry.py</code> (<code>load</code>, <code>partition</code>), <code>evaluators/tabular.py</code>",
+   draw: g => { hideDots(); text(400, 50, "Covertype: 581,012 rows", "lbl", g, "middle");
+     const segs = [["test 20,000 (held out)", .14, css("--muted")], ["search 20,000 → 10,000 used", .14, css("--data")], ["train 60,000 (refit)", .3, css("--warn")], ["unused", .42, css("--line")]]; let x = 60;
+     segs.forEach(([l, w, c], i) => { const r = el("rect", {x, y: 90 + i * 70, width: 0, height: 36, rx: 6, fill: c, class: "bar"}, g); const ww = 680 * w, xx = x; setTimeout(() => r.setAttribute("width", ww), 40); text(xx, 145 + i * 70, l, "small", g); x += ww; }); },
+   fails: [{label: "Dataset not downloaded and no internet", kind: BAD, text: "The loader tries to download it and fails. The run stops with status <i>failed</i> and the error in <code>manifest.json</code>. Run <code>evosynth datasets download</code> once while online.", draw: g => failStamp(g, "download failed → status: failed")},
+           {label: "Split sizes larger than the dataset", kind: BAD, text: "If <code>test_rows + max(search_subsample, refit_train_rows)</code> exceeds the dataset, the split stops with a message naming the sizes; lower them in <code>settings/datasets.toml</code>.", draw: g => failStamp(g, "split sizes too large")}] },
+ { id: "space", stage: "Search", title: "Step 0: the search space",
+   body: "Every configuration is a vector of 8 numbers between 0 and 1. Only when a model is trained is the vector decoded: categorical genes by equal bins (0.62 in <code>model_type</code> → LightGBM), numbers by scaling to their ranges.",
+   meta: "Code: <code>search_spaces/tabular.py</code>, <code>core/decoding.py</code>",
+   draw: g => { hideDots(); const names = ["colsample_bytree", "fe_strategy", "learning_rate", "max_depth", "model_type", "n_estimators", "reg_alpha", "subsample"], v = [.61, .9, .42, .55, .62, .58, .19, .66],
+     dec = ["0.73", "interactions", "0.042", "7", "LightGBM", "310", "1.9", "0.83"];
+     names.forEach((n, i) => { const y = 50 + i * 48; text(30, y + 14, n, "small", g); el("rect", {x: 170, y, width: 300, height: 18, rx: 9, fill: css("--accent-soft")}, g);
+       const c = el("circle", {cx: 170, cy: y + 9, r: 9, fill: css("--accent"), class: "bar"}, g); c.style.transition = "cx .9s"; setTimeout(() => c.setAttribute("cx", 170 + 300 * v[i]), 40);
+       text(490, y + 14, v[i].toFixed(2) + "  →  " + dec[i], "mono", g); }); },
+   fails: [] },
+ { id: "init", stage: "Search", title: "Step 1: the initial population",
+   body: "40 random vectors are evaluated in parallel threads. Each evaluation decodes the vector and runs 2-fold stratified cross-validation on the search rows; boosted models stop early on a slice of the training fold. Darker dots score higher.",
+   meta: "Code: <code>DynamicOptimizer._initialize_population</code>, <code>_evaluate_batch</code>, <code>TabularEvaluator.evaluate</code>",
+   draw: g => { placeDots(posCloud); budget(40, 500, g); },
+   fails: [{label: "One fold's model crashes", kind: WARN, text: "That fold scores 0, the error is printed (<code>[EVAL] fold 1/2 failed …</code>) and counted in <code>failed_folds</code>. The configuration simply gets a low score and the run continues.", draw: g => warnStamp(g, "fold failed → scored 0, run continues")}] },
+ { id: "split", stage: "Tiers", title: "Step 2: the stratified tier split",
+   body: "The population is ranked by score, then dealt out so that every group gets a similar mix of good and weak members: 16 (40%) to four Tier 1 islands of 4, one per optimizer; 24 (60%) to two reserve groups of 12. The checkpoint interval k is sized here so Tier 2 gets at least two checkpoints (k = 3 for this budget).",
+   meta: "Code: <code>engine/tiers.py</code> (<code>TierManager</code>), <code>_set_checkpoint_interval</code>",
+   draw: g => { families(g); reserveBoxes(g); placeDots(id => island[id] !== undefined ? posT1(id) : posRes(id)); budget(40, 500, g); },
+   fails: [{label: "Budget too small for Tier 2", kind: WARN, text: "With e.g. budget 120, almost nothing is left after Tier 1. The run prints a warning (<code>budget 120 leaves about 0 Tier 2 iteration(s)</code>), uses k = 1 and continues; raise the budget for a meaningful Tier 2.", draw: g => warnStamp(g, "warning: too little budget for Tier 2")}] },
+ { id: "t1", stage: "Tiers", title: "Step 3: the Tier 1 competition",
+   body: "For 5 iterations, each optimizer asks for 4 new configurations, the controller evaluates them, and tells it the scores (ask → evaluate → tell). 16 evaluations per iteration. GA blends parents, PSO moves particles, DE builds trials from differences, CMA-ES samples its distribution.",
+   meta: "Code: <code>DynamicOptimizer.run</code> (Step 3), <code>optimizers/*.py</code>",
+   draw: g => { families(g); reserveBoxes(g); placeDots(id => { const p = island[id] !== undefined ? posT1(id) : posRes(id); return island[id] !== undefined ? [p[0] + (rnd() - .5) * 14, p[1] + (rnd() - .5) * 10] : p; }, {color: id => dotColor(id, island[id] !== undefined ? .15 : 0)}); budget(120, 500, g); },
+   fails: [{label: "An island stops improving", kind: WARN, text: "At a check, an island whose best did not improve gets half its members replaced by fresh random configurations (<code>t1_inject_pct</code> = 50%). The optimizer is told through <code>inject</code>, so PSO resets those particles and CMA-ES restarts its distribution. This costs budget.", draw: g => warnStamp(g, "random injection: 50% of the island")}] },
+ { id: "score", stage: "Control", title: "Step 4: scoring and promotion",
+   body: "Each island gets a composite score (fitness 0.30, speed 0.25, efficiency 0.15, diversity 0.15, trend 0.15), and the UCB1 bandit adds an exploration bonus. The top two families are promoted. Here PSO wins: not the highest score, but the fastest and cheapest progress.",
+   meta: "Code: <code>_compute_composite</code>, <code>engine/scoring.py</code>, <code>engine/bandit.py</code>",
+   draw: g => { hideDots(); scoreBars(g, [{name: "PSO", v: .825, label: "UCB 0.825", hot: 1, note: "promoted"}, {name: "GA", v: .611, label: "UCB 0.611", hot: 1, note: "promoted"}, {name: "CMA-ES", v: .529, label: "UCB 0.529"}, {name: "DE", v: .211, label: "UCB 0.211"}], "composite + UCB bonus (example from chapter 03)"); },
+   fails: [] },
+ { id: "promote", stage: "Control", title: "Promotion: Tier 2 islands form",
+   body: "PSO and GA each get a Tier 2 island made of their Tier 1 island plus one reserve group (16 members each). DE and CMA-ES keep running in Tier 1 with 4 members and can still swap in later.",
+   meta: "Code: <code>DynamicOptimizer.run</code> (end of Step 4)",
+   draw: g => { families(g, fams, [0, 1]); reserveBoxes(g, ["Tier 2 · PSO (4 + 12)", "Tier 2 · GA (4 + 12)"]); placeDots(posT2); budget(120, 500, g); },
+   fails: [] },
+ { id: "t2", stage: "Tier 2", title: "Step 5: the Tier 2 loop",
+   body: "Every iteration, both Tier 2 islands and both remaining Tier 1 islands run ask → evaluate → tell: about 40 evaluations per iteration. Tier 2 islands are larger, so the promoted families get most of the budget.",
+   meta: "Code: <code>DynamicOptimizer.run</code> (Step 5)",
+   draw: g => { families(g, fams, [0, 1]); reserveBoxes(g, ["Tier 2 · PSO", "Tier 2 · GA"]); placeDots(id => { const p = posT2(id); return [p[0] + (rnd() - .5) * 10, p[1] + (rnd() - .5) * 8]; }, {color: id => dotColor(id, .3)}); budget(280, 500, g); },
+   fails: [] },
+ { id: "checkpoint", stage: "Tier 2", title: "Checkpoint: rescoring and the SWAP rule",
+   body: "Every k = 3 iterations all islands are rescored. If the best Tier 1 family's UCB beats the weakest Tier 2 family's by more than 0.10, they swap places, and the newcomer has 5 iterations (a grace period) to improve the global best. Choose an outcome.",
+   meta: "Code: Step 5 checkpoint, part a) SWAP",
+   draw: g => { hideDots(); scoreBars(g, [{name: "T2 PSO", v: .71, label: "0.71", hot: 1}, {name: "T1 CMA-ES", v: .66, label: "0.66"}, {name: "T2 GA", v: .62, label: "0.62", hot: 1}, {name: "T1 DE", v: .30, label: "0.30"}], "checkpoint: no family clears the 0.10 margin → no SWAP"); },
+   fails: [{label: "A SWAP happens", kind: WARN, replace: true, text: "CMA-ES (Tier 1) scores 0.76 against GA's 0.62: more than 0.10 ahead. CMA-ES moves to Tier 2 (taking GA's island size), GA moves to Tier 1, and GA gets a cooldown of 2k iterations before it may return.",
+             draw: g => { scoreBars(g, [{name: "T1 CMA-ES", v: .76, label: "0.76", hot: 1, note: "0.76 > 0.62 + 0.10 → moves to Tier 2"}, {name: "T2 PSO", v: .71, label: "0.71"}, {name: "T2 GA", v: .62, label: "0.62", note: "moves to Tier 1, cooldown 2k"}, {name: "T1 DE", v: .30, label: "0.30"}], "checkpoint: CMA-ES clears the margin → SWAP"); warnStamp(g, "SWAP: CMA-ES ↔ GA, grace period 5 iterations"); }},
+           {label: "The newcomer fails its grace period", kind: BAD, replace: true, text: "If CMA-ES does not improve the global best within 5 iterations, the controller rolls back: GA's saved Tier 2 island is restored, CMA-ES is rebuilt in Tier 1 with fresh random members, and CMA-ES gets the cooldown. The run continues.",
+             draw: g => { [0,1,2,3,4].forEach(i => { const x = 150 + i * 105; box(x, 140, 90, 70, css("--line"), css("--surface"), "iter " + (i + 1), g); text(x + 45, 190, "no gain", "small", g, "middle"); });
+               el("path", {d: "M400 230 L400 290", stroke: css("--bad"), "stroke-width": 3}, g); box(240, 295, 320, 60, css("--bad"), css("--bad-soft"), "ROLLBACK: GA restored to Tier 2", g); warnStamp(g, "grace period expired without a new best"); }}] },
+ { id: "stagnation", stage: "Tier 2", title: "Checkpoint: stagnation and recovery",
+   body: "A Tier 2 island that has not improved for 3 consecutive checkpoints gets 20% of its members replaced by fresh random configurations, through <code>inject</code>. Choose an outcome to see the safeguards.",
+   meta: "Code: Step 5 checkpoint, part b); <code>_random_inject</code>",
+   draw: g => { families(g, fams, [0, 1]); reserveBoxes(g, ["Tier 2 · PSO", "Tier 2 · GA"]); placeDots(posT2, {color: id => dotColor(id, .3)}); budget(320, 500, g); },
+   fails: [{label: "GA's island stagnates", kind: WARN, text: "After 3 checkpoints without improvement, the worst 3 of GA's 16 members are replaced by fresh random configurations (evaluated, costing budget), restoring diversity. The counter resets.", draw: g => warnStamp(g, "injection: 20% of the GA island")},
+           {label: "CMA-ES hits a numerical error", kind: WARN, text: "If the <code>cma</code> library fails during an update, the wrapper prints <code>[CMA-ES] update failed …</code>, counts a restart and restarts the distribution around its population. Nothing else is affected.", draw: g => warnStamp(g, "CMA-ES restarted around its population")}] },
+ { id: "share", stage: "Tier 2", title: "Checkpoint: pairwise elite sharing",
+   body: "The two Tier 2 islands trade their best: each island's worst 20% (3 members) are replaced by the other island's top 3. Each optimizer updates its own state (PSO resets particles, CMA-ES restarts its distribution).",
+   meta: "Code: Step 5 checkpoint, part c); <code>TierManager.select_elites</code>, <code>optimizer.inject</code>",
+   draw: g => { families(g, fams, [0, 1]); reserveBoxes(g, ["Tier 2 · PSO", "Tier 2 · GA"]); placeDots(posT2, {color: id => dotColor(id, .35)});
+     el("path", {d: "M390 300 C 400 260, 420 260, 430 300", stroke: css("--accent"), "stroke-width": 3, fill: "none", class: "flow"}, g); el("path", {d: "M430 360 C 420 400, 400 400, 390 360", stroke: css("--accent"), "stroke-width": 3, fill: "none", class: "flow"}, g); text(410, 250, "top 3 each way", "small", g, "middle"); budget(360, 500, g); },
+   fails: [] },
+ { id: "end", stage: "Search", title: "Budget used: the search ends",
+   body: "When 500 evaluations are used (a final batch is cut to fit), the loop stops. The controller prints the best configuration and which island found it (e.g. <code>T2_PSO</code>), and keeps every evaluated configuration for the next step.",
+   meta: "Code: <code>DynamicOptimizer.run</code> (Step 6)",
+   draw: g => { families(g, fams, [0, 1]); reserveBoxes(g, ["Tier 2 · PSO", "Tier 2 · GA"]); const best = order[0]; placeDots(posT2, {color: id => id === best ? css("--accent") : dotColor(id, .35)}); dots[best].classList.add("pulse"); budget(500, 500, g); },
+   fails: [] },
+ { id: "confirm", stage: "Output", title: "Confirm before select",
+   body: "The best search score is the maximum of many noisy 2-fold estimates, so it may just be lucky. The top 5 distinct configurations are re-scored with 5-fold CV and the best <i>confirmed</i> one is selected (here the 2nd-ranked). These fits are reported but not counted in the budget.",
+   meta: "Code: <code>experiments/selection.py</code> (<code>confirm_best</code>)",
+   draw: g => { if (dots[order[0]]) dots[order[0]].classList.remove("pulse"); hideDots(); scoreBars(g, [{name: "#1", v: .70, label: "86.6 → 86.1"}, {name: "#2", v: .74, label: "86.5 → 86.4", hot: 1, note: "selected"}, {name: "#3", v: .66, label: "86.4 → 85.9"}, {name: "#4", v: .63, label: "86.3 → 85.8"}, {name: "#5", v: .60, label: "86.3 → 85.6"}].map(r => ({...r})), "search score → confirmed 5-fold score (illustrative)"); },
+   fails: [{label: "A candidate fails in some folds", kind: WARN, text: "Its failed folds score 0, so its confirmed score drops and it is not selected. Selection still picks the best of the five.", draw: g => warnStamp(g, "failed folds lower that candidate's score")}] },
+ { id: "refit", stage: "Output", title: "Refit and the held-out test",
+   body: "The selected configuration is trained once more on the 60,000 train rows (boosted models stop early on 15% of them), then scored <b>once</b> on the 20,000 test rows that no search ever saw. That test score is the run's result.",
+   meta: "Code: <code>models/refit.py</code> (<code>refit_and_score</code>)",
+   draw: g => { hideDots(); box(60, 160, 200, 90, css("--warn"), css("--warn-soft"), "train rows 60,000", g); box(320, 160, 160, 90, css("--accent"), css("--accent-soft"), "final model", g); box(540, 160, 200, 90, css("--muted"), css("--surface"), "test rows 20,000", g);
+     el("path", {d: "M260 205 L320 205", stroke: css("--accent"), "stroke-width": 3, class: "flow"}, g); el("path", {d: "M480 205 L540 205", stroke: css("--accent"), "stroke-width": 3, class: "flow"}, g); text(400, 310, "one held-out test score (dataset metric)", "lbl", g, "middle"); },
+   fails: [{label: "The refit raises an error", kind: WARN, text: "<code>evosynth run</code> catches it, prints <code>Refit skipped: …</code>, and records the error under <code>refit</code> in <code>result.json</code>; the search and selection results are still saved and the run is <i>completed</i>.", draw: g => warnStamp(g, "refit error recorded; search results kept")}] },
+ { id: "inference", stage: "Output", title: "Inference cost is measured",
+   body: "The final model's one-row prediction time (median of 200, on one thread), batch throughput and pickled size are measured, and the model is saved as <code>model.pkl</code> with its feature engineer and configuration.",
+   meta: "Code: <code>models/inference.py</code> (<code>measure</code>)",
+   draw: g => { hideDots(); [["ms / row", "one-row latency"], ["rows / s", "batch throughput"], ["MB", "model size"]].forEach(([u, d], i) => { box(70 + i * 230, 150, 200, 120, css("--accent"), css("--accent-soft"), d, g); text(170 + i * 230, 230, u, "mono", g, "middle"); }); },
+   fails: [] },
+ { id: "result", stage: "Output", title: "Results are written; the run completes",
+   body: "<code>result.json</code> gets the metric, best and confirmed CV scores, the confirmation table, the selected configuration, the winning island, failed folds, the test score and the inference cost. <code>manifest.json</code> is closed with status <i>completed</i> and the duration. <code>evosynth summary</code> later collects it into the tables.",
+   meta: "Code: <code>RunContext.write_result</code>, <code>RunContext.__exit__</code>",
+   draw: g => { hideDots(); box(160, 50, 480, 340, css("--accent"), css("--surface"), "results/search/covertype/search_full/seed_42/", g);
+     [["manifest.json", "status: completed ✓"], ["result.json", "scores, config, test, inference"], ["model.pkl", "final model"], ["run.log · events.jsonl · population.csv", ""]].forEach(([f, d], i) => { text(200, 120 + i * 60, "▤  " + f, "lbl", g); text(450, 120 + i * 60, d, "small", g); }); },
+   fails: [{label: "You press Ctrl+C at any point", kind: BAD, text: "The run stops; <code>manifest.json</code> is closed with status <i>interrupted</i>. A plain <code>evosynth run</code> starts over when re-run. Ablations, Optuna studies and the experiment runner resume from where they stopped.", draw: g => failStamp(g, "status: interrupted")},
+           {label: "An unexpected exception at any point", kind: BAD, text: "The run stops and <code>manifest.json</code> gets status <i>failed</i> with the error message; the traceback is in the console and <code>run.log</code>. Completed runs in other folders are unaffected.", draw: g => failStamp(g, "status: failed (error in manifest)")}] },
+];
+
+// ---------------------------------------------------------------- controller
+let cur = 0, chosen = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const s = STEPS[cur];
+  $("kicker").textContent = `${s.stage} · step ${cur + 1} of ${STEPS.length}`;
+  $("title").textContent = s.title; $("body").innerHTML = s.body; $("meta").innerHTML = s.meta;
+  $("count").textContent = `${cur + 1} / ${STEPS.length}`;
+  dots.forEach(c => c.classList.remove("pulse"));
+  const g = freshLayer(); svg.appendChild(g); s.draw(g);
+  if (dots.length) svg.appendChild(dots[0].parentNode);            // dots above boxes
+  const ch = $("choices"); ch.innerHTML = ""; $("outcome").innerHTML = "";
+  if (s.fails.length) {
+    const ok = document.createElement("button"); ok.className = "btn-ok" + (chosen === "ok" ? " sel" : ""); ok.textContent = "Success";
+    ok.onclick = () => { chosen = "ok"; render(); $("outcome").innerHTML = `<div class="outcome good"><b class="tag">Success</b>The step completes as described. Press Next to continue.</div>`; ch.querySelectorAll("button").forEach(b => b.classList.toggle("sel", b === ch.firstChild)); };
+    ch.appendChild(ok);
+    s.fails.forEach((f, i) => { const b = document.createElement("button"); b.className = "btn-bad"; b.textContent = f.label;
+        b.onclick = () => { chosen = i; ch.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x === b)); const lg = freshLayer(); svg.appendChild(lg);
+          if (f.replace) hideDots(); else s.draw(lg); f.draw(lg); if (dots.length) svg.appendChild(dots[0].parentNode);
+        const tag = f.kind === BAD ? "Run stops" : "Handled, run continues"; $("outcome").innerHTML = `<div class="outcome ${f.kind}"><b class="tag">${tag}</b>${f.text}</div>`; };
+      ch.appendChild(b); });
+  }
+  $("back").disabled = cur === 0; $("next").textContent = cur === STEPS.length - 1 ? "Done" : "Next"; $("next").disabled = cur === STEPS.length - 1;
+  const rail = $("rail"); rail.innerHTML = "";
+  STEPS.forEach((st, i) => { const b = document.createElement("button"); b.textContent = i + 1; b.title = st.title; b.className = i === cur ? "now" : i < cur ? "done" : ""; b.onclick = () => go(i); rail.appendChild(b); });
+}
+function go(i) { cur = Math.max(0, Math.min(STEPS.length - 1, i)); chosen = null; render(); }
+$("next").onclick = () => go(cur + 1); $("back").onclick = () => go(cur - 1); $("restart").onclick = () => go(0);
+document.addEventListener("keydown", e => { if (e.key === "ArrowRight") go(cur + 1); if (e.key === "ArrowLeft") go(cur - 1); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", render);
+const m = /^#step-(\d+)$/.exec(location.hash); if (m) cur = Math.max(0, Math.min(STEPS.length - 1, +m[1] - 1));
+render();
+</script>
+</body>
+</html>

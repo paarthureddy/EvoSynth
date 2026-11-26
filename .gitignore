@@ -59,3 +59,4 @@ results/archive/**/csv/
 
 # diagram source (rendered to arch.png)
 !paper/figures/arch_source.html
+!handbook/run-walkthrough.html

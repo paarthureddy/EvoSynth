@@ -39,6 +39,8 @@ The controller prints the dimension count `d = len(space.keys())`, the populatio
 
 ### STEP 2 — Tier split (`TierManager`, `engine/tiers.py`)
 
+![Stratified tier split](figures/tier_split.svg)
+
 ```
 island_size = int(pop_size · t1_fraction) // 4        # t1_fraction = 0.40
 Tier 1      = 4 · island_size individuals             # four islands
@@ -87,6 +89,18 @@ If even `k = 1` cannot give two checkpoints, the run prints a warning. Example: 
 5. `tier_state` and `switch{action:"Promotion"}` are emitted and recorded.
 
 ### STEP 5 — Tier 2 working loop (until `evals_used ≥ budget`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Running: promotion
+    Running --> Checkpoint: every k iterations
+    Checkpoint --> Running: no SWAP
+    Checkpoint --> Grace: best T1 UCB > worst T2 UCB + 0.10
+    Grace --> Running: global best improved within 5 iterations
+    Grace --> Rollback: no improvement in 5 iterations
+    Rollback --> Running: demoted family restored, challenger cooled down 2k
+    Running --> [*]: budget used
+```
 
 Each iteration:
 
@@ -167,6 +181,8 @@ UCB(a)   = composite(a) + bonus(a)
 
 ## 4. Worked example: a Tier 1 scoring call
 
+![Composite score breakdown](figures/composite.svg)
+
 An illustrative Step 4 with N = 40 and `t1_iters = 3` (the `evosynth run` preset): each family has used 3 × 4 = 12 evaluations and the run 40 + 48 = 88. The numbers below were computed with the engine's own `CompositeScoringEngine` and `UCB1Bandit`.
 
 Raw metrics:
@@ -211,6 +227,8 @@ opt.inject(fresh)
 ---
 
 ## 6. Budget accounting
+
+![Budget breakdown](figures/budget.svg)
 
 - The budget is counted in **evaluations**. It is shared, not multiplied, so four optimizers do not cost four times as much.
 - `_evaluate_batch` truncates any request to the remaining budget, so the final batch can be partial. Step 5 exits as soon as `evals_used ≥ budget`.
