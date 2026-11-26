@@ -22,6 +22,7 @@ from evosynth.optimizers.cmaes import CMAESOptimizer
 from evosynth.optimizers.de import DifferentialEvolution
 from evosynth.optimizers.ga import GeneticAlgorithm
 from evosynth.optimizers.pso import ParticleSwarm
+from evosynth.seeding import stream
 from evosynth.telemetry.reporter import get_reporter
 from evosynth.telemetry.run_logger import PopulationLogger
 
@@ -39,11 +40,11 @@ def _decode_individual(individual, space):
     return decode_vector_to_dict(individual.vector, space)
 
 
-def _make_optimizer(algo_key, space, pop_size):
-    if algo_key == 'GA': return GeneticAlgorithm(space, pop_size)
-    if algo_key == 'PSO': return ParticleSwarm(space, pop_size)
-    if algo_key == 'DE': return DifferentialEvolution(space, pop_size)
-    if algo_key == 'CMAES': return CMAESOptimizer(space, pop_size)
+def _make_optimizer(algo_key, space, pop_size, rng=None):
+    if algo_key == 'GA': return GeneticAlgorithm(space, pop_size, rng=rng)
+    if algo_key == 'PSO': return ParticleSwarm(space, pop_size, rng=rng)
+    if algo_key == 'DE': return DifferentialEvolution(space, pop_size, rng=rng)
+    if algo_key == 'CMAES': return CMAESOptimizer(space, pop_size, rng=rng)
     raise ValueError(f"Unknown algo: {algo_key}")
 
 
@@ -86,6 +87,11 @@ class DynamicOptimizer:
         self.bandit = UCB1Bandit()
 
         self.c = cfg.bandit.c
+
+        # Phase 0 seeding: the controller's own generator (initial population, injections) and
+        # one fresh generator per optimizer instance it creates, all derived from run.seed.
+        self.rng = stream("engine")
+        self._n_optimizers = 0
         self.algo_evals = {'GA': 0, 'PSO': 0, 'DE': 0, 'CMAES': 0}
 
         self.evals_used = 0
@@ -102,6 +108,12 @@ class DynamicOptimizer:
             'DE': {'best': 0.0, 'prev_best': 0.0},
             'CMAES': {'best': 0.0, 'prev_best': 0.0}
         }
+
+    def _new_optimizer(self, algo_key, pop_size):
+        """Create an optimizer with its own generator: stream("engine", "optimizer", algo, n)."""
+        self._n_optimizers += 1
+        return _make_optimizer(algo_key, self.space, pop_size,
+                               rng=stream("engine", "optimizer", algo_key, self._n_optimizers))
 
     def _evaluate_batch(self, vectors, algo_name):
         algo_key = algo_name.replace("T2_", "").replace("T1_", "")
@@ -204,7 +216,7 @@ class DynamicOptimizer:
         n_inject = max(1, int(len(optimizer.population) * inject_pct))
         print(f"\n  [INJECT] Replacing bottom {n_inject} in {tag} with fresh random vectors.")
         self.reporter.emit("switch", {"action": "Injection", "algo": tag, "details": f"Replaced bottom {n_inject} due to stagnation"})
-        fresh = self._evaluate_batch([np.random.rand(dims) for _ in range(n_inject)], tag)
+        fresh = self._evaluate_batch([self.rng.random(dims) for _ in range(n_inject)], tag)
         optimizer.population.sort(key=lambda x: x.fitness, reverse=True)
         optimizer.population = optimizer.population[:-n_inject] + fresh
         return optimizer
@@ -237,7 +249,7 @@ class DynamicOptimizer:
         for batch_start in range(0, self.pop_size, chunk_size):
             if self.evals_used >= self.budget: break
             curr_len = min(chunk_size, self.pop_size - batch_start)
-            batch_vecs = [np.random.rand(dims) for _ in range(curr_len)]
+            batch_vecs = [self.rng.random(dims) for _ in range(curr_len)]
             batch_inds = self._evaluate_batch(batch_vecs, 'Init')
             full_pop.extend(batch_inds)
             print(f"    Evaluated {len(full_pop)}/{self.pop_size} (best so far: {max(ind.fitness for ind in full_pop):.2f}%)")
@@ -277,7 +289,7 @@ class DynamicOptimizer:
         print(_header(f"STEP 3: TIER 1 COMPETITION ({self.t1_iters} iters)"))
         print(_sep())
 
-        t1_optims = {k: _make_optimizer(k, self.space, t1_island_size) for k in seeds}
+        t1_optims = {k: self._new_optimizer(k, t1_island_size) for k in seeds}
         for k, opt in t1_optims.items():
             opt.tell(seeds[k])
 
@@ -343,7 +355,7 @@ class DynamicOptimizer:
         for idx, t1_name in enumerate(top2):
             k = t1_name.replace("T1_", "")
             t2_size = len(t1_pops[t1_name]) + t2_ind_per_algo
-            opt = _make_optimizer(k, self.space, t2_size)
+            opt = self._new_optimizer(k, t2_size)
             seed_pop = t1_pops[t1_name] + t2_reserved[idx*t2_ind_per_algo : (idx+1)*t2_ind_per_algo]
             opt.tell(seed_pop)
             t2_optims[k] = opt
@@ -422,8 +434,8 @@ class DynamicOptimizer:
                     t2_optims[d_algo] = self.active_grace_period['snapshot']
                     del t2_optims[p_algo]
                     
-                    new_t1 = _make_optimizer(p_algo, self.space, t1_pop_size)
-                    new_t1.tell(self._evaluate_batch([np.random.rand(dims) for _ in range(t1_pop_size)], f"T1_{p_algo}"))
+                    new_t1 = self._new_optimizer(p_algo, t1_pop_size)
+                    new_t1.tell(self._evaluate_batch([self.rng.random(dims) for _ in range(t1_pop_size)], f"T1_{p_algo}"))
                     active_t1_optims[p_algo] = new_t1
                     if d_algo in active_t1_optims: del active_t1_optims[d_algo]
                     
@@ -471,10 +483,10 @@ class DynamicOptimizer:
                     old_t1 = list(active_t1_optims[best_t1_key].population)
                     t2_size_target = t2_optims[worst_t2_key].pop_size
                     
-                    new_t2 = _make_optimizer(best_t1_key, self.space, t2_size_target)
+                    new_t2 = self._new_optimizer(best_t1_key, t2_size_target)
                     new_t2.tell(old_t1 + old_t2[len(old_t1):])
                     
-                    new_t1 = _make_optimizer(worst_t2_key, self.space, t1_pop_size)
+                    new_t1 = self._new_optimizer(worst_t2_key, t1_pop_size)
                     new_t1.tell(old_t2[:t1_pop_size])
                     
                     t2_optims[best_t1_key] = new_t2

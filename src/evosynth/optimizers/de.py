@@ -4,8 +4,8 @@ from evosynth.config import get_settings
 
 
 class DifferentialEvolution(BaseOptimizer):
-    def __init__(self, search_space, pop_size):
-        super().__init__(search_space, pop_size)
+    def __init__(self, search_space, pop_size, rng=None):
+        super().__init__(search_space, pop_size, rng)
         d = get_settings().optimizers.de  # [optimizers.de] in settings/optimizers.toml
         self.F = d.F    # Mutation factor
         self.CR = d.CR  # Crossover probability
@@ -15,7 +15,7 @@ class DifferentialEvolution(BaseOptimizer):
     def ask(self, num_samples):
         # If no population yet (from tell()), just generate randomly
         if len(self.population) < 3:
-            return [np.random.rand(self.dimensions) for _ in range(num_samples)]
+            return [self.rng.random(self.dimensions) for _ in range(num_samples)]
 
         new_vectors = []
         pop_vecs = [np.copy(ind.vector) for ind in self.population]
@@ -29,11 +29,11 @@ class DifferentialEvolution(BaseOptimizer):
             # Select 3 distinct random individuals different from i
             candidates = [idx for idx in range(pop_len) if idx != target_idx]
             if len(candidates) >= 3:
-                a_idx, b_idx, c_idx = np.random.choice(
+                a_idx, b_idx, c_idx = self.rng.choice(
                     candidates, 3, replace=False)
             else:
-                a_idx, b_idx, c_idx = np.random.choice(
-                    range(pop_len), 3, replace=True)
+                a_idx, b_idx, c_idx = self.rng.choice(
+                    pop_len, 3, replace=True)
 
             a, b, c = pop_vecs[a_idx], pop_vecs[b_idx], pop_vecs[c_idx]
 
@@ -43,9 +43,9 @@ class DifferentialEvolution(BaseOptimizer):
 
             # Crossover (Binomial)
             u = np.copy(x_i)
-            j_rand = np.random.randint(self.dimensions)
+            j_rand = self.rng.integers(self.dimensions)
             for j in range(self.dimensions):
-                if np.random.rand() < self.CR or j == j_rand:
+                if self.rng.random() < self.CR or j == j_rand:
                     u[j] = v[j]
 
             new_vectors.append(u)

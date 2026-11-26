@@ -4,8 +4,8 @@ from evosynth.config import get_settings
 
 
 class ParticleSwarm(BaseOptimizer):
-    def __init__(self, search_space, pop_size):
-        super().__init__(search_space, pop_size)
+    def __init__(self, search_space, pop_size, rng=None):
+        super().__init__(search_space, pop_size, rng)
         p = get_settings().optimizers.pso  # [optimizers.pso] in settings/optimizers.toml
         self.w = p.w    # Inertia weight
         self.c1 = p.c1  # Cognitive coefficient (Personal best)
@@ -26,7 +26,7 @@ class ParticleSwarm(BaseOptimizer):
         self.particles = []
         for ind in self.population:
             pos = np.copy(ind.vector)
-            vel = np.random.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
+            vel = self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
             pbest_score = ind.fitness if ind.fitness is not None else - \
                 float('inf')
             self.particles.append({
@@ -42,8 +42,8 @@ class ParticleSwarm(BaseOptimizer):
 
         # Pad to pop_size with random particles if needed
         while len(self.particles) < self.pop_size:
-            pos = np.random.rand(self.dimensions)
-            vel = np.random.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
+            pos = self.rng.random(self.dimensions)
+            vel = self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
             self.particles.append({
                 'pos': pos, 'vel': vel,
                 'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')
@@ -57,8 +57,8 @@ class ParticleSwarm(BaseOptimizer):
             else:
                 # Pure random initialization (no seed population)
                 for _ in range(self.pop_size):
-                    pos = np.random.rand(self.dimensions)
-                    vel = np.random.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
+                    pos = self.rng.random(self.dimensions)
+                    vel = self.rng.uniform(-self.init_velocity, self.init_velocity, self.dimensions)
                     self.particles.append({
                         'pos': pos, 'vel': vel,
                         'pbest_pos': np.copy(pos), 'pbest_score': -float('inf')
@@ -69,8 +69,8 @@ class ParticleSwarm(BaseOptimizer):
         new_vectors = []
         for i in range(num_samples):
             p = self.particles[i % len(self.particles)]
-            r1 = np.random.rand(self.dimensions)
-            r2 = np.random.rand(self.dimensions)
+            r1 = self.rng.random(self.dimensions)
+            r2 = self.rng.random(self.dimensions)
 
             p['vel'] = (
                 self.w * p['vel']

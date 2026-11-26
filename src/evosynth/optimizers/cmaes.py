@@ -4,9 +4,21 @@ from .base import BaseOptimizer
 from evosynth.config import get_settings
 
 
+class _Randn:
+    """randn(lam, N) for cma drawn from the optimizer's own generator. Passing it stops cma from
+    reseeding numpy's global generator from the clock (cma only seeds when it uses np.random.randn).
+    A class (not a lambda) so deep copies - grace-period snapshots - copy the generator state too."""
+
+    def __init__(self, rng):
+        self.rng = rng
+
+    def __call__(self, *shape):
+        return self.rng.standard_normal(shape)
+
+
 class CMAESOptimizer(BaseOptimizer):
-    def __init__(self, search_space, pop_size):
-        super().__init__(search_space, pop_size)
+    def __init__(self, search_space, pop_size, rng=None):
+        super().__init__(search_space, pop_size, rng)
         c = get_settings().optimizers.cmaes  # [optimizers.cmaes] in settings/optimizers.toml
         self.sigma0 = c.sigma0
         self.min_popsize = c.min_popsize
@@ -29,7 +41,8 @@ class CMAESOptimizer(BaseOptimizer):
                 mean,
                 self.sigma0,  # Initial step size
                 {'bounds': [0, 1], 'popsize': max(
-                    self.min_popsize, self.pop_size), 'verbose': -9}
+                    self.min_popsize, self.pop_size), 'verbose': -9,
+                 'randn': _Randn(self.rng)}
             )
 
         # Draw samples from the CMA-ES distribution

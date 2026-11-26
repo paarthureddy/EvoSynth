@@ -2,10 +2,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
+import threading
+import zlib
+
 import numpy as np
 import ConfigSpace.hyperparameters as CSH
 from ConfigSpace import Configuration
 from evosynth.config import get_settings
+from evosynth.seeding import derive_int
 from evosynth.models.cnn import DynamicCNN
 from evosynth.search_spaces.nas import get_image_nas_search_space
 
@@ -35,14 +39,11 @@ class ImageCNNEvaluator:
         y = raw.target.astype(np.int64)
 
         X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=nas.validation_fraction, random_state=s.run.random_state, stratify=y
+            X, y, test_size=nas.validation_fraction, random_state=s.run.data_seed, stratify=y
         )
 
-        self.train_loader = DataLoader(
-            TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train)),
-            batch_size=self.batch_size,
-            shuffle=True
-        )
+        # Training batches are shuffled per evaluation with a seeded generator (see evaluate)
+        self.train_set = TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train))
         self.val_loader = DataLoader(
             TensorDataset(torch.from_numpy(X_val), torch.from_numpy(y_val)),
             batch_size=self.batch_size,
@@ -74,6 +75,22 @@ class ImageCNNEvaluator:
         opt_name = config["optimizer"]
         activation = config["activation"]
 
+        # Phase 0 seeding: torch's generator is global, and evaluations run in parallel threads,
+        # so training is serialised and seeded from run.seed + this configuration's vector.
+        # The same configuration therefore always gets the same weights, dropout masks and
+        # batch order, whatever order the evaluations run in.
+        eval_seed = derive_int("nas", "evaluate", zlib.crc32(np.asarray(individual.vector, dtype=np.float64).tobytes()))
+        with ImageCNNEvaluator._torch_lock:
+            return self._train_and_score(eval_seed, conv1_ch, conv2_ch, fc_units, dropout, lr, opt_name, activation)
+
+    _torch_lock = threading.Lock()
+
+    def _train_and_score(self, eval_seed, conv1_ch, conv2_ch, fc_units, dropout, lr, opt_name, activation):
+        torch.manual_seed(eval_seed)
+        g = torch.Generator()
+        g.manual_seed(eval_seed)
+        train_loader = DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, generator=g)
+
         model = DynamicCNN(
             in_channels=1,
             conv1_ch=conv1_ch,
@@ -95,7 +112,7 @@ class ImageCNNEvaluator:
         # Train model for fixed epochs
         model.train()
         for _ in range(self.epochs):
-            for images, labels in self.train_loader:
+            for images, labels in train_loader:
                 images, labels = images.to(self.device), labels.to(self.device)
                 optimizer.zero_grad()
                 outputs = model(images)

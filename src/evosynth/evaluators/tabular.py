@@ -6,7 +6,7 @@ per fold: fit the FE strategy on train, build the model (models.factory, phase="
 fit with early stopping, accuracy on the validation fold -> mean accuracy in %.
 
 Settings: [evaluation] (cv_folds, failed_fold_score, ...), [datasets.<name>]
-(search_subsample, xgb_eval_metric, display_name), [run].random_state.
+(search_subsample, xgb_eval_metric, display_name), [run].data_seed.
 """
 import warnings
 
@@ -39,7 +39,7 @@ class TabularEvaluator:
         print(f"  [DATASET] Loading {self.spec.display_name}...")
         X_full, y_full = datasets.load(dataset, self.settings)
         print(f"  [DATASET] Stratified subsampling to {n:,} rows for search phase...")
-        self.X, self.y = datasets.search_subsample(X_full, y_full, n, self.settings.run.random_state)
+        self.X, self.y = datasets.search_subsample(X_full, y_full, n, self.settings.run.data_seed)
         print(f"  [DATASET] Ready: {self.X.shape[0]:,} samples, {self.X.shape[1]} features, "
               f"{len(np.unique(self.y))} classes")
         print(f"  [DATASET] Class distribution: {dict(zip(*np.unique(self.y, return_counts=True)))}")
@@ -53,7 +53,7 @@ class TabularEvaluator:
         model_type = params.get("model_type", "XGBoost")
         fe_strategy = params.get("fe_strategy", "none")
 
-        skf = StratifiedKFold(n_splits=s.evaluation.cv_folds, shuffle=True, random_state=s.run.random_state)
+        skf = StratifiedKFold(n_splits=s.evaluation.cv_folds, shuffle=True, random_state=s.run.data_seed)
         fe = GenericFeatureEngineer(strategy=fe_strategy)
         fold_scores = []
         for train_idx, val_idx in skf.split(self.X, self.y):

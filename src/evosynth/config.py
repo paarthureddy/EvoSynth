@@ -237,7 +237,8 @@ def validate(data: Mapping) -> None:
         _require(_is_num(v) and lo <= v <= hi, f"{key} must be a number in [{lo}, {hi}] (got {v!r})", e)
 
     # run
-    pos_int("run.random_state", 0)
+    pos_int("run.seed", 0)
+    pos_int("run.data_seed", 0)
     pos_int("run.max_workers", 0)
 
     # engine

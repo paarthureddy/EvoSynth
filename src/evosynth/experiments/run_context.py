@@ -10,7 +10,7 @@ One folder per run:  results/<experiment>/<dataset>/<variant>/seed_<k>/
     checkpoint.json  / checkpoints/   resume state, where the experiment has it
 
 Only manifest.json, result.json and summary/ folders are committed to git (see .gitignore).
-The seed in the folder name is [run].random_state.
+The seed in the folder name is [run].seed; RunContext also seeds the global generators with it.
 """
 import datetime as _dt
 import importlib.metadata as _md
@@ -24,6 +24,7 @@ import time
 from evosynth.config import get_settings
 from evosynth.experiments.checkpointing import atomic_json_dump
 from evosynth.paths import PROJECT_ROOT, RESULTS_DIR
+from evosynth.seeding import seed_everything
 from evosynth.telemetry.reporter import EventReporter, set_reporter
 from evosynth.telemetry.run_logger import install_stdout_mirror
 
@@ -38,7 +39,7 @@ def _slug(text):
 
 def run_path(experiment, dataset, variant, seed=None, results_dir=None):
     """Folder of one run (not created)."""
-    seed = get_settings().run.random_state if seed is None else seed
+    seed = get_settings().run.seed if seed is None else seed
     root = RESULTS_DIR if results_dir is None else results_dir
     return os.path.join(str(root), _slug(experiment), _slug(dataset), _slug(variant), f"seed_{seed}")
 
@@ -84,7 +85,7 @@ class RunContext:
 
     def __init__(self, experiment, dataset, variant, seed=None, results_dir=None, resume=False):
         self.experiment, self.dataset, self.variant = experiment, dataset, _slug(variant)
-        self.seed = get_settings().run.random_state if seed is None else seed
+        self.seed = get_settings().run.seed if seed is None else seed
         self.path = run_path(experiment, dataset, variant, self.seed, results_dir)
         self.resume = resume
         self._manifest = None
@@ -97,6 +98,7 @@ class RunContext:
     # -- lifecycle --------------------------------------------------------------
     def __enter__(self):
         os.makedirs(self.path, exist_ok=True)
+        seed_everything(self.seed)
         for stale in ("result.json",) + (() if self.resume else ("events.jsonl",)):
             if os.path.exists(self.file(stale)):
                 os.remove(self.file(stale))
@@ -109,6 +111,7 @@ class RunContext:
             "dataset": self.dataset,
             "variant": self.variant,
             "seed": self.seed,
+            "data_seed": get_settings().run.data_seed,
             "status": "running",
             "started_at": _now(),
             "finished_at": None,

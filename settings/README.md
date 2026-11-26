@@ -7,7 +7,7 @@ no Python file holds its own copy of a setting.
 
 | File | Sections | What you tune there |
 |---|---|---|
-| [run.toml](run.toml) | `[run]` | Random state used by every split/model, number of parallel evaluation threads |
+| [run.toml](run.toml) | `[run]` | Search `seed` (all search randomness), `data_seed` (data splits), number of parallel evaluation threads |
 | [engine.toml](engine.toml) | `[engine]`, `[bandit]`, `[composite]`, `[safeguards]` | Budget, population, Tier 1 iterations, checkpoint interval `k`, Tier 1 share; UCB exploration constant `c`; the five composite-score weights; SWAP margin, grace period, cooldown, stagnation limit, injection and elite-sharing percentages |
 | [optimizers.toml](optimizers.toml) | `[optimizers.ga]`, `.pso`, `.de`, `.cmaes` | GA mutation rate/σ/tournament size; PSO `w`, `c1`, `c2`, initial velocity; DE `F`, `CR`; CMA-ES σ0, minimum population, default mean |
 | [search_spaces.toml](search_spaces.toml) | `[search_space.tabular]`, `.nas`, `.toy` | Model families, feature-engineering strategies and every hyperparameter range (tabular); CNN channels/units/dropout/LR/optimizers/activations (NAS); toy test space |
@@ -35,7 +35,7 @@ Inside every file, each setting has a comment saying **what it controls**, **whe
 4. `--set` overrides, e.g. `evosynth run --set bandit.c=0.2 --set optimizers.pso.w=0.7`
 
 Each run records the fully resolved settings in its `manifest.json`
-(`results/<experiment>/<dataset>/<variant>/seed_<random_state>/`), so results always say which
+(`results/<experiment>/<dataset>/<variant>/seed_<seed>/`), so results always say which
 values produced them.
 
 ## Useful commands

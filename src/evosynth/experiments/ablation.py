@@ -33,6 +33,7 @@ import ConfigSpace.hyperparameters as CSH
 
 from evosynth.config import get_settings
 from evosynth.experiments.run_context import RunContext
+from evosynth.seeding import stream
 
 
 from evosynth.search_spaces.tabular import get_xgboost_search_space
@@ -57,15 +58,15 @@ def _decode_individual(individual, space):
     return decode_vector_to_dict(individual.vector, space)
 
 
-def _make_optimizer(algo_key, space, pop_size):
+def _make_optimizer(algo_key, space, pop_size, rng=None):
     if algo_key == "GA":
-        return GeneticAlgorithm(space, pop_size)
+        return GeneticAlgorithm(space, pop_size, rng=rng)
     if algo_key == "PSO":
-        return ParticleSwarm(space, pop_size)
+        return ParticleSwarm(space, pop_size, rng=rng)
     if algo_key == "DE":
-        return DifferentialEvolution(space, pop_size)
+        return DifferentialEvolution(space, pop_size, rng=rng)
     if algo_key == "CMAES":
-        return CMAESOptimizer(space, pop_size)
+        return CMAESOptimizer(space, pop_size, rng=rng)
     raise ValueError(f"Unknown algo: {algo_key}")
 
 
@@ -126,7 +127,9 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
     state_file = os.path.join(ckpt_dir, f"{algo_key}_checkpoint.pkl")
 
     # Check for existing checkpoint
-    optimizer = _make_optimizer(algo_key, space, pop_size)
+    # Phase 0 seeding: own generators for this isolated run's warm-up vectors and its optimizer
+    rng = stream("ablation", algo_key, "warmup")
+    optimizer = _make_optimizer(algo_key, space, pop_size, rng=stream("ablation", algo_key, "optimizer"))
     evals_used = 0
     all_evaluated_inds = []
     iteration_logs = []
@@ -153,6 +156,9 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
             checkpoint_data = meta.get("checkpoint_data")
             if saved.get("population"):
                 optimizer.population = saved["population"]
+            if saved.get("rng_state"):          # continue the same random streams after a resume
+                rng.bit_generator.state = saved["rng_state"]
+                optimizer.rng.bit_generator.state = saved["optimizer_rng_state"]
             prev_best = best_ind.fitness if best_ind else 0.0
             print(f"  [RESUME] Resuming {algo_key} from evaluation {evals_used}/{budget} (Best: {prev_best:.2f}%)...")
         except Exception as e:
@@ -183,7 +189,9 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
         _atomic_pickle_dump(state_file, {
             "best_ind": best_ind,
             "population": getattr(optimizer, "population", []),
-            "all_inds": all_evaluated_inds
+            "all_inds": all_evaluated_inds,
+            "rng_state": rng.bit_generator.state,
+            "optimizer_rng_state": optimizer.rng.bit_generator.state,
         })
 
     def _eval_batch(vectors):
@@ -232,7 +240,7 @@ def run_isolated_optimizer(algo_key, space, evaluator, budget, pop_size, max_wor
         init_all_inds = []
         for c_start in range(evals_used, pop_size, chunk_size):
             c_len = min(chunk_size, pop_size - c_start)
-            batch_vecs = [np.random.rand(dims) for _ in range(c_len)]
+            batch_vecs = [rng.random(dims) for _ in range(c_len)]
             init_all_inds.extend(_eval_batch(batch_vecs))
 
         optimizer.tell(init_all_inds)

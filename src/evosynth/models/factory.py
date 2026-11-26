@@ -8,7 +8,7 @@ phase = "baseline_default" library-default model of the chosen family with
                            [experiments.baselines].refit_trees trees (Random Search / Optuna
                            refit as currently implemented; Phase 4.4 replaces it with "refit")
 
-Settings: [evaluation], [refit], [experiments.baselines], [run].random_state,
+Settings: [evaluation], [refit], [experiments.baselines], [run].seed,
 [search_space.tabular].max_depth.high, and the dataset's xgb_eval_metric.
 """
 import warnings
@@ -27,7 +27,7 @@ def build_model(params, phase="search", xgb_eval_metric="mlogloss", settings=Non
     """Return an unfitted classifier for params['model_type'] in the given phase."""
     s = settings or get_settings()
     m = params.get("model_type", "XGBoost")
-    rs = s.run.random_state
+    rs = s.run.seed
 
     if phase == "baseline_default":
         n = s.experiments.baselines.refit_trees

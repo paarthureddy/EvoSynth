@@ -7,7 +7,7 @@
 # ==============================================================================
 param (
     [string]$Stage = "menu",
-    # Extra arguments passed to every evosynth command, e.g. -Extra "--set","run.random_state=7"
+    # Extra arguments passed to every evosynth command, e.g. -Extra "--seeds","1,2,3"
     [string[]]$Extra = @()
 )
 

@@ -7,10 +7,11 @@ class TierManager:
     and handles Island-based elite sharing (cooperative co-evolution).
     """
 
-    def __init__(self, total_population, t1_ratio=0.4):
+    def __init__(self, total_population, t1_ratio=0.4, rng=None):
         # Shuffle to ensure unbiased starting distribution despite fitness
-        import random
-        random.shuffle(total_population)
+        from evosynth.seeding import stream
+        rng = rng if rng is not None else stream("tiers")
+        total_population = [total_population[i] for i in rng.permutation(len(total_population))]
 
         self.t1_size = int(len(total_population) * t1_ratio)
         self.t2_size = len(total_population) - self.t1_size

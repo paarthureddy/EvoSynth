@@ -1,7 +1,7 @@
 """
 Competitor & Floor Baselines Runner — UCI Forest Covertype
 ===========================================================
-Command: `evosynth baselines`. Settings: [experiments.baselines], [refit], [run].random_state.
+Command: `evosynth baselines`. Settings: [experiments.baselines], [refit], [run].seed (search) and data_seed (split).
 Runs and logs the baseline comparisons on the exact same refit train / test split:
   1. Default ExtraTrees Classifier (Untuned Floor)
   2. Random Search (120 evaluations across the 9-dimensional search space)
@@ -21,6 +21,7 @@ import argparse
 import numpy as np
 
 from evosynth.experiments.run_context import RunContext
+from evosynth.seeding import stream
 
 
 from sklearn.ensemble import ExtraTreesClassifier
@@ -47,7 +48,7 @@ def run_default_extratrees(out_dir):
     start = time.time()
     s = get_settings()
     model = ExtraTreesClassifier(n_estimators=s.experiments.baselines.default_extratrees_trees,
-                                 random_state=s.run.random_state, n_jobs=-1)
+                                 random_state=s.run.seed, n_jobs=-1)
     model.fit(X_tr, y_tr)
     fit_time = time.time() - start
 
@@ -88,10 +89,11 @@ def run_random_search(out_dir, n_trials=None):
 
     best_acc = 0.0
     best_vec = None
+    rng = stream("baseline", "random_search")
     start = time.time()
 
     for trial in range(1, n_trials + 1):
-        vec = np.random.rand(dims)
+        vec = rng.random(dims)
         ind = Individual(vec)
         score = evaluator.evaluate(ind)
         if score > best_acc:
@@ -153,7 +155,7 @@ def run_optuna_baseline(out_dir, n_trials=None):
         storage=storage_url,
         load_if_exists=True,
         direction="maximize",
-        sampler=optuna.samplers.TPESampler(seed=get_settings().run.random_state)
+        sampler=optuna.samplers.TPESampler(seed=get_settings().run.seed)
     )
 
     completed = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
@@ -215,7 +217,7 @@ def run_flaml_baseline(out_dir, time_budget=None):
         "metric": bl.flaml_metric,
         "task": "classification",
         "log_file_name": os.path.join(out_dir, "flaml.log"),
-        "seed": get_settings().run.random_state,
+        "seed": get_settings().run.seed,
         "estimator_list": list(bl.flaml_estimators)
     }
 

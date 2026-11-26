@@ -16,10 +16,12 @@ Every command also accepts:
     --settings PATH           use another settings folder (or a single .toml file)
 
 Commands that run experiments also accept:
+    --seed N                  search seed for this run (sets run.seed)
+    --seeds 1,2,3             repeat the run once per seed, one seed_<k> folder each
     --variant NAME            name of the run folder level (default: preset / budget_<N> / setup)
     --results-dir PATH        write under PATH instead of results/
 
-Each run writes to results/<experiment>/<dataset>/<variant>/seed_<run.random_state>/
+Each run writes to results/<experiment>/<dataset>/<variant>/seed_<run.seed>/
 (manifest.json, result.json, run.log, events.jsonl, ...).
 
 Settings are resolved as: settings/*.toml -> preset -> command-line flags -> --set.
@@ -50,6 +52,27 @@ def _activate(args, preset=None, extra=None):
     return cfg
 
 
+def _seed_list(args):
+    """[None] (use run.seed from settings), [N] for --seed N, or the --seeds list."""
+    if getattr(args, "seeds", None):
+        try:
+            return [int(x) for x in args.seeds.split(",") if x.strip()]
+        except ValueError:
+            raise ConfigError(f"--seeds must be a comma-separated list of integers (got {args.seeds!r})")
+    return [getattr(args, "seed", None)]
+
+
+def _per_seed(args, body, preset=None, extra=None):
+    """Activate the settings and call body() once per requested seed (sequentially)."""
+    seeds = _seed_list(args)
+    for i, seed in enumerate(seeds):
+        seed_override = [] if seed is None else [f"run.seed={seed}"]
+        cfg = _activate(args, preset=preset, extra=list(extra or []) + seed_override)
+        if len(seeds) > 1:
+            print(f"\n##### seed {cfg.run.seed} ({i + 1}/{len(seeds)}) #####", flush=True)
+        body()
+
+
 def _flag_overrides(args, mapping):
     """['engine.budget=120', ...] for every flag in mapping that was given."""
     out = []
@@ -67,39 +90,37 @@ def cmd_run(args):
     preset = "search_full" if args.full else args.preset
     extra = _flag_overrides(args, {"budget": "engine.budget", "pop_size": "engine.pop_size",
                                    "t1_iters": "engine.t1_iters", "k_iters": "engine.k_iters"})
-    _activate(args, preset=preset, extra=extra)
     from evosynth.experiments.search import run_search
     label = "Full Benchmark" if preset == "search_full" else ("Fast Demo" if preset == "search_demo" else preset)
-    run_search(dataset=args.dataset, mode_label=label, subsample=args.subsample, refit=not args.no_refit,
-               variant=args.variant or preset, results_dir=args.results_dir)
+    _per_seed(args, lambda: run_search(dataset=args.dataset, mode_label=label, subsample=args.subsample,
+                                       refit=not args.no_refit, variant=args.variant or preset,
+                                       results_dir=args.results_dir),
+              preset=preset, extra=extra)
 
 
 def cmd_scale(args):
-    _activate(args)
     from evosynth.experiments.scaling import run_benchmark
-    run_benchmark(budget=args.budget, pop_size=args.pop_size, checkpoint_interval=args.checkpoint_interval,
-                  variant=args.variant, results_dir=args.results_dir, dataset=args.dataset)
+    _per_seed(args, lambda: run_benchmark(budget=args.budget, pop_size=args.pop_size,
+                                          checkpoint_interval=args.checkpoint_interval, variant=args.variant,
+                                          results_dir=args.results_dir, dataset=args.dataset))
 
 
 def cmd_ablation(args):
-    _activate(args)
     from evosynth.experiments.ablation import run_ablation
-    run_ablation(setup=args.setup, pop_size=args.pop_size, max_workers=args.max_workers,
-                 checkpoint_interval=args.checkpoint_interval, results_dir=args.results_dir,
-                 dataset=args.dataset)
+    _per_seed(args, lambda: run_ablation(setup=args.setup, pop_size=args.pop_size, max_workers=args.max_workers,
+                                         checkpoint_interval=args.checkpoint_interval,
+                                         results_dir=args.results_dir, dataset=args.dataset))
 
 
 def cmd_baselines(args):
-    _activate(args)
     from evosynth.experiments.baselines import run_baselines
-    run_baselines(test=args.test, trials=args.trials, time_budget=args.time_budget,
-                  results_dir=args.results_dir)
+    _per_seed(args, lambda: run_baselines(test=args.test, trials=args.trials, time_budget=args.time_budget,
+                                          results_dir=args.results_dir))
 
 
 def cmd_nas(args):
-    _activate(args)
     from evosynth.experiments.nas import run_nas
-    run_nas(variant=args.variant or "default", results_dir=args.results_dir)
+    _per_seed(args, lambda: run_nas(variant=args.variant or "default", results_dir=args.results_dir))
 
 
 def cmd_serve(args):
@@ -196,6 +217,9 @@ def build_parser():
     for sp in (r, sc, n):
         sp.add_argument("--variant", help="run folder name (default: preset / budget_<N> / default)")
     for sp in (r, sc, a, b, n):
+        seeds = sp.add_mutually_exclusive_group()
+        seeds.add_argument("--seed", type=int, help="search seed (sets run.seed)")
+        seeds.add_argument("--seeds", metavar="LIST", help="comma-separated seeds; one run (and folder) per seed")
         sp.add_argument("--results-dir", "--results_dir", dest="results_dir", metavar="PATH",
                         help="write under PATH instead of results/")
     return p

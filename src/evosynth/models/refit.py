@@ -15,7 +15,7 @@ def refit_split(dataset="covertype", settings=None):
     """(X_tr, X_te, y_tr, y_te) for the refit; identical rows for every method."""
     s = settings or get_settings()
     X, y = datasets.load(dataset, s)
-    return datasets.refit_split(X, y, s.refit.train_rows, s.refit.test_rows, s.run.random_state)
+    return datasets.refit_split(X, y, s.refit.train_rows, s.refit.test_rows, s.run.data_seed)
 
 
 def refit_and_score(params, dataset="covertype", phase="refit", verbose=True, settings=None):
