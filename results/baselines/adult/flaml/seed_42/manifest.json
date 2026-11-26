@@ -1,0 +1,400 @@
+{
+  "experiment": "baselines",
+  "dataset": "adult",
+  "variant": "flaml",
+  "seed": 42,
+  "data_seed": 42,
+  "status": "completed",
+  "started_at": "2026-11-26T17:10:16+05:30",
+  "finished_at": "2026-11-26T17:13:19+05:30",
+  "duration_seconds": 183.02,
+  "command": "evosynth baselines --test flaml --dataset adult --time-budget 178 --seed 42",
+  "git": {
+    "commit": "138fae36309edde97c99ead18e17a4b668e67b4b",
+    "branch": "fixes",
+    "dirty": false
+  },
+  "environment": {
+    "python": "3.14.10",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "packages": {
+      "evosynth": "2.0.0.dev0",
+      "numpy": "2.4.2",
+      "scipy": "1.17.0",
+      "pandas": "3.0.0",
+      "scikit-learn": "1.8.0",
+      "ConfigSpace": "1.2.2",
+      "xgboost": "3.4.1",
+      "lightgbm": "4.7.0",
+      "cma": "4.5.0",
+      "torch": "2.14.1",
+      "torchvision": "0.29.1",
+      "optuna": "5.1.0",
+      "flaml": "2.8.0"
+    }
+  },
+  "settings": {
+    "datasets": {
+      "covertype": {
+        "kind": "tabular",
+        "source": "sklearn.fetch_covtype",
+        "display_name": "UCI Forest Covertype (581,012 samples, 54 features, 7 classes)",
+        "metric": "accuracy",
+        "xgb_eval_metric": "mlogloss",
+        "test_rows": 20000,
+        "search_subsample": 20000,
+        "refit_train_rows": 60000
+      },
+      "higgs": {
+        "kind": "tabular",
+        "source": "openml",
+        "openml_id": 23512,
+        "display_name": "HIGGS, OpenML 23512 (98,050 samples, 28 features, 2 classes)",
+        "metric": "roc_auc",
+        "xgb_eval_metric": "logloss",
+        "test_rows": 20000,
+        "search_subsample": 20000,
+        "refit_train_rows": 60000
+      },
+      "adult": {
+        "kind": "tabular",
+        "source": "openml",
+        "openml_id": 1590,
+        "display_name": "Adult (Census Income), OpenML 1590 (48,842 samples, 14 features, 2 classes)",
+        "metric": "roc_auc",
+        "xgb_eval_metric": "logloss",
+        "test_rows": 12000,
+        "search_subsample": 20000,
+        "refit_train_rows": 36000
+      },
+      "airlines": {
+        "kind": "tabular",
+        "source": "openml",
+        "openml_id": 1169,
+        "display_name": "Airlines delay, OpenML 1169 (539,383 samples, 7 features, 2 classes)",
+        "metric": "roc_auc",
+        "xgb_eval_metric": "logloss",
+        "test_rows": 20000,
+        "search_subsample": 20000,
+        "refit_train_rows": 60000
+      },
+      "poker_hand": {
+        "kind": "tabular",
+        "source": "openml",
+        "openml_id": 1569,
+        "display_name": "Poker Hand, OpenML 1569 (1,025,000 samples, 10 features, 9 classes)",
+        "metric": "accuracy",
+        "xgb_eval_metric": "mlogloss",
+        "test_rows": 20000,
+        "search_subsample": 20000,
+        "refit_train_rows": 60000
+      },
+      "miniboone": {
+        "kind": "tabular",
+        "source": "openml",
+        "openml_id": 41150,
+        "display_name": "MiniBooNE, OpenML 41150 (130,064 samples, 50 features, 2 classes)",
+        "metric": "roc_auc",
+        "xgb_eval_metric": "logloss",
+        "test_rows": 20000,
+        "search_subsample": 20000,
+        "refit_train_rows": 60000
+      },
+      "jannis": {
+        "kind": "tabular",
+        "source": "openml",
+        "openml_id": 41168,
+        "display_name": "Jannis, OpenML 41168 (83,733 samples, 54 features, 4 classes)",
+        "metric": "accuracy",
+        "xgb_eval_metric": "mlogloss",
+        "test_rows": 20000,
+        "search_subsample": 20000,
+        "refit_train_rows": 60000
+      },
+      "fashion_mnist": {
+        "kind": "image",
+        "source": "torchvision.FashionMNIST",
+        "display_name": "Fashion-MNIST (70,000 images, 28\u00d728 grayscale, 10 classes)",
+        "metric": "accuracy",
+        "search_train_rows": 10000,
+        "search_val_rows": 2500
+      }
+    },
+    "engine": {
+      "budget": 2000,
+      "pop_size": 100,
+      "t1_iters": 30,
+      "k_iters": 10,
+      "auto_k": true,
+      "min_t2_checkpoints": 2,
+      "t1_fraction": 0.4,
+      "min_island_size": 4,
+      "tier_split": "stratified",
+      "n_promoted": 2
+    },
+    "bandit": {
+      "c": 0.1
+    },
+    "composite": {
+      "fitness": 0.3,
+      "speed": 0.25,
+      "efficiency": 0.15,
+      "diversity": 0.15,
+      "trend": 0.15,
+      "trend_window": 3,
+      "tie_value": 0.5
+    },
+    "safeguards": {
+      "swap_margin": 0.1,
+      "grace_iters": 5,
+      "cooldown_multiplier": 2,
+      "stagnation_limit": 3,
+      "t1_inject_pct": 0.5,
+      "t2_inject_pct": 0.2,
+      "elite_pct": 0.2
+    },
+    "evaluation": {
+      "cv_folds": 2,
+      "early_stopping": true,
+      "early_stopping_rounds": 10,
+      "early_stopping_fraction": 0.15,
+      "search_tree_cap": 150,
+      "bagging_depth_multiplier": 3,
+      "failed_fold_score": 0.0,
+      "model_n_jobs": 1
+    },
+    "selection": {
+      "enabled": true,
+      "top_k": 5,
+      "confirm_folds": 5
+    },
+    "features": {
+      "continuous_unique_threshold": 15,
+      "detection_sample_rows": 2000,
+      "max_interaction_features": 6
+    },
+    "refit": {
+      "min_trees_bagging": 150,
+      "min_trees_lgbm": 250,
+      "min_trees_xgb": 200,
+      "model_n_jobs": -1
+    },
+    "inference": {
+      "single_row_repeats": 200
+    },
+    "experiments": {
+      "search_demo": {
+        "budget": 200,
+        "pop_size": 40,
+        "t1_iters": 3,
+        "k_iters": 2
+      },
+      "search_full": {
+        "budget": 500,
+        "pop_size": 40,
+        "t1_iters": 5,
+        "k_iters": 3
+      },
+      "scaling": {
+        "budgets": [
+          300,
+          500,
+          1000
+        ],
+        "default_budget": 500,
+        "pop_size": 40,
+        "t1_iters_fraction": 0.03,
+        "t1_iters_min": 3,
+        "k_iters_fraction": 0.02,
+        "k_iters_min": 2,
+        "checkpoint_interval": 10
+      },
+      "ablation": {
+        "setups": {
+          "CVGS-500": 500,
+          "CVGS-1000": 1000
+        },
+        "pop_size": 40,
+        "max_workers": 2,
+        "checkpoint_interval": 10,
+        "share_checkpoint_fraction": 0.25,
+        "passive_marks": 10,
+        "evosynth_splits": [
+          "stratified"
+        ],
+        "batch_min": 5,
+        "batch_max": 10,
+        "batch_divisor": 3,
+        "t1_iters_fraction": 0.03,
+        "t1_iters_min": 3,
+        "k_iters_fraction": 0.02,
+        "k_iters_min": 2
+      },
+      "baselines": {
+        "default_models": [
+          "XGBoost",
+          "LightGBM",
+          "RandomForest",
+          "ExtraTrees"
+        ],
+        "random_search_trials": 120,
+        "optuna_trials": 120,
+        "flaml_time_budget": 585,
+        "flaml_estimators": [
+          "lgbm",
+          "rf",
+          "extra_tree",
+          "xgboost"
+        ]
+      },
+      "nas": {
+        "budget": 160,
+        "pop_size": 40,
+        "t1_iters": 3,
+        "k_iters": 2,
+        "epochs": 2,
+        "batch_size": 64,
+        "dataset": "fashion_mnist",
+        "sgd_momentum": 0.9,
+        "device": "cpu"
+      },
+      "speedup": {
+        "configurations": 40,
+        "workers": 0
+      }
+    },
+    "optimizers": {
+      "ga": {
+        "mutation_rate": 0.1,
+        "mutation_sigma": 0.1,
+        "tournament_size": 2
+      },
+      "pso": {
+        "w": 0.5,
+        "c1": 1.5,
+        "c2": 1.5,
+        "init_velocity": 0.1
+      },
+      "de": {
+        "F": 0.8,
+        "CR": 0.7
+      },
+      "cmaes": {
+        "sigma0": 0.25,
+        "min_popsize": 4,
+        "default_mean": 0.5
+      }
+    },
+    "run": {
+      "seed": 42,
+      "data_seed": 42,
+      "max_workers": 0
+    },
+    "search_space": {
+      "tabular": {
+        "model_types": [
+          "XGBoost",
+          "RandomForest",
+          "LightGBM",
+          "ExtraTrees"
+        ],
+        "fe_strategies": [
+          "none",
+          "stats",
+          "interactions"
+        ],
+        "learning_rate": {
+          "low": 0.01,
+          "high": 0.3,
+          "log": true
+        },
+        "n_estimators": {
+          "low": 50,
+          "high": 500,
+          "int": true
+        },
+        "max_depth": {
+          "low": 3,
+          "high": 10,
+          "int": true
+        },
+        "subsample": {
+          "low": 0.5,
+          "high": 1.0
+        },
+        "colsample_bytree": {
+          "low": 0.3,
+          "high": 1.0
+        },
+        "reg_alpha": {
+          "low": 0.0,
+          "high": 10.0
+        }
+      },
+      "nas": {
+        "conv1_channels": [
+          16,
+          32,
+          64
+        ],
+        "conv2_channels": [
+          32,
+          64,
+          128
+        ],
+        "fc_units": [
+          64,
+          128,
+          256
+        ],
+        "optimizers": [
+          "Adam",
+          "SGD",
+          "RMSprop"
+        ],
+        "activations": [
+          "relu",
+          "leaky_relu"
+        ],
+        "dropout_rate": {
+          "low": 0.0,
+          "high": 0.5
+        },
+        "learning_rate": {
+          "low": 0.0001,
+          "high": 0.1,
+          "log": true
+        }
+      },
+      "toy": {
+        "learning_rate": {
+          "low": 0.001,
+          "high": 0.3,
+          "log": true
+        },
+        "num_layers": {
+          "low": 1,
+          "high": 10,
+          "int": true
+        },
+        "optimizers": [
+          "Adam",
+          "SGD",
+          "RMSprop"
+        ],
+        "dropout": {
+          "low": 0.0,
+          "high": 0.5
+        }
+      }
+    },
+    "telemetry": {
+      "server_host": "0.0.0.0",
+      "server_port": 8000,
+      "reporter_url": "http://localhost:8000",
+      "probe_timeout": 0.5,
+      "post_timeout": 1.0,
+      "reprobe_seconds": 10
+    }
+  }
+}

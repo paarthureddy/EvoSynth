@@ -1,0 +1,40 @@
+{
+  "experiment": "speedup",
+  "dataset": "covertype",
+  "variant": "default",
+  "seed": 42,
+  "metric": "accuracy",
+  "configurations": 40,
+  "workers": 12,
+  "cpu_count": 12,
+  "conditions": {
+    "sequential, no early stopping": {
+      "workers": 1,
+      "early_stopping": false,
+      "seconds": 255.64,
+      "mean_cv_score": 76.9013,
+      "speedup": 1.0
+    },
+    "sequential, early stopping": {
+      "workers": 1,
+      "early_stopping": true,
+      "seconds": 219.03,
+      "mean_cv_score": 76.5285,
+      "speedup": 1.17
+    },
+    "parallel (12), no early stopping": {
+      "workers": 12,
+      "early_stopping": false,
+      "seconds": 43.73,
+      "mean_cv_score": 76.9013,
+      "speedup": 5.85
+    },
+    "parallel (12), early stopping": {
+      "workers": 12,
+      "early_stopping": true,
+      "seconds": 41.91,
+      "mean_cv_score": 76.5285,
+      "speedup": 6.1
+    }
+  }
+}

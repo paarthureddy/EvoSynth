@@ -1,0 +1,6 @@
+dataset,setup,method,metric,at_mark,mark_evals,budget_mean,n_seeds,evosynth_beat_best_isolated,budget_std
+covertype,cvgs_500,CMAES,accuracy,81.89,125,82.35,1,,0.0
+covertype,cvgs_500,DE,accuracy,82.13,125,82.34,1,,0.0
+covertype,cvgs_500,EvoSynth,accuracy,82.08,125,82.35,1,0/1,0.0
+covertype,cvgs_500,GA,accuracy,81.53,125,82.21,1,,0.0
+covertype,cvgs_500,PSO,accuracy,82.35,125,82.35,1,,0.0

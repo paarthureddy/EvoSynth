@@ -1,0 +1,19 @@
+{
+  "experiment": "nas",
+  "dataset": "fashion_mnist",
+  "variant": "default",
+  "seed": 42,
+  "metric": "validation_accuracy",
+  "best_score": 81.8,
+  "best_config": {
+    "activation": "relu",
+    "conv1_channels": 16,
+    "conv2_channels": 128,
+    "dropout_rate": 0.1656842066535,
+    "fc_units": 256,
+    "learning_rate": 0.0090504482361,
+    "optimizer": "Adam"
+  },
+  "winning_algorithm": "T2_PSO",
+  "evals_used": 160
+}

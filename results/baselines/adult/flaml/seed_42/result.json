@@ -1,0 +1,29 @@
+{
+  "experiment": "baselines",
+  "dataset": "adult",
+  "variant": "flaml",
+  "seed": 42,
+  "metric": "roc_auc",
+  "test_score": 93.1312436904695,
+  "model_type": "xgboost",
+  "best_config": {
+    "n_estimators": 1861,
+    "max_leaves": 43,
+    "min_child_weight": 0.1818636901921416,
+    "learning_rate": 0.0067167759509171735,
+    "subsample": 1.0,
+    "colsample_bylevel": 0.925986936799226,
+    "colsample_bytree": 0.6126087440888437,
+    "reg_alpha": 0.0037790960997392434,
+    "reg_lambda": 0.013082029780852994
+  },
+  "inference": {
+    "single_row_ms": 1.514,
+    "single_row_p95_ms": 1.919,
+    "batch_rows": 12000,
+    "batch_rows_per_s": 153030.4,
+    "model_mb": 6.82
+  },
+  "time_budget_seconds": 178,
+  "search_seconds": 181.83
+}

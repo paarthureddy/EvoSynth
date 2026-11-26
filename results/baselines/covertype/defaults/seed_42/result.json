@@ -1,0 +1,55 @@
+{
+  "experiment": "baselines",
+  "dataset": "covertype",
+  "variant": "defaults",
+  "seed": 42,
+  "metric": "accuracy",
+  "test_score": 89.77000000000001,
+  "model_type": "ExtraTrees",
+  "models": {
+    "XGBoost": {
+      "test_score": 85.585,
+      "fit_seconds": 1.76,
+      "inference": {
+        "single_row_ms": 0.55,
+        "single_row_p95_ms": 0.625,
+        "batch_rows": 20000,
+        "batch_rows_per_s": 817949.1,
+        "model_mb": 1.955
+      }
+    },
+    "LightGBM": {
+      "test_score": 84.69,
+      "fit_seconds": 0.87,
+      "inference": {
+        "single_row_ms": 0.457,
+        "single_row_p95_ms": 0.581,
+        "batch_rows": 20000,
+        "batch_rows_per_s": 186255.6,
+        "model_mb": 2.402
+      }
+    },
+    "RandomForest": {
+      "test_score": 89.095,
+      "fit_seconds": 1.39,
+      "inference": {
+        "single_row_ms": 4.924,
+        "single_row_p95_ms": 5.429,
+        "batch_rows": 20000,
+        "batch_rows_per_s": 243715.5,
+        "model_mb": 217.168
+      }
+    },
+    "ExtraTrees": {
+      "test_score": 89.77000000000001,
+      "fit_seconds": 1.33,
+      "inference": {
+        "single_row_ms": 5.363,
+        "single_row_p95_ms": 6.167,
+        "batch_rows": 20000,
+        "batch_rows_per_s": 174023.2,
+        "model_mb": 595.961
+      }
+    }
+  }
+}

@@ -1,0 +1,381 @@
+{
+  "experiment": "ablation",
+  "dataset": "covertype",
+  "variant": "cvgs_500",
+  "seed": 42,
+  "setup": "CVGS-500",
+  "budget": 500,
+  "pop_size": 40,
+  "metric": "accuracy",
+  "checkpoint_eval": 125,
+  "marks": [
+    50,
+    100,
+    125,
+    150,
+    200,
+    250,
+    300,
+    350,
+    400,
+    450,
+    500
+  ],
+  "best_isolated": "PSO",
+  "delta_vs_best_isolated": 0.0,
+  "conclusion": [
+    "At the full budget (500 evaluations) EvoSynth (82.35%) matched the best isolated optimizer, PSO (82.35%), on search CV accuracy.",
+    "At the 125-evaluation mark EvoSynth (82.08%) trailed by 0.27 points the best isolated optimizer at that mark (82.35%).",
+    "This is one seed. Compare the mean and spread over seeds with `evosynth summary` before drawing conclusions."
+  ],
+  "methods": {
+    "GA": {
+      "best_cv_score": 82.21000000000001,
+      "score_at_mark": 81.52999999999999,
+      "diversity_at_mark": 0.24756764849799928,
+      "composite_at_mark": 0.28319849840548555,
+      "ucb_at_mark": 0.305495777339781,
+      "final_diversity": 0.0848724713979484,
+      "final_composite": 0.2,
+      "final_ucb": 0.2123295599755564,
+      "total_evals": 500,
+      "total_seconds": 894.38,
+      "best_config": {
+        "colsample_bytree": 0.5674342883736,
+        "fe_strategy": "interactions",
+        "learning_rate": 0.250544725745,
+        "max_depth": 9,
+        "model_type": "ExtraTrees",
+        "n_estimators": 215,
+        "reg_alpha": 2.9653588474205,
+        "subsample": 0.7809393046033
+      },
+      "curve": [
+        [
+          50,
+          81.4
+        ],
+        [
+          100,
+          81.52999999999999
+        ],
+        [
+          125,
+          81.52999999999999
+        ],
+        [
+          150,
+          81.54
+        ],
+        [
+          200,
+          81.78
+        ],
+        [
+          250,
+          82.21000000000001
+        ],
+        [
+          300,
+          82.21000000000001
+        ],
+        [
+          350,
+          82.21000000000001
+        ],
+        [
+          400,
+          82.21000000000001
+        ],
+        [
+          450,
+          82.21000000000001
+        ],
+        [
+          500,
+          82.21000000000001
+        ]
+      ]
+    },
+    "PSO": {
+      "best_cv_score": 82.35,
+      "score_at_mark": 82.35,
+      "diversity_at_mark": 0.19894038043981013,
+      "composite_at_mark": 0.5750000000000006,
+      "ucb_at_mark": 0.5972972789342961,
+      "final_diversity": 0.0926252084392187,
+      "final_composite": 0.50418100574626,
+      "final_ucb": 0.5165105657218164,
+      "total_evals": 500,
+      "total_seconds": 639.36,
+      "best_config": {
+        "colsample_bytree": 0.4438626610185,
+        "fe_strategy": "interactions",
+        "learning_rate": 0.0418157277838,
+        "max_depth": 9,
+        "model_type": "ExtraTrees",
+        "n_estimators": 288,
+        "reg_alpha": 4.296885787426,
+        "subsample": 0.7227372479986
+      },
+      "curve": [
+        [
+          50,
+          82.17999999999999
+        ],
+        [
+          100,
+          82.35
+        ],
+        [
+          125,
+          82.35
+        ],
+        [
+          150,
+          82.35
+        ],
+        [
+          200,
+          82.35
+        ],
+        [
+          250,
+          82.35
+        ],
+        [
+          300,
+          82.35
+        ],
+        [
+          350,
+          82.35
+        ],
+        [
+          400,
+          82.35
+        ],
+        [
+          450,
+          82.35
+        ],
+        [
+          500,
+          82.35
+        ]
+      ]
+    },
+    "DE": {
+      "best_cv_score": 82.33999999999999,
+      "score_at_mark": 82.13,
+      "diversity_at_mark": 0.4576098352397651,
+      "composite_at_mark": 0.7195121951219523,
+      "ucb_at_mark": 0.7418094740562478,
+      "final_diversity": 0.3630138150974222,
+      "final_composite": 0.6285714285716204,
+      "final_ucb": 0.6409009885471768,
+      "total_evals": 500,
+      "total_seconds": 587.94,
+      "best_config": {
+        "colsample_bytree": 0.3,
+        "fe_strategy": "interactions",
+        "learning_rate": 0.0609320782243,
+        "max_depth": 9,
+        "model_type": "ExtraTrees",
+        "n_estimators": 500,
+        "reg_alpha": 6.0836508504707,
+        "subsample": 0.8810062887038
+      },
+      "curve": [
+        [
+          50,
+          81.81
+        ],
+        [
+          100,
+          82.13
+        ],
+        [
+          125,
+          82.13
+        ],
+        [
+          150,
+          82.13
+        ],
+        [
+          200,
+          82.13
+        ],
+        [
+          250,
+          82.33999999999999
+        ],
+        [
+          300,
+          82.33999999999999
+        ],
+        [
+          350,
+          82.33999999999999
+        ],
+        [
+          400,
+          82.33999999999999
+        ],
+        [
+          450,
+          82.33999999999999
+        ],
+        [
+          500,
+          82.33999999999999
+        ]
+      ]
+    },
+    "CMAES": {
+      "best_cv_score": 82.35,
+      "score_at_mark": 81.89,
+      "diversity_at_mark": 0.31496009741961556,
+      "composite_at_mark": 0.3989860669372804,
+      "ucb_at_mark": 0.42128334587157584,
+      "final_diversity": 0.22695787643135956,
+      "final_composite": 0.7266258279748578,
+      "final_ucb": 0.7389553879504142,
+      "total_evals": 500,
+      "total_seconds": 632.01,
+      "best_config": {
+        "colsample_bytree": 0.4436434344241,
+        "fe_strategy": "interactions",
+        "learning_rate": 0.0279075631357,
+        "max_depth": 9,
+        "model_type": "ExtraTrees",
+        "n_estimators": 292,
+        "reg_alpha": 7.3749851624712,
+        "subsample": 0.5272943695961
+      },
+      "curve": [
+        [
+          50,
+          81.87
+        ],
+        [
+          100,
+          81.89
+        ],
+        [
+          125,
+          81.89
+        ],
+        [
+          150,
+          82.17
+        ],
+        [
+          200,
+          82.17000000000002
+        ],
+        [
+          250,
+          82.24000000000001
+        ],
+        [
+          300,
+          82.24000000000001
+        ],
+        [
+          350,
+          82.33
+        ],
+        [
+          400,
+          82.33
+        ],
+        [
+          450,
+          82.35
+        ],
+        [
+          500,
+          82.35
+        ]
+      ]
+    },
+    "EvoSynth": {
+      "best_cv_score": 82.35,
+      "score_at_mark": 82.08,
+      "diversity_at_mark": 0.15934576643043602,
+      "composite_at_mark": 0.9353796189243594,
+      "ucb_at_mark": 0.9892567412673665,
+      "final_diversity": 0.20589741598721722,
+      "final_composite": 0.9231542677422474,
+      "final_ucb": 0.944736507031094,
+      "top_island_final": "T2_GA",
+      "tier_split": "stratified",
+      "winning_algorithm": "T2_GA",
+      "decisions": {
+        "Elite Sharing": 2,
+        "Injection": 14,
+        "Promotion": 1
+      },
+      "total_evals": 500,
+      "total_seconds": 896.65,
+      "best_config": {
+        "colsample_bytree": 0.4505168579818,
+        "fe_strategy": "interactions",
+        "learning_rate": 0.0973642438335,
+        "max_depth": 9,
+        "model_type": "ExtraTrees",
+        "n_estimators": 302,
+        "reg_alpha": 6.4886718639845,
+        "subsample": 0.8397437658055
+      },
+      "curve": [
+        [
+          50,
+          81.89999999999999
+        ],
+        [
+          100,
+          82.08
+        ],
+        [
+          125,
+          82.08
+        ],
+        [
+          150,
+          82.08
+        ],
+        [
+          200,
+          82.24000000000001
+        ],
+        [
+          250,
+          82.28999999999999
+        ],
+        [
+          300,
+          82.28999999999999
+        ],
+        [
+          350,
+          82.28999999999999
+        ],
+        [
+          400,
+          82.33999999999999
+        ],
+        [
+          450,
+          82.33999999999999
+        ],
+        [
+          500,
+          82.35
+        ]
+      ]
+    }
+  }
+}

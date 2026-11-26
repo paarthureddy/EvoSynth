@@ -1,0 +1,28 @@
+{
+  "experiment": "baselines",
+  "dataset": "covertype",
+  "variant": "flaml",
+  "seed": 42,
+  "metric": "accuracy",
+  "test_score": 92.53,
+  "model_type": "lgbm",
+  "best_config": {
+    "n_estimators": 850,
+    "num_leaves": 1914,
+    "min_child_samples": 9,
+    "learning_rate": 0.05727821406420253,
+    "log_max_bin": 10,
+    "colsample_bytree": 0.9495631989341962,
+    "reg_alpha": 0.01344452934868651,
+    "reg_lambda": 0.010404724301087383
+  },
+  "inference": {
+    "single_row_ms": 5.101,
+    "single_row_p95_ms": 5.48,
+    "batch_rows": 20000,
+    "batch_rows_per_s": 7661.0,
+    "model_mb": 128.034
+  },
+  "time_budget_seconds": 729,
+  "search_seconds": 778.72
+}

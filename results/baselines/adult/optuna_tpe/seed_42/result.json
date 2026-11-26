@@ -1,0 +1,119 @@
+{
+  "experiment": "baselines",
+  "dataset": "adult",
+  "variant": "optuna_tpe",
+  "seed": 42,
+  "metric": "roc_auc",
+  "test_score": 92.9478626318179,
+  "best_cv_score": 91.74531547167201,
+  "selected_cv_score": 91.73153400131162,
+  "model_type": "XGBoost",
+  "fe_strategy": "none",
+  "selected_config": {
+    "colsample_bytree": 0.3220502276428,
+    "fe_strategy": "none",
+    "learning_rate": 0.1268367703848,
+    "max_depth": 5,
+    "model_type": "XGBoost",
+    "n_estimators": 182,
+    "reg_alpha": 0.0742569294702,
+    "subsample": 0.9224660660533
+  },
+  "confirmation": {
+    "top_k": 5,
+    "confirm_folds": 5,
+    "selected_search_rank": 5,
+    "candidates": [
+      {
+        "search_rank": 1,
+        "search_score": 91.74531547167201,
+        "confirmed_score": 91.93042283657734,
+        "source_algorithm": "OptunaTPE",
+        "config": {
+          "colsample_bytree": 0.3148587426782,
+          "fe_strategy": "none",
+          "learning_rate": 0.1265457247637,
+          "max_depth": 5,
+          "model_type": "XGBoost",
+          "n_estimators": 200,
+          "reg_alpha": 0.0660082908516,
+          "subsample": 0.9259859362683
+        }
+      },
+      {
+        "search_rank": 2,
+        "search_score": 91.73688411777334,
+        "confirmed_score": 91.88711810962658,
+        "source_algorithm": "OptunaTPE",
+        "config": {
+          "colsample_bytree": 0.3393252706134,
+          "fe_strategy": "none",
+          "learning_rate": 0.1180772191954,
+          "max_depth": 4,
+          "model_type": "XGBoost",
+          "n_estimators": 152,
+          "reg_alpha": 0.1191630156261,
+          "subsample": 0.9300256238288
+        }
+      },
+      {
+        "search_rank": 3,
+        "search_score": 91.73370907765373,
+        "confirmed_score": 91.8767882473773,
+        "source_algorithm": "OptunaTPE",
+        "config": {
+          "colsample_bytree": 0.31997900688,
+          "fe_strategy": "none",
+          "learning_rate": 0.1266031051059,
+          "max_depth": 5,
+          "model_type": "XGBoost",
+          "n_estimators": 191,
+          "reg_alpha": 0.1086605776458,
+          "subsample": 0.916518250919
+        }
+      },
+      {
+        "search_rank": 4,
+        "search_score": 91.73211740408908,
+        "confirmed_score": 91.93376533152832,
+        "source_algorithm": "OptunaTPE",
+        "config": {
+          "colsample_bytree": 0.3251002246172,
+          "fe_strategy": "none",
+          "learning_rate": 0.1415445895856,
+          "max_depth": 5,
+          "model_type": "XGBoost",
+          "n_estimators": 187,
+          "reg_alpha": 0.0753931277217,
+          "subsample": 0.9171140822639
+        }
+      },
+      {
+        "search_rank": 5,
+        "search_score": 91.73153400131162,
+        "confirmed_score": 91.9556283827008,
+        "source_algorithm": "OptunaTPE",
+        "config": {
+          "colsample_bytree": 0.3220502276428,
+          "fe_strategy": "none",
+          "learning_rate": 0.1268367703848,
+          "max_depth": 5,
+          "model_type": "XGBoost",
+          "n_estimators": 182,
+          "reg_alpha": 0.0742569294702,
+          "subsample": 0.9224660660533
+        }
+      }
+    ]
+  },
+  "inference": {
+    "single_row_ms": 0.266,
+    "single_row_p95_ms": 0.31,
+    "batch_rows": 12000,
+    "batch_rows_per_s": 3791828.6,
+    "model_mb": 0.33
+  },
+  "trials": 500,
+  "failed_folds": 0,
+  "search_seconds": 195.3
+}

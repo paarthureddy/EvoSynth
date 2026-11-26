@@ -1,0 +1,55 @@
+{
+  "experiment": "baselines",
+  "dataset": "adult",
+  "variant": "defaults",
+  "seed": 42,
+  "metric": "roc_auc",
+  "test_score": 92.91607246098617,
+  "model_type": "LightGBM",
+  "models": {
+    "XGBoost": {
+      "test_score": 92.69553864327624,
+      "fit_seconds": 0.2,
+      "inference": {
+        "single_row_ms": 0.48,
+        "single_row_p95_ms": 0.58,
+        "batch_rows": 12000,
+        "batch_rows_per_s": 3864236.5,
+        "model_mb": 0.318
+      }
+    },
+    "LightGBM": {
+      "test_score": 92.91607246098617,
+      "fit_seconds": 0.23,
+      "inference": {
+        "single_row_ms": 0.451,
+        "single_row_p95_ms": 0.559,
+        "batch_rows": 12000,
+        "batch_rows_per_s": 522623.0,
+        "model_mb": 0.347
+      }
+    },
+    "RandomForest": {
+      "test_score": 90.74204752584754,
+      "fit_seconds": 0.62,
+      "inference": {
+        "single_row_ms": 5.08,
+        "single_row_p95_ms": 6.74,
+        "batch_rows": 12000,
+        "batch_rows_per_s": 231061.2,
+        "model_mb": 84.34
+      }
+    },
+    "ExtraTrees": {
+      "test_score": 89.15323148498214,
+      "fit_seconds": 0.35,
+      "inference": {
+        "single_row_ms": 5.156,
+        "single_row_p95_ms": 5.784,
+        "batch_rows": 12000,
+        "batch_rows_per_s": 194782.4,
+        "model_mb": 205.576
+      }
+    }
+  }
+}

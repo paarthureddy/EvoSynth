@@ -1,0 +1,2 @@
+dataset,variant,validation,n_seeds
+fashion_mnist,default,81.80,1
