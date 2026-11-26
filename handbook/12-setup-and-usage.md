@@ -215,3 +215,34 @@ Used this way, nothing is written to disk. Wrap the code in `evosynth.experiment
 | A run interrupted midway | `evosynth scale` and `evosynth ablation` checkpoint; the ablation and Optuna resume automatically when re-run. The manifest status says `interrupted`. |
 | Out of memory on long ablations | Lower `--max-workers` (the ablation preset uses 2). |
 | `budget … leaves about N Tier 2 iteration(s)` warning | Too little budget after Tier 1. Raise `budget` or lower `t1_iters` / `pop_size`. |
+
+---
+
+## Quiz
+
+**1.** Which command installs EvoSynth with every extra?
+<details><summary>Answer</summary>`pip install -e ".[all]"`.</details>
+
+**2.** How do you download all datasets in advance, and where do they go?
+<details><summary>Answer</summary>`evosynth datasets download`; into `.data/` (git-ignored).</details>
+
+**3.** Write the command for a 500-evaluation search on HIGGS with seed 7.
+<details><summary>Answer</summary>`evosynth run --full --dataset higgs --seed 7`.</details>
+
+**4.** How would you change the exploration constant for one run only?
+<details><summary>Answer</summary>`--set bandit.c=0.2` on the command.</details>
+
+**5.** Which budgets does `evosynth scale` accept?
+<details><summary>Answer</summary>300, 500 and 1000 (`experiments.scaling.budgets`).</details>
+
+**6.** What is the smallest allowed population, and why?
+<details><summary>Answer</summary>40, so each of the four Tier 1 islands has at least 4 members (`engine.min_island_size`).</details>
+
+**7.** How do you resume an interrupted experiment plan?
+<details><summary>Answer</summary>Run the same `tools/run_experiments.py` command again; completed runs are skipped.</details>
+
+**8.** What does a `[EVAL] fold … failed` line mean?
+<details><summary>Answer</summary>A configuration could not be trained; that fold scores 0 and the failure is counted.</details>
+
+**9.** How long do the tests take, and do they train real models on real data?
+<details><summary>Answer</summary>About 20 seconds; they use the toy objective and small synthetic data.</details>

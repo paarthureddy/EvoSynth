@@ -149,3 +149,34 @@ The figure (also `paper/figures/arch.png`; source `paper/figures/arch_source.htm
 5. **Cross-domain.** The same engine performs CNN architecture search. The panel version used 8×8 handwritten digits (95.33% in the paper); it now uses Fashion-MNIST (28×28 images, 10 classes).
 
 Claims 1–3 were measured on one unseeded panel-review run. The fix plan (Phases 0–6) re-runs them with a fixed seed, held-out test rows and equal treatment of every method; [08-results.md](08-results.md) reports what holds.
+
+---
+
+## Quiz
+
+**1.** What problem does EvoSynth address, in one sentence?
+<details><summary>Answer</summary>Most tuners commit the whole budget to one search algorithm, which can stagnate on a given problem; EvoSynth runs four evolutionary optimizers and shifts the budget online to whichever is working.</details>
+
+**2.** Match each word of the title to its part of the system: Dynamic Multi-Armed Bandit, Meta-Optimizer, Automated Model Selection, Hyperparameter Tuning.
+<details><summary>Answer</summary>Bandit: the UCB1 ranking that decides promotion and SWAPs. Meta-optimizer: it manages other optimizers (GA, PSO, DE, CMA-ES). Model selection: the `model_type` gene. Hyperparameter tuning: the remaining genes in the 8-D latent space.</details>
+
+**3.** Put the seven stages in order: Tier 1 tournament; selection, output and observability; problem definition and latent mapping; Tier 2 exploitation and safeguards; two-tier split; meta-control and promotion; parallel initialisation.
+<details><summary>Answer</summary>Problem definition → parallel initialisation → two-tier split → Tier 1 tournament → meta-control and promotion → Tier 2 exploitation → selection and output.</details>
+
+**4.** With N = 40, how many individuals go to Tier 1, how many per island, and how large is each reserve group?
+<details><summary>Answer</summary>Tier 1: 16 (40%), 4 per island; reserve: 24 in two groups of 12.</details>
+
+**5.** Why is the tier split stratified rather than 'best 40% to Tier 1'?
+<details><summary>Answer</summary>So every island and reserve group starts with the same mix of good and weak members; no optimizer gets a head start, and the competition measures the algorithms rather than their starting points.</details>
+
+**6.** Which six panels does the architecture figure show, left to right?
+<details><summary>Answer</summary>Data; evaluation and initialization; Tier 1 competition; scoring and control; Tier 2 exploitation; selection and output.</details>
+
+**7.** True or false: after the fixes, the 2 ms / 150 MB claim is reported as a fixed property of EvoSynth.
+<details><summary>Answer</summary>False. Latency and size are measured for every refitted model and depend on the model family (forests are much larger and slower per row than boosted models).</details>
+
+**8.** What happens after the search and before the final test score is computed?
+<details><summary>Answer</summary>Confirm before select (the top 5 distinct configurations re-scored with 5-fold CV), then a refit of the selected configuration on the train rows.</details>
+
+**9.** Why can't the panel-review results simply be reused after the fixes?
+<details><summary>Answer</summary>They came from one unseeded run of the v1 engine (with bugs in CMA-ES, PSO and DE, test rows overlapping the search sample, and different metrics), so they are not comparable with the re-runs.</details>

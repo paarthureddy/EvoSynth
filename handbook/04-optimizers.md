@@ -142,3 +142,37 @@ The panel material's "NFL" summary of each optimizer: GA explores globally but c
    - Step 4 promotes exactly 2 and keeps exactly 2.
 
    A fifth optimizer therefore needs the split (`t1_count // 4` and the seeds dict) and the `top2` / `bot2` logic generalised.
+
+---
+
+## Quiz
+
+**1.** What four methods make up the optimizer contract the controller relies on?
+<details><summary>Answer</summary>`ask(n)`, `tell(individuals)`, `inject(individuals)`, and the `population` / `pop_size` attributes (plus the `rng` every optimizer draws from).</details>
+
+**2.** Why must every optimizer draw randomness only from `self.rng`?
+<details><summary>Answer</summary>So each optimizer's random stream is seeded from `run.seed` and independent of the others, making runs reproducible.</details>
+
+**3.** What did PSO's first `ask` do in v1, and what does it do now?
+<details><summary>Answer</summary>v1 returned the seed positions unchanged, so already-evaluated configurations were evaluated again; now the first step already moves the particles.</details>
+
+**4.** Why does PSO move particles round-robin?
+<details><summary>Answer</summary>So that when the controller asks for fewer candidates than the swarm size, every particle still moves in turn (in v1 only the first n ever moved).</details>
+
+**5.** Describe DE's selection now and in v1.
+<details><summary>Answer</summary>Now one-to-one: a trial replaces only its own target if at least as good. v1 pooled trials and population and kept the best pop_size.</details>
+
+**6.** What was wrong with CMA-ES in v1, and how is it fixed?
+<details><summary>Answer</summary>The seed individuals were reported to cma together with the first generation, so cma refused the update and the error was swallowed; now only samples from the current distribution are reported, once per generation, and failures are printed and trigger a restart.</details>
+
+**7.** What does CMA-ES do when members are injected into its island?
+<details><summary>Answer</summary>It replaces its worst members and restarts its distribution around the new population mean.</details>
+
+**8.** Give GA's selection, crossover, mutation and survival rules.
+<details><summary>Answer</summary>Binary tournament; arithmetic blend with random α per dimension; Gaussian mutation σ 0.1 with probability 0.1; elitist (μ+λ) survival.</details>
+
+**9.** Which optimizer is best suited to correlated continuous hyperparameters, and why?
+<details><summary>Answer</summary>CMA-ES: its covariance matrix learns the correlation and stretches the search along it.</details>
+
+**10.** What structural assumption must change to add a fifth optimizer family?
+<details><summary>Answer</summary>Tier 1 has exactly four islands (one per family), so the number of islands in the tier split (and the Tier 1 share) must change too.</details>

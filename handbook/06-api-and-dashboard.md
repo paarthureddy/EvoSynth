@@ -142,3 +142,31 @@ The `composite` event is received but has no handler, so it is ignored. The init
 - **This handbook and the panel-defense guide** live outside `docs/` (top-level `handbook/`), because the docs site is the official submitted website. They are shared separately as an HTML page.
 
   Their content is covered in files 09–11 of this folder.
+
+---
+
+## Quiz
+
+**1.** Why does EvoSynth use Server-Sent Events rather than WebSockets?
+<details><summary>Answer</summary>Telemetry flows one way (engine → dashboard); SSE is plain HTTP with automatic reconnection and less overhead.</details>
+
+**2.** Trace one event from the engine to the browser.
+<details><summary>Answer</summary>`EventReporter.emit` → appended to events.jsonl and POSTed (daemon thread) to `/event` → FastAPI puts it on an asyncio queue → the `/stream` SSE generator yields it → the React dashboard's EventSource receives it.</details>
+
+**3.** Name four event types and when each is emitted.
+<details><summary>Answer</summary>step (each stage), progress (after batches), metric (a family's new best), composite (each island at each scoring call), tier_state (after split, promotion, swap, rollback), switch (interventions), log (console lines).</details>
+
+**4.** What does the `composite` event's `composite` field actually carry?
+<details><summary>Answer</summary>The island's UCB score (composite plus bonus).</details>
+
+**5.** Can telemetry slow down or crash the search? Why not?
+<details><summary>Answer</summary>No: posts run in daemon threads with a short timeout and failures are ignored.</details>
+
+**6.** What does the reporter do if the server is not running when a run starts?
+<details><summary>Answer</summary>It keeps writing events.jsonl and re-probes the server every 10 s, enabling live telemetry once it answers.</details>
+
+**7.** Which command starts the relay server, and on which port by default?
+<details><summary>Answer</summary>`evosynth serve`, port 8000 (`settings/telemetry.toml`).</details>
+
+**8.** Which five `switch` actions can appear?
+<details><summary>Answer</summary>Promotion, Swap, Rollback, Injection, Elite Sharing.</details>

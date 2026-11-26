@@ -206,3 +206,37 @@ Further constants, all in `settings/engine.toml`:
 | Automatic k | `engine.auto_k`, `engine.min_t2_checkpoints` | on, ≥ 2 Tier 2 checkpoints |
 
 The commands apply presets on top (e.g. `evosynth run` uses `[experiments.search_demo]`: budget 200, pop 40, t1 3, k 2; `--full` uses budget 500). Settings are validated when loaded (`config.validate`).
+
+---
+
+## Quiz
+
+**1.** Which folder holds every tunable value, and how are its files combined?
+<details><summary>Answer</summary>`settings/`; every `*.toml` file is merged into one set of settings, and a top-level section may be defined in only one file.</details>
+
+**2.** In what order is a setting's value resolved?
+<details><summary>Answer</summary>settings/*.toml → the command's preset → command-line flags → `--set` overrides (later wins).</details>
+
+**3.** Name the module that creates one independent random generator per component, and why it matters.
+<details><summary>Answer</summary>`src/evosynth/seeding.py` (`stream(*names)`); it makes a run reproducible from `run.seed` regardless of thread timing, and draws in one component never shift another's numbers.</details>
+
+**4.** List the files a search run writes to its run folder.
+<details><summary>Answer</summary>`manifest.json`, `result.json`, `run.log`, `events.jsonl`, `population.csv` and `model.pkl` (plus checkpoints for scaling and ablation).</details>
+
+**5.** Which two files from results are committed to git?
+<details><summary>Answer</summary>`manifest.json` and `result.json` (plus `summary/` folders); logs, CSVs and models are not.</details>
+
+**6.** What is the single path through which every evaluation passes, and name two things it guarantees.
+<details><summary>Answer</summary>`_evaluate_batch`: the budget is never exceeded (requests are truncated), and every evaluation is counted, logged to population.csv and compared with the global best.</details>
+
+**7.** Why are evaluations run in threads rather than processes, and is the speed-up real?
+<details><summary>Answer</summary>XGBoost, LightGBM and scikit-learn release the GIL in native training code, so threads run truly in parallel while sharing the loaded data.</details>
+
+**8.** What does `engine.auto_k` do?
+<details><summary>Answer</summary>Lowers the checkpoint interval k so that Tier 2 reaches at least `min_t2_checkpoints` (2) checkpoints within the budget.</details>
+
+**9.** Can the dashboard be started after a run has begun? Why?
+<details><summary>Answer</summary>Yes; the EventReporter re-probes the server every 10 s while it is unreachable, and all events are also saved to `events.jsonl`.</details>
+
+**10.** Which module holds the one refit used by every tuned method?
+<details><summary>Answer</summary>`src/evosynth/models/refit.py` (`refit_and_score`).</details>

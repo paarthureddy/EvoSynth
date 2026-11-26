@@ -256,3 +256,49 @@ Holds the weights `{fitness 0.30, speed 0.25, efficiency 0.15, diversity 0.15, t
 | CMA-ES | Updates often failed silently (seeds told with the first generation) | One update per generation with its own samples |
 | PSO / DE | PSO re-evaluated its seeds; both only used the first members when asked for fewer | Seeds are moved first; members visited round-robin; DE one-to-one selection |
 | Records | Printed tables only | `scoring_history`, `decisions`, `evaluated` |
+
+---
+
+## Quiz
+
+**1.** Which object makes the promotion and SWAP decisions, and with what exploration constant?
+<details><summary>Answer</summary>`UCB1Bandit`, with c = 0.1 (`bandit.c`).</details>
+
+**2.** Write the five composite metrics and their weights.
+<details><summary>Answer</summary>Fitness 0.30, speed 0.25, efficiency 0.15, diversity 0.15, trend 0.15.</details>
+
+**3.** How is diversity computed, and why divide by √d?
+<details><summary>Answer</summary>Mean pairwise Euclidean distance between the island's latent vectors, divided by √d (the largest possible distance in [0,1]^d), so it lies between 0 and 1.</details>
+
+**4.** A family improved its best by 0.6 points using 3 seconds of evaluation time since its last scoring call. What are its speed and efficiency?
+<details><summary>Answer</summary>Speed 0.6; efficiency 0.6 / 3 = 0.2 per second.</details>
+
+**5.** Why is a composite score only meaningful within one scoring table?
+<details><summary>Answer</summary>Each metric is min-max normalised across the islands scored together, so scores are relative to the other islands at that moment.</details>
+
+**6.** With N = 60, what are the Tier 1 island size and the size of each Tier 2 island after promotion?
+<details><summary>Answer</summary>Island size int(60·0.4)//4 = 6; reserve 36 in two groups of 18; each Tier 2 island 6 + 18 = 24.</details>
+
+**7.** Budget 500, N 40, t1_iters 5, k_iters 3. What k does auto_k choose?
+<details><summary>Answer</summary>remaining = 500 − 40 − 5·16 = 380; t2_iters = 380 // 40 = 9; k = max(1, min(3, 9 // 2)) = 3.</details>
+
+**8.** State the SWAP rule exactly.
+<details><summary>Answer</summary>Swap when UCB(best Tier 1) > UCB(worst Tier 2) + 0.10, the Tier 1 family has no cooldown, and no grace period is active.</details>
+
+**9.** What happens if a swapped-in family fails to improve the global best within its grace period?
+<details><summary>Answer</summary>Rollback: the demoted family's snapshot returns to Tier 2, the challenger is rebuilt in Tier 1 with fresh random members, and it gets a cooldown of 2k.</details>
+
+**10.** How does pairwise elite sharing differ from the v1 pooled sharing?
+<details><summary>Answer</summary>Each Tier 2 island receives the other island's top 20% (in place of its own worst 20%); in v1 both islands received the same pooled elites.</details>
+
+**11.** When does a Tier 2 island get random injection, and how much?
+<details><summary>Answer</summary>After 3 consecutive checkpoints without improvement; 20% of its members are replaced by fresh random vectors (through `inject`).</details>
+
+**12.** In the worked example, why is PSO promoted ahead of GA although GA has the higher best score?
+<details><summary>Answer</summary>PSO's speed, efficiency, diversity and trend are the highest, which outweighs GA's fitness advantage in the composite (0.764 vs 0.549).</details>
+
+**13.** Do confirm-before-select fits count against the evaluation budget?
+<details><summary>Answer</summary>No; they happen after the search and are reported separately in result.json.</details>
+
+**14.** Name three records the controller keeps after `run()` for later analysis.
+<details><summary>Answer</summary>`evaluated` (all individuals), `scoring_history` (every scoring call's metrics, composite and UCB) and `decisions` (promotions, swaps, rollbacks, injections, elite exchanges).</details>

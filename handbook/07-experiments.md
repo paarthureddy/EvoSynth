@@ -89,3 +89,37 @@ py -3.14 tools/run_experiments.py core --dry-run   # list its jobs and which are
 The main comparison per dataset and seed is: EvoSynth (`--full`, 500 evaluations), Random Search (500), Optuna TPE (500), untuned defaults, and FLAML with the same wall time as that EvoSynth search. Every search uses `--subsample 10000`. A job whose run folder is already `completed` is skipped, so the runner can be stopped and restarted; progress goes to `results/runner.log`, and `evosynth summary` runs at the end.
 
 **Cost.** One evaluation takes about 1–9 s with 8 threads at 20,000 rows (MiniBooNE slowest, Poker Hand fastest); `smoke` takes about 6 hours, `core` about 2–2.5 days. The full original plan (all datasets, 5 seeds, every budget and ablation) would take about 3 weeks on one laptop.
+
+---
+
+## Quiz
+
+**1.** Name the six experiment commands and what each answers.
+<details><summary>Answer</summary>run (one search + refit), scale (score vs budget), baselines (reference methods), ablation (each EA alone, tier splits), nas (non-tabular search), speedup (what parallelism and early stopping save).</details>
+
+**2.** What four things do all tuned methods share so that their test scores are comparable?
+<details><summary>Answer</summary>The same splits, the same evaluator (CV, early stopping, metric), the same confirm-before-select and the same refit.</details>
+
+**3.** How should Random Search, Optuna and FLAML be budgeted against an EvoSynth run of 500 evaluations?
+<details><summary>Answer</summary>Random Search and Optuna: 500 evaluations each; FLAML: the same wall-clock seconds as that EvoSynth search.</details>
+
+**4.** In the ablation, why are the isolated runs scored together rather than separately?
+<details><summary>Answer</summary>Composite scores are min-max normalised across islands; one island alone would always tie. Scoring the four together reproduces what the controller would measure.</details>
+
+**5.** Where do EvoSynth's diversity, composite and UCB in the ablation come from now?
+<details><summary>Answer</summary>From the controller's own `scoring_history` (no constants).</details>
+
+**6.** What does `--splits stratified,random,elite` add to an ablation?
+<details><summary>Answer</summary>Two extra EvoSynth runs with the random and elite tier splits: the split ablation.</details>
+
+**7.** An ablation is interrupted half-way through PSO. What happens when you re-run the command?
+<details><summary>Answer</summary>Completed parts are skipped and PSO resumes from its last checkpoint with its full state (particles, generators), producing the same results as an uninterrupted run.</details>
+
+**8.** Which plan was run in Phase 5, and why not the full plan?
+<details><summary>Answer</summary>The `smoke` plan (seed 42, Covertype and Adult, ablation, speed-up, NAS); the full plan would take about three weeks on one laptop.</details>
+
+**9.** What does `evosynth summary` produce, and from what?
+<details><summary>Answer</summary>Mean ± std tables (main, ablation, NAS) and convergence curves in results/summary/, from every completed run folder.</details>
+
+**10.** Why does Random Search take about three times longer than EvoSynth for the same 500 evaluations?
+<details><summary>Answer</summary>It evaluates one configuration at a time; EvoSynth evaluates batches in parallel threads.</details>

@@ -207,3 +207,43 @@ best = DynamicOptimizer(search_space=MyEvaluator().space, evaluator=MyEvaluator(
 - Keep `evaluate` thread-safe, because it is called from a thread pool.
 - Set `n_jobs=1` inside models.
 - Return a bounded score.
+
+---
+
+## Quiz
+
+**1.** List the 8 dimensions of the tabular space in vector order.
+<details><summary>Answer</summary>colsample_bytree, fe_strategy, learning_rate, max_depth, model_type, n_estimators, reg_alpha, subsample (alphabetical).</details>
+
+**2.** Why was the `booster` gene removed?
+<details><summary>Answer</summary>XGBoost 3.4 deprecates the dart booster; XGBoost now always uses gbtree, which also removes a mostly wasted dimension.</details>
+
+**3.** Decode `model_type` = 0.81 and 0.25.
+<details><summary>Answer</summary>0.81 → ExtraTrees (bin 0.75–1); 0.25 → RandomForest (bin 0.25–0.5).</details>
+
+**4.** Which metric is used for Covertype, Adult and Poker Hand?
+<details><summary>Answer</summary>Accuracy (Covertype, multiclass), ROC AUC (Adult, binary), accuracy (Poker Hand, multiclass).</details>
+
+**5.** In what order are a dataset's test, search and train rows created, and which may overlap?
+<details><summary>Answer</summary>Test rows first; then search rows and train rows are drawn from the rest. Search and train may overlap; neither overlaps test.</details>
+
+**6.** What does a failed fold score now, and how would you notice many failures?
+<details><summary>Answer</summary>0; each failure is printed and counted in `failed_folds` in result.json.</details>
+
+**7.** For XGBoost in the search, which data is used for early stopping and which for the score?
+<details><summary>Answer</summary>Early stopping on 15% of the training fold; the score on the validation fold.</details>
+
+**8.** Why does XGBoost sometimes need its labels re-coded?
+<details><summary>Answer</summary>XGBoost requires training labels 0..K−1; when a training fold lacks a rare class (Poker Hand), labels are re-coded for training and mapped back for prediction.</details>
+
+**9.** How are RandomForest and ExtraTrees made cheaper during the search?
+<details><summary>Answer</summary>Their trees are capped at 150 (and depth is max_depth·3, or unlimited at the top value).</details>
+
+**10.** What does `evaluate_config` do, and who uses it?
+<details><summary>Answer</summary>Scores decoded hyperparameters with a chosen number of folds; confirm-before-select uses it with 5 folds.</details>
+
+**11.** What changed in the NAS evaluator's data?
+<details><summary>Answer</summary>From 1,797 8×8 digits to Fashion-MNIST (28×28, 10 classes), training on 10,000 and validating on 2,500 images, with the official test set held out.</details>
+
+**12.** Which function should a custom evaluator use to decode vectors, and why?
+<details><summary>Answer</summary>`decode_vector_to_dict`, so categoricals, integers and log scales are decoded exactly as in EvoSynth's own evaluators.</details>
