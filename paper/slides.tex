@@ -134,16 +134,17 @@
 % --- SLIDE 2: PROPOSED METHODOLOGY & OVERALL WORKFLOW ---
 \begin{frame}{2. Proposed Methodology \& Overall Workflow}
     \framesubtitle{End-to-End Research Methodology / System Workflow Architecture}
+    \vspace{-0.35cm}
+    % Full slide width (edge to edge minus 2 mm each side); keepaspectratio picks
+    % whichever of width/height binds first, so the figure never overflows.
     \centering
-    \begin{figure}
-        \centering
+    \makebox[\textwidth][c]{%
         \includegraphics[
-            width=0.82\textwidth,
-            height=0.52\textheight,
+            width=\dimexpr\paperwidth-4mm\relax,
+            height=0.93\textheight,
             keepaspectratio
-        ]{arch.png}
-    \end{figure}
-    \vspace{-0.15cm}
+        ]{arch.png}%
+    }
 
     % \begin{block}{Workflow Summary}
     %     \scriptsize
