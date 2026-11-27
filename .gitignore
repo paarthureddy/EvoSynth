@@ -60,3 +60,6 @@ results/archive/**/csv/
 # diagram source (rendered to arch.png)
 !paper/figures/arch_source.html
 !handbook/run-walkthrough.html
+!handbook/htmlbuild/template.html
+handbook/evosynth-handbook.html
+handbook/htmlbuild/node_modules/

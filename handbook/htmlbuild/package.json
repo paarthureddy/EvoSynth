@@ -1,0 +1,13 @@
+{
+  "name": "evosynth-handbook-build",
+  "private": true,
+  "type": "module",
+  "description": "Builds the single-page HTML handbook from handbook/*.md",
+  "scripts": {
+    "build": "node build.mjs .. ../evosynth-handbook.html local"
+  },
+  "dependencies": {
+    "katex": "^0.19.1",
+    "markdown-it": "^15.0.3"
+  }
+}

@@ -1,0 +1,184 @@
+<title>EvoSynth Handbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: reference manual. Sticky chapter rail on the left (wide screens), one long reading column on the right;
+   on phones the rail becomes a collapsible contents block above the text. */
+:root {
+  --bg: #f5f7f6;          /* paper, faint green-grey bias */
+  --surface: #ffffff;
+  --fg: #18211d;
+  --muted: #5b6862;
+  --rule: #dce3df;
+  --accent: #0e6a58;      /* deep teal: links, active chapter, numbers */
+  --accent-soft: #e2efeb;
+  --code-bg: #edf1ef;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --step--1: 0.8125rem; --step-0: 1rem; --step-1: 1.1875rem; --step-2: 1.4375rem; --step-3: 2rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --surface: #171d1a; --fg: #e2e9e5; --muted: #98a69f; --rule: #29322e;
+    --accent: #5fc4ab; --accent-soft: #1b2c27; --code-bg: #1b2320; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --surface: #171d1a; --fg: #e2e9e5; --muted: #98a69f; --rule: #29322e;
+  --accent: #5fc4ab; --accent-soft: #1b2c27; --code-bg: #1b2320; color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--step-0); line-height: 1.65; }
+.shell {
+  display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 3rem;
+  max-width: 78rem; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 2rem 4rem;
+}
+
+/* ---- chapter rail */
+.rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 1.25rem); align-self: start;
+  max-height: calc(100vh - 2.5rem); overflow-y: auto; font-size: var(--step--1); }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: var(--step-2); letter-spacing: -0.01em; line-height: 1.2; }
+.brand small { display: block; font-family: var(--font-body); font-weight: 500; font-size: var(--step--1); color: var(--muted); letter-spacing: 0; margin-top: 0.25rem; }
+.toc summary { list-style: none; cursor: pointer; display: none; }
+.toc summary::-webkit-details-marker { display: none; }
+.group-label { margin: 1.5rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; font-weight: 600; color: var(--muted); }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.toc a { display: grid; grid-template-columns: 1.75rem 1fr; gap: 0.25rem; padding: 0.3rem 0.5rem; border-radius: 6px; color: var(--fg); text-decoration: none; }
+.toc a .n { font-family: var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.toc a:hover { background: var(--accent-soft); }
+.toc a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.toc a.active .n { color: var(--accent); }
+.toc a:focus-visible, main a:focus-visible, .toc summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- masthead */
+.masthead { border-bottom: 1px solid var(--rule); padding-bottom: 1.75rem; margin-bottom: 1rem; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; font-weight: 600; color: var(--accent); margin: 0; }
+.masthead h1 { font-family: var(--font-display); font-size: clamp(1.75rem, 4vw, 2.6rem); line-height: 1.15; letter-spacing: -0.015em; margin: 0.4rem 0 0.75rem; text-wrap: balance; max-width: 26ch; }
+.masthead p { max-width: 68ch; margin: 0.5rem 0; color: var(--muted); }
+.facts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 1.25rem 0 0; padding: 0; list-style: none; font-size: var(--step--1); }
+.facts li { display: grid; }
+.facts b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--fg); }
+.facts span { color: var(--muted); }
+.note { margin-top: 1.25rem; padding: 0.85rem 1rem; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; font-size: 0.9rem; max-width: 72ch; }
+.note b { color: var(--fg); }
+
+/* ---- chapters */
+main { min-width: 0; }
+.chapter { padding-top: 2.5rem; margin-top: 2.5rem; border-top: 1px solid var(--rule); scroll-margin-top: 1rem; }
+.chapter:first-of-type { border-top: 0; margin-top: 0; }
+.chapter[data-num]:not([data-num=""])::before { content: "Chapter " attr(data-num); display: block; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; font-weight: 600; color: var(--accent); }
+.chapter h1, .chapter h2, .chapter h3, .chapter h4 { font-family: var(--font-display); line-height: 1.25; text-wrap: balance; scroll-margin-top: 1rem; }
+.chapter h1 { font-size: var(--step-3); letter-spacing: -0.015em; margin: 0.3rem 0 1rem; }
+.chapter h2 { font-size: var(--step-2); margin: 2.25rem 0 0.75rem; }
+.chapter h3 { font-size: var(--step-1); margin: 1.75rem 0 0.5rem; }
+.chapter h4 { font-size: var(--step-0); margin: 1.5rem 0 0.4rem; }
+.chapter p, .chapter li, .chapter blockquote { max-width: 72ch; }
+.chapter ul, .chapter ol { padding-left: 1.35rem; }
+.chapter li + li { margin-top: 0.2rem; }
+.chapter a { color: var(--accent); text-underline-offset: 2px; }
+.chapter hr { border: 0; border-top: 1px dashed var(--rule); margin: 2rem 0; }
+.chapter blockquote { margin: 1rem 0; padding: 0.25rem 1rem; border-left: 3px solid var(--rule); color: var(--muted); }
+.chapter :not(pre) > code { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+.code, .table-wrap, .diagram { overflow-x: auto; margin: 1rem 0; max-width: 100%; }
+.code pre { margin: 0; padding: 0.9rem 1rem; background: var(--code-bg); border-radius: 8px; font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.55; }
+.diagram { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem; }
+.diagram pre { margin: 0; }
+table { border-collapse: collapse; font-size: 0.875rem; min-width: 60%; }
+th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; background: var(--surface); border-bottom-color: var(--fg); }
+td { font-variant-numeric: tabular-nums; }
+math { font-size: 1.05em; }
+math[display="block"] { margin: 0.75rem 0; overflow-x: auto; }
+.colophon { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: var(--step--1); color: var(--muted); }
+
+/* ---- phone / narrow */
+@media (max-width: 920px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding-block: 1rem 3rem; }
+  .rail { position: static; max-height: none; overflow: visible; border-bottom: 1px solid var(--rule); padding-bottom: 1rem; }
+  .toc summary { display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem; padding: 0.55rem 0.75rem; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; font-weight: 600; }
+  .toc summary::after { content: "+"; font-family: var(--font-mono); color: var(--muted); }
+  .toc[open] summary::after { content: "−"; }
+}
+main figure.fig { margin: 1.2rem 0; }
+main figure.fig img { display: block; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--rule); }
+main details { border: 1px solid var(--rule); border-radius: 8px; padding: 0.35rem 0.75rem; margin: 0.35rem 0 1rem; }
+main details summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+main details[open] { background: var(--surface); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">EvoSynth<small>Project handbook · Group G002</small></div>
+    <details class="toc" id="toc" open>
+      <summary>Contents</summary>
+      <p class="group-label">Start here</p>
+      <ol>
+{{NAV_PREREQ}}
+      </ol>
+      <p class="group-label">Handbook</p>
+      <ol>
+{{NAV_HANDBOOK}}
+      </ol>
+      <p class="group-label">Panel defence</p>
+      <ol>
+{{NAV_DEFENCE}}
+      </ol>
+      <p class="group-label">Interactive</p>
+      <ol>
+<li><a href="run-walkthrough.html" target="_blank" rel="noopener"><span class="n">▶</span><span>One run, step by step</span></a></li>
+      </ol>
+    </details>
+  </aside>
+
+  <main>
+    <header class="masthead">
+      <p class="eyebrow">Internal reference · not part of the official documentation site</p>
+      <h1>Dynamic Multi-Armed Bandit Meta-Optimizer for Model Selection and Hyperparameter Tuning</h1>
+      <p>Everything about the project in one place: the idea, the code, the experiments, the results, the paper, and the material prepared for the Panel Review.</p>
+      <ul class="facts" aria-label="Engine defaults">
+        <li><b>GA · PSO · DE · CMA-ES</b><span>one shared evaluation budget</span></li>
+        <li><b>40 / 60</b><span>Tier 1 / Tier 2 split</span></li>
+        <li><b>c = 0.1</b><span>UCB exploration</span></li>
+        <li><b>0.30 · 0.25 · 0.15 · 0.15 · 0.15</b><span>composite weights</span></li>
+        <li><b>[0, 1]<sup>8</sup></b><span>tabular latent space</span></li>
+      </ul>
+      <div class="note"><b>Status.</b> New to the field? Start with the three <b>prerequisite</b> chapters. Chapters 00a–07, 12 and Commands describe the code after the fix plan (Phases 0–5) and end with a quiz; an interactive <a href="run-walkthrough.html" target="_blank" rel="noopener">step-by-step run walkthrough</a> shows one run end to end. Chapters 08–11 report the Phase 5 smoke run (Covertype and Adult, seed 42) with charts; chapter 11 now holds all the panel-defence material.</div>
+    </header>
+
+{{SECTIONS}}
+
+    <p class="colophon">Generated from <code>handbook/</code> at commit <code>{{COMMIT}}</code>.</p>
+  </main>
+</div>
+
+<script>
+(function () {
+  var toc = document.getElementById("toc");
+  var narrow = window.matchMedia("(max-width: 920px)");
+  function syncToc() { toc.open = !narrow.matches; }
+  syncToc();
+  if (narrow.addEventListener) narrow.addEventListener("change", syncToc);
+  toc.addEventListener("click", function (e) { if (narrow.matches && e.target.closest("a")) toc.open = false; });
+
+  var links = {};
+  document.querySelectorAll(".toc a[data-target]").forEach(function (a) { links["sec-" + a.dataset.target] = a; });
+  if (!("IntersectionObserver" in window)) return;
+  var current = null;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) {
+        if (current) current.classList.remove("active");
+        current = links[en.target.id];
+        if (current) current.classList.add("active");
+      }
+    });
+  }, { rootMargin: "-10% 0px -80% 0px" });
+  document.querySelectorAll(".chapter").forEach(function (s) { io.observe(s); });
+})();
+</script>

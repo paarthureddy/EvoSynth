@@ -76,7 +76,8 @@ The full tables and their caveats are in [08-results.md](08-results.md).
 | [12-setup-and-usage.md](12-setup-and-usage.md) | Prerequisites and installation (Python, Node), dependencies, dataset caching, and how to run each `evosynth` command with its flags and `--set` overrides. Expected outputs, files produced and typical runtimes. Running the telemetry server and dashboard. Building the docs site. The experiment runner. Using EvoSynth from Python code. Troubleshooting. |
 | [commands.md](commands.md) | Every command with its options and defaults: setup, `evosynth run / scale / baselines / ablation / nas / speedup / summary / serve / settings / datasets`, the experiment runner, dashboard, docs and tests, and common recipes. |
 | [run-walkthrough.html](run-walkthrough.html) | An interactive, animated walkthrough of one run in 20 steps; at each step that can go wrong you choose success or a failure to see what happens. Open it in a browser. |
-| [figures/](figures/) | The handbook's SVG figures and `make_figures.py`, which regenerates them. |
+| [figures/](figures/) | The handbook's SVG figures and `make_figures.py`, which regenerates them. `make_results_figures.py` redraws the chapter 08 charts from `results/summary/`. |
+| `htmlbuild/` | Builds the single-page HTML version of this handbook: `cd handbook/htmlbuild && npm install && npm run build` writes `handbook/evosynth-handbook.html` (git-ignored). |
 
 The files are numbered in reading order. Newcomers read 00a → 00c first. Then 01 → 03 explain the system (with the run walkthrough alongside), 07 → 08 give the evidence, 11 prepares a defence, and 12 plus Commands cover day-to-day use.
 
