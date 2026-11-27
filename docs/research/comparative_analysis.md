@@ -275,7 +275,7 @@
 
   ## 6. Empirical Benchmark Evidence (Phase 5 smoke run, seed 42)
 
-  Full tables, charts and caveats are in [handbook/08-results.md](../../handbook/08-results.md); the raw files are in `results/`.
+  Full tables, charts and caveats are in [handbook/08-results.md](https://github.com/paarthureddy/EvoSynth/blob/main/handbook/08-results.md); the raw files are in `results/`.
 
   ### 6.1 Protocol
   * **Datasets:** UCI Covertype (581,012 rows, 54 features, 7 classes; accuracy) and Adult (48,842 rows, 14 features, binary; ROC AUC). Fixed splits published in EvoSynth-Bench v2.0.0.

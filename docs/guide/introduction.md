@@ -50,3 +50,5 @@ The topic name reflects the 4 foundational stages of the pipeline:
 * **Early Stopping:** Terminates unpromising tree boosting runs early, using a slice of the training data.
 * **Reproducible:** One seed reproduces a run exactly; every setting lives in `settings/*.toml`.
 * **Glass-Box Telemetry:** Live streaming via Server-Sent Events (SSE) into a React visualization dashboard.
+
+For measured results against Random Search, Optuna and FLAML on Covertype and Adult, see [Results](./results.md).
