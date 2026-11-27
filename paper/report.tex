@@ -80,16 +80,16 @@
 
 \section{Abstract}
 \noindent
-Automated Machine Learning (AutoML) seeks to remove manual trial-and-error by automatically searching for optimal machine learning pipelines. However, contemporary frameworks (e.g., Optuna, FLAML, and H2O AutoML) rely on a single, fixed search algorithm throughout the optimization lifetime. As established by the No Free Lunch theorem, no single optimization heuristic consistently dominates across complex, rugged, and non-convex hyperparameter landscapes, causing static systems to stagnate. Furthermore, post-hoc ensembling methods achieve high accuracy only by stacking numerous large models, resulting in prohibitively high inference latencies and severe cloud memory footprints. 
+Automated Machine Learning (AutoML) seeks to remove manual trial-and-error by automatically searching for optimal machine learning pipelines. However, contemporary frameworks (e.g., Optuna \cite{akiba2019optuna}, FLAML \cite{wang2021flaml}, and H2O AutoML \cite{ledell2020h2o}) rely on a single, fixed search algorithm throughout the optimization lifetime. As established by the No Free Lunch theorem \cite{wolpert1997no}, no single optimization heuristic consistently dominates across complex, rugged, and non-convex hyperparameter landscapes, causing static systems to stagnate. Furthermore, post-hoc ensembling methods achieve high accuracy only by stacking numerous large models, resulting in prohibitively high inference latencies and severe cloud memory footprints. 
 
-To overcome these fundamental challenges, this research presents \textbf{EvoSynth}, a dynamic multi-armed bandit meta-optimizer for automated model selection and hyperparameter optimization. EvoSynth maps mixed continuous, discrete, and categorical hyperparameters into a unified mathematical latent space $[0,1]^d$. It concurrently coordinates four diverse evolutionary and metaheuristic optimizers: Genetic Algorithms (GA), Particle Swarm Optimization (PSO), Differential Evolution (DE), and Covariance Matrix Adaptation Evolution Strategy (CMA-ES). A UCB1 multi-armed bandit meta-engine monitors a 5-metric composite reward (fitness, speed, efficiency, population diversity, and improvement trend) to dynamically allocate evaluations and execute live tier promotion, demotion (SWAPs), and rollback safeguards across a two-tier island topology. After the search, the five best distinct configurations are re-scored with 5-fold cross-validation and the selected one is refitted once and scored once on held-out test rows. Under an identical protocol on UCI Covertype (581,012 samples, 7 classes) and Adult (48,842 samples, binary), EvoSynth reached \textbf{93.89\% test accuracy} and \textbf{92.96 ROC AUC} with 500 evaluations, level with Random Search and Optuna TPE (within 0.03 points), 1.4 points above FLAML on Covertype and 0.17 below it on Adult, while selecting a different model family for each dataset (ExtraTrees with interaction features, and XGBoost). In an optimizer ablation it matched the best single optimizer without knowing in advance which one that would be, and parallel evaluation gave a measured \textbf{6.1$\times$} speed-up. EvoSynth delivers a single model, whose serving cost is that of the selected family (0.26\,ms per row for the Adult XGBoost, 12.5\,ms for the Covertype ExtraTrees).
+To overcome these fundamental challenges, this research presents \textbf{EvoSynth}, a dynamic multi-armed bandit meta-optimizer for automated model selection and hyperparameter optimization. EvoSynth maps mixed continuous, discrete, and categorical hyperparameters into a unified mathematical latent space $[0,1]^d$. It concurrently coordinates four diverse evolutionary and metaheuristic optimizers: Genetic Algorithms (GA) \cite{holland1975adaptation}, Particle Swarm Optimization (PSO) \cite{kennedy1995particle}, Differential Evolution (DE) \cite{storn1997differential}, and Covariance Matrix Adaptation Evolution Strategy (CMA-ES) \cite{hansen2001completely}. A UCB1 \cite{auer2002finite} multi-armed bandit meta-engine monitors a 5-metric composite reward (fitness, speed, efficiency, population diversity, and improvement trend) to dynamically allocate evaluations and execute live tier promotion, demotion (SWAPs), and rollback safeguards across a two-tier island topology \cite{alba2002parallelism}. After the search, the five best distinct configurations are re-scored with 5-fold cross-validation and the selected one is refitted once and scored once on held-out test rows. Under an identical protocol on UCI Covertype \cite{blackard1999comparative} (581,012 samples, 7 classes) and Adult \cite{kohavi1996scaling} (48,842 samples, binary), EvoSynth reached \textbf{93.89\% test accuracy} and \textbf{92.96 ROC AUC} with 500 evaluations, level with Random Search \cite{bergstra2012random} and Optuna TPE \cite{bergstra2011algorithms} (within 0.03 points), 1.4 points above FLAML on Covertype and 0.17 below it on Adult, while selecting a different model family for each dataset (ExtraTrees \cite{geurts2006extremely} with interaction features, and XGBoost \cite{chen2016xgboost}). In an optimizer ablation it matched the best single optimizer without knowing in advance which one that would be, and parallel evaluation gave a measured \textbf{6.1$\times$} speed-up. EvoSynth delivers a single model, whose serving cost is that of the selected family (0.26\,ms per row for the Adult XGBoost, 12.5\,ms for the Covertype ExtraTrees).
 
 % --- 2. PROBLEM DEFINITION, MOTIVATION & LITERATURE SURVEY ---
 \section{Problem Definition, Research Motivation \& Literature Review}
 
 \subsection{Problem Statement \& Research Motivation}
 \begin{itemize}[noitemsep, topsep=2pt]
-    \item \textbf{Problem Statement:} Traditional AutoML frameworks employ static search strategies (e.g., standard Bayesian Optimization, single-sampler TPE, or localized greedy descent) that cannot adapt when encountering local optima, deceptive plateaus, or non-convex topological shifts. Consequently, significant computational budgets are squandered evaluating suboptimal regions using an underperforming algorithm.
+    \item \textbf{Problem Statement:} Traditional AutoML frameworks \cite{feurer2019hyperparameter, bischl2023hyperparameter} employ static search strategies (e.g., standard Bayesian Optimization \cite{hutter2011sequential}, single-sampler TPE \cite{bergstra2011algorithms}, or localized greedy descent) that cannot adapt when encountering local optima, deceptive plateaus, or non-convex topological shifts. Consequently, significant computational budgets are squandered evaluating suboptimal regions using an underperforming algorithm.
     \item \textbf{Research Motivation:} In production and edge environments, machine learning solutions must balance accuracy against deployment practicality. Existing solutions that produce large ensemble stacks introduce unsustainable inference latencies and memory footprints. There is a critical need for an adaptive meta-optimizer that dynamically detects search stagnation, swaps optimization strategies during runtime, and delivers a single, highly tuned standalone model.
     \item \textbf{Research Objectives:}
     \begin{enumerate}[noitemsep, topsep=2pt]
@@ -111,22 +111,32 @@ Recent advances in automated machine learning and metaheuristic optimization hig
         \hline
         \textbf{Author / Year / Citation} & \textbf{Core Methodology Used} & \textbf{Key Findings / Strengths} & \textbf{Identified Limitations} \\
         \hline
-        Scrivano (2025) \cite{ref1} & Comprehensive survey on AutoML frameworks and paradigms. & Outlines trends toward full-pipeline automation and accessibility. & Emphasizes lack of dynamic algorithm switching across search stages. \\
+        Franceschi et al. (2025) \cite{franceschi2025hyperparameter} & Monograph on HPO: random, bandit, model-, population- and gradient-based methods. & Unified treatment of HPO families and open problems. & Survey only; no new method or experiments. \\
         \hline
-        Alcoba\c{c}a \& Carvalho (2025) \cite{ref2} & Systematic literature review of HPO methodologies. & Catalogs Bayesian, evolutionary, and bandit-based formulations. & Highlights vulnerability of static samplers to premature convergence. \\
+        Alcoba\c{c}a \& Carvalho (2026) \cite{alcobaca2026literature} & Systematic review of AutoML literature reviews (meta-learning, HPO, transfer). & Organizes the field and its research directions. & Survey only; no dynamic switching between optimizers within a run. \\
         \hline
-        Wang et al. (2021) \cite{ref9} (FLAML) & Cost-frugal local search with randomized restarts. & Exceptional compute efficiency on simple tabular datasets. & Vulnerable to stagnation on highly multi-modal, rugged surfaces. \\
+        Guo et al. (2024) \cite{guo2024deep} (RL-DAS) & Deep RL agent switches among DE variants during a run, with context restoration. & Dynamic switching improves overall optimization performance and generalizes across problem classes. & Needs offline agent training; tested on benchmark functions, not ML pipelines. \\
         \hline
-        LeDell \& Poirier (2020) \cite{ref10} (H2O AutoML) & Sequential random/grid search followed by stacked ensembling. & High final accuracy via 10-model stacked ensembles. & Heavy deployment footprint; excessive RAM and high inference latency. \\
+        \v{C}repin\v{s}ek et al. (2025) \cite{crepinsek2025overcoming} (MsMA) & Meta-level wrapper that reallocates a metaheuristic's budget when progress stalls. & Improved every tested algorithm on CEC'24 and a real load-flow problem. & Wraps one algorithm at a time; theoretical benchmark functions rather than AutoML. \\
         \hline
-        Crepin\v{s}ek et al. (2025) \cite{ref5} & Adaptive meta-level partitioning for metaheuristics. & Proves exploration diversity prevents algorithm stagnation. & Focuses on theoretical benchmark functions rather than applied AutoML pipelines. \\
+        Ma et al. (2025) \cite{ma2025toward} & Survey and benchmark of meta-black-box optimization (learned algorithm selection/configuration). & Taxonomy of selection, configuration and generation; identifies designs that generalize. & Learned controllers must be trained offline on a distribution of problems. \\
+        \hline
+        Benjamins et al. (2025) \cite{benjamins2025carps} (carps) & Framework to compare $N$ HPO optimizers on $M$ benchmark tasks. & 3336 tasks and 26 optimizer variants; representative task subsets. & Benchmarks optimizers one at a time; no online portfolio among them. \\
+        \hline
+        Rezaei Balef et al. (2025) \cite{balef2025cash} (MaxUCB) & Max $k$-armed bandit over model classes, each with its own HPO run, for CASH. & Outperforms combined search and prior bandit methods on four AutoML benchmarks; theoretical analysis. & Arms are model classes with one fixed tuner each; assumes stationary rewards. \\
+        \hline
+        Schneider et al. (2025) \cite{schneider2025overtuning} & Large-scale reanalysis of HPO benchmark data for overtuning. & Overtuning is common; in about 10\% of cases the chosen configuration is worse than the default. & Motivates, but does not provide, a remedy such as re-scoring the top candidates. \\
+        \hline
+        Nagler et al. (2024) \cite{nagler2024reshuffling} & Theory and experiments on reshuffling resampling splits during HPO. & Reshuffling makes cheap holdout competitive with cross-validation. & The selection protocol still matters; fixed splits can overfit the validation data. \\
+        \hline
+        Erickson et al. (2025) \cite{erickson2025tabarena} (TabArena) & Living benchmark of 16 tabular models on 51 datasets. & Tuning plus post-hoc ensembling gives the best tabular accuracy. & Ensembles add inference cost; single-model deployment is not the focus. \\
         \hline
     \end{tabular}
     \caption{Summary of Key Literature Surveyed and Identified Limitations}
 \end{table}
 
 \noindent
-\textbf{Summary of Research Gap:} While prior literature addresses either localized speed (FLAML), hyperparameter ensembling (H2O), or theoretical stagnation avoidance (Crepin\v{s}ek et al.), no applied AutoML system dynamically evaluates, promotes, swaps, and rollbacks multiple distinct evolutionary search heuristics concurrently to output a single Pareto-optimal model.
+\textbf{Summary of Research Gap:} Recent work allocates HPO budget among model classes with a bandit (MaxUCB \cite{balef2025cash}), switches among evolutionary algorithms with an offline-trained agent (RL-DAS \cite{guo2024deep}), or reallocates the budget of a single stalled metaheuristic (MsMA \cite{crepinsek2025overcoming}); AutoML systems either commit to one search strategy (FLAML) or ensemble many models (H2O, TabArena \cite{erickson2025tabarena}). No applied AutoML system runs several distinct evolutionary optimizers concurrently on one joint CASH space \cite{thornton2013autoweka}, reallocates budget among them online without offline training, promotes, swaps and rolls them back, and delivers a single confirmed model whose selection guards against overtuning \cite{schneider2025overtuning, nagler2024reshuffling}.
 
 % --- 3. PROPOSED METHODOLOGY & SOLUTION DESIGN ---
 \section{Proposed Methodology \& Solution Design}
@@ -160,8 +170,8 @@ EvoSynth adopts a fully decoupled architecture separating search heuristics from
         \item \textit{Tier 2 (Working Exploitation):} The two families with the highest UCB scores after the tournament are promoted; each takes one reserve group. At every checkpoint the two Tier 2 islands trade elites pairwise (each one's worst 20\% replaced by the other's best 20\%). Stagnant islands receive random members through the optimizer's \texttt{inject} method: 50\% at once in Tier 1, 20\% after three stagnant checkpoints in Tier 2.
         \item \textit{Dynamic SWAP \& Rollback:} If the best Tier 1 family's UCB score exceeds the weaker Tier 2 family's by more than an additive margin of 0.10, the two are swapped. If the promoted family does not improve the global best within a 5-iteration grace period, the swap is rolled back from a saved snapshot. Every promotion, swap, rollback, injection and elite exchange is recorded in the run's decision log.
     \end{itemize}
-    \item \textbf{Search Space \& Evaluator:} The tabular search space has 8 dimensions: model family (\textit{XGBoost, LightGBM, RandomForest, ExtraTrees}), feature-engineering strategy (\textit{none, stats, interactions}), and 6 numeric hyperparameters (learning rate, number of estimators, maximum depth, subsample ratio, column-sample ratio, and L1 regularisation). Each candidate is scored by stratified 2-fold cross-validation on the dataset's search rows, in the dataset's own metric (accuracy or ROC AUC); gradient-boosted models stop early on a 15\% slice of the training fold.
-    \item \textbf{Confirm Before Select:} Search scores from 2-fold CV are noisy and biased upwards by selection. After the search, the 5 best distinct configurations are re-scored with 5-fold CV and the best confirmed configuration is selected.
+    \item \textbf{Search Space \& Evaluator:} The tabular search space has 8 dimensions: model family (\textit{XGBoost} \cite{chen2016xgboost}, \textit{LightGBM} \cite{ke2017lightgbm}, \textit{RandomForest} \cite{breiman2001random}, \textit{ExtraTrees} \cite{geurts2006extremely}), feature-engineering strategy (\textit{none, stats, interactions}), and 6 numeric hyperparameters (learning rate, number of estimators, maximum depth, subsample ratio, column-sample ratio, and L1 regularisation). Each candidate is scored by stratified 2-fold cross-validation on the dataset's search rows, in the dataset's own metric (accuracy or ROC AUC); gradient-boosted models stop early on a 15\% slice of the training fold.
+    \item \textbf{Confirm Before Select:} Search scores from 2-fold CV are noisy and biased upwards by selection \cite{schneider2025overtuning, nagler2024reshuffling}. After the search, the 5 best distinct configurations are re-scored with 5-fold CV and the best confirmed configuration is selected.
 \end{itemize}
 
 % --- 4. COMPLETE IMPLEMENTATION DETAILS (100%) ---
@@ -170,7 +180,7 @@ EvoSynth adopts a fully decoupled architecture separating search heuristics from
 \subsection{Implementation Environment \& Execution Setup}
 \begin{itemize}[noitemsep, topsep=2pt]
     \item \textbf{Hardware \& Compute Specifications:} Standard multi-core personal computer (AMD/Intel 8-core CPU, 16\,GB RAM, standard SSD storage). No specialized GPU acceleration was required for tabular optimization, proving computational accessibility.
-    \item \textbf{Software \& Libraries:} Python 3.14, Scikit-Learn 1.6+, XGBoost 2.1+, LightGBM 4.5+, PyTorch 2.5+, Optuna and FLAML (baselines), FastAPI, React 19, and Vite.
+    \item \textbf{Software \& Libraries:} Python 3.14, Scikit-Learn 1.6+ \cite{pedregosa2011scikit}, XGBoost 2.1+, LightGBM 4.5+, PyTorch 2.5+ \cite{paszke2019pytorch}, Optuna and FLAML (baselines), FastAPI, React 19, and Vite.
     \item \textbf{Source Code Repository:} Public GitHub repository maintained at \url{https://github.com/paarthureddy/EvoSynth} (active development branch: \texttt{PostReview2}), complete with continuous documentation at \url{https://evosynth-2027.github.io/evosynth-docs/} and benchmark dataset archiving on Zenodo (EvoSynth-Bench v2.0.0, DOI: 10.5281/zenodo.23645119).
 \end{itemize}
 
@@ -193,7 +203,7 @@ EvoSynth adopts a fully decoupled architecture separating search heuristics from
         \hline
         Generic Feature Engineer & Dataset-agnostic transformer generating statistical aggregations and pairwise interactions. & 100\% (Integrated) \\
         \hline
-        Datasets \& Evaluators & Eight real datasets (Covertype, HIGGS, Adult, Airlines, Poker Hand, MiniBooNE, Jannis, Fashion-MNIST) with fixed test / search / train rows; cross-validated evaluation of the four tree families and a CNN evaluator for NAS. & 100\% (Functional) \\
+        Datasets \& Evaluators & Eight real datasets (Covertype, HIGGS, Adult, Airlines, Poker Hand, MiniBooNE, Jannis, Fashion-MNIST \cite{xiao2017fashion}) with fixed test / search / train rows; cross-validated evaluation of the four tree families and a CNN evaluator for NAS \cite{zoph2016neural}. & 100\% (Functional) \\
         \hline
         Selection, Refit \& Inference & Confirm-before-select, one shared refit for EvoSynth, Random Search and Optuna, held-out test scoring, and measurement of single-row latency, throughput and model size. & 100\% (Integrated) \\
         \hline
@@ -290,7 +300,7 @@ The same engine searched CNN architectures on Fashion-MNIST (channels, fully con
 \begin{itemize}[noitemsep, topsep=2pt]
     \item \textbf{Conclusion:} EvoSynth coordinates four evolutionary and swarm optimizers through a two-tier island model and a UCB1 bandit, searching model family, feature engineering and hyperparameters together. Under an identical held-out protocol it matched Random Search and Optuna on Covertype (93.89\%) and Adult (92.96 ROC AUC), chose the right model family for each, matched the best single optimizer in the ablation without knowing it in advance, and was the fastest tuned search on Covertype.
     \item \textbf{Current Limitations:} On these datasets EvoSynth does not beat strong baselines, and FLAML was best on Adult; the results are from a single seed; the Covertype search space has a plateau that every competent method reaches; execution is on a single machine.
-    \item \textbf{Future Scope:} (1) multi-seed runs on harder datasets (HIGGS, Poker Hand); (2) comparison with portfolio baselines such as Nevergrad's NGOpt on surrogate benchmarks with many tasks; (3) rank-normalised bandit rewards and a latency-aware objective; (4) distributed workers via Ray.
+    \item \textbf{Future Scope:} (1) multi-seed runs on harder datasets (HIGGS, Poker Hand); (2) comparison with portfolio baselines such as Nevergrad's NGOpt \cite{meunier2022blackbox} on surrogate benchmarks with many tasks; (3) rank-normalised bandit rewards and a latency-aware objective; (4) distributed workers via Ray.
 \end{itemize}
 
 % --- 8. DELIVERABLES & TECHNICAL ENRICHMENT SUMMARY ---
@@ -328,35 +338,87 @@ The same engine searched CNN architectures on Fashion-MNIST (channels, fully con
 \begin{thebibliography}{99}
 \small
 
-\bibitem{ref1}
-A. Scrivano, ``The Emergence of Automated Machine Learning (AutoML): Trends and Future Prospects,'' \textit{Research Square}, 2025.
+\item[] \textbf{Research Papers}
 
-\bibitem{ref2}
-E. Alcoba\c{c}a and A. C. P. L. F. de Carvalho, ``A Literature Review on Automated Machine Learning,'' \textit{Artificial Intelligence Review}, Springer, 2025.
+\bibitem{wolpert1997no} D. H. Wolpert and W. G. Macready, ``No free lunch theorems for optimization,'' \textit{IEEE Trans. Evol. Comput.}, vol. 1, no. 1, pp. 67--82, 1997.
 
-\bibitem{ref3}
-E. L. Estevanell-Valladares \textit{et al.}, ``XAutoLM: Efficient Fine-Tuning of Language Models via Meta-Learning and AutoML,'' in \textit{Proc. Empirical Methods in Natural Language Processing (EMNLP)}, 2025, pp. 7863--7880.
+\bibitem{storn1997differential} R. Storn and K. Price, ``Differential evolution -- A simple and efficient heuristic for global optimization over continuous spaces,'' \textit{J. Global Optimization}, vol. 11, no. 4, pp. 341--359, 1997.
 
-\bibitem{ref4}
-G. Borboudakis, P. Charonyktakis, K. Paraschakis, and I. Tsamardinos, ``A Meta-Level Learning Algorithm for Sequential Hyper-Parameter Space Reduction in AutoML,'' \textit{arXiv preprint arXiv:2312.06305}, 2024.
+\bibitem{hansen2001completely} N. Hansen and A. Ostermeier, ``Completely derandomized self-adaptation in evolution strategies,'' \textit{Evolutionary Computation}, vol. 9, no. 2, pp. 159--195, 2001.
 
-\bibitem{ref5}
-M. Crepin\v{s}ek \textit{et al.}, ``Overcoming Stagnation in Metaheuristic Algorithms with MsMA's Adaptive Meta-Level Partitioning,'' \textit{Mathematics}, vol. 13, no. 11, p. 1803, 2025.
+\bibitem{auer2002finite} P. Auer, N. Cesa-Bianchi, and P. Fischer, ``Finite-time analysis of the multiarmed bandit problem,'' \textit{Machine Learning}, vol. 47, no. 2--3, pp. 235--256, 2002.
 
-\bibitem{ref6}
-M. Gerber, A. S. Bosman, and J. P. de Villiers, ``Online Meta-Learning for AutoML in Real-Time,'' \textit{arXiv preprint arXiv:2502.20279}, 2025.
+\bibitem{alba2002parallelism} E. Alba and M. Tomassini, ``Parallelism and evolutionary algorithms,'' \textit{IEEE Trans. Evol. Comput.}, vol. 6, no. 5, pp. 443--462, 2002.
 
-\bibitem{ref7}
-P. Auer, N. Cesa-Bianchi, and P. Fischer, ``Finite-time analysis of the multiarmed bandit problem,'' \textit{Machine Learning}, vol. 47, no. 2, pp. 235--256, 2002.
+\bibitem{blackard1999comparative} J. A. Blackard and D. J. Dean, ``Comparative accuracies of artificial neural networks and discriminant analysis in predicting forest cover types from cartographic variables,'' \textit{Computers and Electronics in Agriculture}, vol. 24, no. 3, pp. 131--151, 1999.
 
-\bibitem{ref8}
-D. H. Wolpert and W. G. Macready, ``No free lunch theorems for optimization,'' \textit{IEEE Trans. Evolutionary Computation}, vol. 1, no. 1, pp. 67--82, 1997.
+\bibitem{bergstra2012random} J. Bergstra and Y. Bengio, ``Random search for hyper-parameter optimization,'' \textit{J. Mach. Learn. Res.}, vol. 13, no. 10, pp. 281--305, 2012.
 
-\bibitem{ref9}
-C. Wang, Q. Wu, M. Weimer, and E. Zhu, ``FLAML: A fast and lightweight AutoML library,'' \textit{Proc. Machine Learning and Systems}, vol. 3, pp. 434--447, 2021.
+\bibitem{geurts2006extremely} P. Geurts, D. Ernst, and L. Wehenkel, ``Extremely randomized trees,'' \textit{Machine Learning}, vol. 63, no. 1, pp. 3--42, 2006.
 
-\bibitem{ref10}
-E. LeDell and S. Poirier, ``H2O AutoML: Scalable automatic machine learning,'' in \textit{ICML Workshop on Automated Machine Learning}, 2020.
+\bibitem{bischl2023hyperparameter} B. Bischl \textit{et al.}, ``Hyperparameter optimization: Foundations, algorithms, best practices, and open challenges,'' \textit{WIREs Data Mining and Knowledge Discovery}, vol. 13, no. 2, p. e1484, 2023.
+
+\bibitem{franceschi2025hyperparameter} L. Franceschi \textit{et al.}, ``Hyperparameter optimization in machine learning,'' \textit{Foundations and Trends in Machine Learning}, vol. 18, no. 6, pp. 1054--1201, 2025.
+
+\bibitem{alcobaca2026literature} E. Alcoba\c{c}a and A. C. P. L. F. de Carvalho, ``A literature review on automated machine learning,'' \textit{Artificial Intelligence Review}, vol. 59, art. no. 5, 2026.
+
+\bibitem{guo2024deep} H. Guo \textit{et al.}, ``Deep reinforcement learning for dynamic algorithm selection: A proof-of-principle study on differential evolution,'' \textit{IEEE Trans. Syst., Man, Cybern.: Syst.}, vol. 54, no. 7, pp. 4247--4259, 2024.
+
+\bibitem{crepinsek2025overcoming} M. \v{C}repin\v{s}ek, M. Mernik, M. Bekovi\'{c}, M. Pintari\v{c}, M. Moravec, and M. Ravber, ``Overcoming stagnation in metaheuristic algorithms with MsMA's adaptive meta-level partitioning,'' \textit{Mathematics}, vol. 13, no. 11, art. no. 1803, 2025.
+
+\bibitem{ma2025toward} Z. Ma, H. Guo, Y.-J. Gong, J. Zhang, and K. C. Tan, ``Toward automated algorithm design: A survey and practical guide to meta-black-box-optimization,'' \textit{IEEE Trans. Evol. Comput.}, 2025, doi:10.1109/TEVC.2025.3568053.
+
+\bibitem{breiman2001random} L. Breiman, ``Random forests,'' \textit{Machine Learning}, vol. 45, no. 1, pp. 5--32, 2001.
+
+\bibitem{pedregosa2011scikit} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+
+\bibitem{meunier2022blackbox} L. Meunier \textit{et al.}, ``Black-box optimization revisited: Improving algorithm selection wizards through massive benchmarking,'' \textit{IEEE Trans. Evol. Comput.}, vol. 26, no. 3, pp. 490--500, 2022.
+
+\item[] \textbf{Conference Papers}
+
+\bibitem{akiba2019optuna} T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama, ``Optuna: A next-generation hyperparameter optimization framework,'' in \textit{Proc. 25th ACM SIGKDD Int. Conf. Knowledge Discovery and Data Mining}, 2019, pp. 2623--2631.
+
+\bibitem{wang2021flaml} C. Wang, Q. Wu, M. Weimer, and E. Zhu, ``FLAML: A fast and lightweight AutoML library,'' in \textit{Proc. Machine Learning and Systems (MLSys)}, vol. 3, 2021, pp. 434--447.
+
+\bibitem{ledell2020h2o} E. LeDell and S. Poirier, ``H2O AutoML: Scalable automatic machine learning,'' in \textit{7th ICML Workshop on Automated Machine Learning}, 2020.
+
+\bibitem{kennedy1995particle} J. Kennedy and R. Eberhart, ``Particle swarm optimization,'' in \textit{Proc. ICNN'95 Int. Conf. Neural Networks}, vol. 4, 1995, pp. 1942--1948.
+
+\bibitem{kohavi1996scaling} R. Kohavi, ``Scaling up the accuracy of naive-Bayes classifiers: A decision-tree hybrid,'' in \textit{Proc. 2nd Int. Conf. Knowledge Discovery and Data Mining (KDD)}, 1996, pp. 202--207.
+
+\bibitem{bergstra2011algorithms} J. Bergstra, R. Bardenet, Y. Bengio, and B. K{\'e}gl, ``Algorithms for hyper-parameter optimization,'' in \textit{Advances in Neural Information Processing Systems}, vol. 24, 2011.
+
+\bibitem{chen2016xgboost} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD Int. Conf. Knowledge Discovery and Data Mining}, 2016, pp. 785--794.
+
+\bibitem{hutter2011sequential} F. Hutter, H. H. Hoos, and K. Leyton-Brown, ``Sequential model-based optimization for general algorithm configuration,'' in \textit{Learning and Intelligent Optimization (LION 5)}, LNCS vol. 6683. Berlin: Springer, 2011, pp. 507--523.
+
+\bibitem{balef2025cash} A. Rezaei Balef, C. Vernade, and K. Eggensperger, ``Put CASH on bandits: A max K-armed problem for automated machine learning,'' in \textit{Advances in Neural Information Processing Systems}, vol. 38, 2025; arXiv:2505.05226.
+
+\bibitem{schneider2025overtuning} L. Schneider, B. Bischl, and M. Feurer, ``Overtuning in hyperparameter optimization,'' in \textit{Proc. 4th Int. Conf. Automated Machine Learning (AutoML)}, 2025; arXiv:2506.19540.
+
+\bibitem{nagler2024reshuffling} T. Nagler, L. Schneider, B. Bischl, and M. Feurer, ``Reshuffling resampling splits can improve generalization of hyperparameter optimization,'' in \textit{Advances in Neural Information Processing Systems}, vol. 37, 2024.
+
+\bibitem{erickson2025tabarena} N. Erickson \textit{et al.}, ``TabArena: A living benchmark for machine learning on tabular data,'' in \textit{Advances in Neural Information Processing Systems (Datasets and Benchmarks Track)}, vol. 38, 2025; arXiv:2506.16791.
+
+\bibitem{thornton2013autoweka} C. Thornton, F. Hutter, H. H. Hoos, and K. Leyton-Brown, ``Auto-WEKA: Combined selection and hyperparameter optimization of classification algorithms,'' in \textit{Proc. 19th ACM SIGKDD Int. Conf. Knowledge Discovery and Data Mining}, 2013, pp. 847--855.
+
+\bibitem{ke2017lightgbm} G. Ke \textit{et al.}, ``LightGBM: A highly efficient gradient boosting decision tree,'' in \textit{Advances in Neural Information Processing Systems}, vol. 30, 2017, pp. 3146--3154.
+
+\bibitem{paszke2019pytorch} A. Paszke \textit{et al.}, ``PyTorch: An imperative style, high-performance deep learning library,'' in \textit{Advances in Neural Information Processing Systems}, vol. 32, 2019, pp. 8024--8035.
+
+\bibitem{zoph2016neural} B. Zoph and Q. V. Le, ``Neural architecture search with reinforcement learning,'' in \textit{Proc. Int. Conf. Learning Representations (ICLR)}, 2017.
+
+\item[] \textbf{Books and Book Chapters}
+
+\bibitem{holland1975adaptation} J. H. Holland, \textit{Adaptation in Natural and Artificial Systems}. Ann Arbor, MI: Univ. of Michigan Press, 1975.
+
+\bibitem{feurer2019hyperparameter} M. Feurer and F. Hutter, ``Hyperparameter optimization,'' in \textit{Automated Machine Learning: Methods, Systems, Challenges}, F. Hutter, L. Kotthoff, and J. Vanschoren, Eds. Cham: Springer, 2019, pp. 3--33.
+
+\item[] \textbf{Preprints}
+
+\bibitem{benjamins2025carps} C. Benjamins \textit{et al.}, ``carps: A framework for comparing N hyperparameter optimizers on M benchmarks,'' arXiv:2506.06143, 2025.
+
+\bibitem{xiao2017fashion} H. Xiao, K. Rasul, and R. Vollgraf, ``Fashion-MNIST: A novel image dataset for benchmarking machine learning algorithms,'' arXiv:1708.07747, 2017.
 
 \end{thebibliography}
 

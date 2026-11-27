@@ -37,18 +37,8 @@ The paper follows the standard IEEE conference structure used in AutoML and evol
 | VII. Conclusion | summary and future work (multi-seed runs, HIGGS / Poker Hand, NGOpt and surrogate benchmarks, rank-normalised rewards, latency-aware objectives) |
 | Data Availability | code, docs site, EvoSynth-Bench v2.1.0 DOI |
 
-### References (35)
-Every reference was checked against its publisher record (Crossref DOI metadata, JMLR, NeurIPS proceedings, arXiv, Semantic Scholar) on 2026-11-27; three issue numbers were corrected (Bergstra & Bengio 2012 is JMLR 13(10); Auer et al. 2002 is 47(2–3); Fialho et al. 2010 is 60(1–2)) and LightGBM's pages added.
-
-| Group | References |
-|---|---|
-| HPO and CASH | Feurer & Hutter 2019; Bischl et al. 2023; Thornton et al. 2013 (Auto-WEKA); Bergstra & Bengio 2012; Bergstra et al. 2011 (TPE); Hutter et al. 2011 (SMAC); Akiba et al. 2019 (Optuna); Feurer et al. 2015 (auto-sklearn); Li et al. 2018 (Hyperband); Wang et al. 2021 (FLAML); Schneider et al. 2025 (overtuning) |
-| Optimizers and theory | Kennedy & Eberhart 1995 (PSO); Storn & Price 1997 (DE); Hansen & Ostermeier 2001 (CMA-ES); Wolpert & Macready 1997 (NFL); Auer et al. 2002 (UCB1) |
-| Algorithm selection and portfolios | Rice 1976; Kerschke et al. 2019; Fialho et al. 2010; Peng et al. 2010; Vrugt & Robinson 2007 (AMALGAM); Meunier et al. 2022 (NGOpt) |
-| Population-based search and NAS | Alba & Tomassini 2002; Jaderberg et al. 2017 (PBT); Real et al. 2019; Zoph & Le 2017 |
-| AutoML systems | LeDell & Poirier 2020 (H2O); Erickson et al. 2020 (AutoGluon) |
-| Models | Chen & Guestrin 2016 (XGBoost); Breiman 2001 (random forests); Ke et al. 2017 (LightGBM); Geurts et al. 2006 (extremely randomized trees) |
-| Datasets | Blackard & Dean 1999 (Covertype); Kohavi 1996 (Adult); Xiao et al. 2017 (Fashion-MNIST) |
+### References (47)
+Every method, baseline, model, dataset and library the paper uses is cited. Textbook concepts (cross-validation, ROC AUC, stacking, CNNs) and datasets that appear only in future work (HIGGS, Poker Hand) are not. The bibliography is split into **Research Papers** (journal articles), **Conference Papers**, **Books and Book Chapters** and **Preprints**, each in order of first citation. It includes the ten recent (2024–2026) papers of the literature review: MaxUCB, RL-DAS, the MetaBBO survey, MsMA, Franceschi et al., Alcobaça & de Carvalho, overtuning, reshuffling, TabArena and carps. What each reference says and how EvoSynth uses it is in [11-papers.md](11-papers.md). The report lists 37 references, built the same way; the slides list only the ten recent papers.
 
 ---
 
@@ -68,7 +58,7 @@ Every reference was checked against its publisher record (Crossref DOI metadata,
 | 6. Results | the two-dataset table (best untuned, FLAML, Random Search, Optuna, EvoSynth) and findings: tie with the strong baselines, right family per dataset, ablation, the Covertype SWAP and rollback |
 | 7. Comparison | Optuna / FLAML / H2O / EvoSynth matrix with measured Covertype scores; single-model cost (0.26–12.5 ms); live demo with `evosynth run --full --dataset adult` |
 | 8. Justification | NFL and the two tiers; latent space; 6.1× from parallel evaluation; rollback, injection and confirm-before-select; limitations (ties rather than wins, one seed, the Covertype plateau, single machine) and future scope |
-| References | the ten review references (Scrivano 2025 … LeDell & Poirier 2020) |
+| References | the ten recent (2024–2026) review papers only, grouped as Research Papers, Conference Papers and Preprints (see [11-papers.md](11-papers.md)) |
 
 The deck ends with "Thank You — Questions & Viva Voce".
 

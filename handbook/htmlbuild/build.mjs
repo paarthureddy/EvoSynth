@@ -21,9 +21,10 @@ const FILES = [
   ["08-results.md", "ch-08", null, "handbook"],
   ["09-comparative-analysis.md", "ch-09", null, "handbook"],
   ["10-paper.md", "ch-10", null, "handbook"],
-  ["11-panel-defense-qa.md", "ch-11", null, "defence"],
+  ["11-papers.md", "ch-11", null, "handbook"],
   ["12-setup-and-usage.md", "ch-12", null, "handbook"],
   ["commands.md", "commands", "Commands", "handbook"],
+  ["13-panel-defense-qa.md", "ch-13", null, "defence"],
 ];
 const ID_OF = Object.fromEntries(FILES.map(([f, id]) => [f, id]));
 

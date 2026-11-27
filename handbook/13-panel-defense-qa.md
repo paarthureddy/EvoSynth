@@ -1,4 +1,4 @@
-# 11 — Panel Defence & Viva Q&A
+# 13 — Panel Defence & Viva Q&A
 
 This chapter is the single place to prepare a review or viva. It merges the earlier Q&A chapter and the separate "Master Panel Defense Guide" (which is retired), and every number in it is from the Phase 5 smoke run ([08](08-results.md)). Where older defence material overstated something, the answer here gives the accurate version: a panel that checks a claim and finds it false will distrust everything else.
 

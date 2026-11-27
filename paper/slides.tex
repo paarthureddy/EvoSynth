@@ -115,8 +115,8 @@
         \scriptsize
         \begin{itemize}
             \setlength{\itemsep}{1pt}
-            \item \textbf{Existing Methods:} Optuna (one sampler per study), FLAML (cost-frugal local search), H2O (random/Bayesian search + multi-model stacking at prediction time).
-            \item \textbf{Research Gap:} No framework runs a portfolio of evolutionary optimizers concurrently, reallocates budget among them online with swaps and rollback, and delivers a single model.
+            \item \textbf{Existing Methods:} Optuna (one sampler per study), FLAML (cost-frugal local search), H2O (stacked ensembles); MaxUCB \cite{balef2025cash} (bandit over model classes, one tuner each); RL-DAS \cite{guo2024deep} (offline-trained switching among DE variants).
+            \item \textbf{Research Gap:} No framework runs a portfolio of evolutionary optimizers concurrently on one CASH space, reallocates budget among them online without offline training, with swaps and rollback, and delivers a single model.
         \end{itemize}
     \end{block}
 
@@ -420,7 +420,7 @@
             \begin{itemize}
                 \setlength{\itemsep}{1pt}
                 \item \textit{Current:} Ties (does not beat) strong baselines; FLAML best on Adult; one seed; Covertype space has a plateau every method reaches; single machine.
-                \item \textit{Future Scope:} Multi-seed runs on HIGGS / Poker Hand; NGOpt and surrogate-benchmark comparison; latency-aware objective; Ray workers.
+                \item \textit{Future Scope:} Multi-seed runs on HIGGS / Poker Hand; NGOpt and surrogate-benchmark comparison \cite{benjamins2025carps}; latency-aware objective; Ray workers.
             \end{itemize}
         \end{block}
     \end{columns}
@@ -438,35 +438,31 @@
 \fontsize{6.5}{8}\selectfont
 \begin{thebibliography}{99}
 
-\bibitem{ref1}
-A. Scrivano, ``The Emergence of Automated Machine Learning (AutoML): Trends and Future Prospects,'' \textit{Research Square}, 2025.
+\item[] \textbf{Research Papers}
 
-\bibitem{ref2}
-E. Alcoba\c{c}a and A. C. P. L. F. de Carvalho, ``A Literature Review on Automated Machine Learning,'' \textit{Artificial Intelligence Review}, Springer, 2025.
+\bibitem{guo2024deep} H. Guo \textit{et al.}, ``Deep reinforcement learning for dynamic algorithm selection: A proof-of-principle study on differential evolution,'' \textit{IEEE Trans. Syst., Man, Cybern.: Syst.}, vol. 54, no. 7, pp. 4247--4259, 2024.
 
-\bibitem{ref3}
-E. L. Estevanell-Valladares \textit{et al.}, ``XAutoLM: Efficient Fine-Tuning of Language Models via Meta-Learning and AutoML,'' in \textit{Proc. Empirical Methods in Natural Language Processing (EMNLP)}, 2025, pp. 7863--7880.
+\bibitem{franceschi2025hyperparameter} L. Franceschi \textit{et al.}, ``Hyperparameter optimization in machine learning,'' \textit{Foundations and Trends in Machine Learning}, vol. 18, no. 6, pp. 1054--1201, 2025.
 
-\bibitem{ref4}
-G. Borboudakis, P. Charonyktakis, K. Paraschakis, and I. Tsamardinos, ``A Meta-Level Learning Algorithm for Sequential Hyper-Parameter Space Reduction in AutoML,'' \textit{arXiv preprint arXiv:2312.06305}, 2024.
+\bibitem{alcobaca2026literature} E. Alcoba\c{c}a and A. C. P. L. F. de Carvalho, ``A literature review on automated machine learning,'' \textit{Artificial Intelligence Review}, vol. 59, art. no. 5, 2026.
 
-\bibitem{ref5}
-M. Crepin\v{s}ek \textit{et al.}, ``Overcoming Stagnation in Metaheuristic Algorithms with MsMA's Adaptive Meta-Level Partitioning,'' \textit{Mathematics}, vol. 13, no. 11, p. 1803, 2025.
+\bibitem{crepinsek2025overcoming} M. \v{C}repin\v{s}ek, M. Mernik, M. Bekovi\'{c}, M. Pintari\v{c}, M. Moravec, and M. Ravber, ``Overcoming stagnation in metaheuristic algorithms with MsMA's adaptive meta-level partitioning,'' \textit{Mathematics}, vol. 13, no. 11, art. no. 1803, 2025.
 
-\bibitem{ref6}
-M. Gerber, A. S. Bosman, and J. P. de Villiers, ``Online Meta-Learning for AutoML in Real-Time,'' \textit{arXiv preprint arXiv:2502.20279}, 2025.
+\bibitem{ma2025toward} Z. Ma, H. Guo, Y.-J. Gong, J. Zhang, and K. C. Tan, ``Toward automated algorithm design: A survey and practical guide to meta-black-box-optimization,'' \textit{IEEE Trans. Evol. Comput.}, 2025, doi:10.1109/TEVC.2025.3568053.
 
-\bibitem{ref7}
-P. Auer, N. Cesa-Bianchi, and P. Fischer, ``Finite-time analysis of the multiarmed bandit problem,'' \textit{Machine Learning}, vol. 47, no. 2, pp. 235--256, 2002.
+\item[] \textbf{Conference Papers}
 
-\bibitem{ref8}
-D. H. Wolpert and W. G. Macready, ``No free lunch theorems for optimization,'' \textit{IEEE Trans. Evolutionary Computation}, vol. 1, no. 1, pp. 67--82, 1997.
+\bibitem{balef2025cash} A. Rezaei Balef, C. Vernade, and K. Eggensperger, ``Put CASH on bandits: A max K-armed problem for automated machine learning,'' in \textit{Advances in Neural Information Processing Systems}, vol. 38, 2025; arXiv:2505.05226.
 
-\bibitem{ref9}
-C. Wang, Q. Wu, M. Weimer, and E. Zhu, ``FLAML: A fast and lightweight AutoML library,'' \textit{Proc. Machine Learning and Systems}, vol. 3, pp. 434--447, 2021.
+\bibitem{schneider2025overtuning} L. Schneider, B. Bischl, and M. Feurer, ``Overtuning in hyperparameter optimization,'' in \textit{Proc. 4th Int. Conf. Automated Machine Learning (AutoML)}, 2025; arXiv:2506.19540.
 
-\bibitem{ref10}
-E. LeDell and S. Poirier, ``H2O AutoML: Scalable automatic machine learning,'' in \textit{ICML Workshop on Automated Machine Learning}, 2020.
+\bibitem{nagler2024reshuffling} T. Nagler, L. Schneider, B. Bischl, and M. Feurer, ``Reshuffling resampling splits can improve generalization of hyperparameter optimization,'' in \textit{Advances in Neural Information Processing Systems}, vol. 37, 2024.
+
+\bibitem{erickson2025tabarena} N. Erickson \textit{et al.}, ``TabArena: A living benchmark for machine learning on tabular data,'' in \textit{Advances in Neural Information Processing Systems (Datasets and Benchmarks Track)}, vol. 38, 2025; arXiv:2506.16791.
+
+\item[] \textbf{Preprints}
+
+\bibitem{benjamins2025carps} C. Benjamins \textit{et al.}, ``carps: A framework for comparing N hyperparameter optimizers on M benchmarks,'' arXiv:2506.06143, 2025.
 
 \end{thebibliography}
 \end{frame}
