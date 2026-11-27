@@ -12,6 +12,14 @@
 
 > **EvoSynth** is a next-generation Automated Machine Learning (AutoML) and Neural Architecture Search (NAS) framework. Rather than relying on a single static optimizer or expensive post-hoc ensembles, EvoSynth functions as a **Dynamic Meta-Optimizer**: it deploys multiple evolutionary and swarm intelligence algorithms simultaneously and uses a **Multi-Armed Bandit (UCB1)** controller to dynamically allocate computational budget in real time to the most effective strategy.
 
+| Resource | Link |
+| :--- | :--- |
+| Documentation site | [evosynth-2027.github.io/evosynth-docs](https://evosynth-2027.github.io/evosynth-docs/) |
+| Benchmark splits and results (EvoSynth-Bench) | Zenodo [10.5281/zenodo.23645119](https://doi.org/10.5281/zenodo.23645119) · [GitHub](https://github.com/laddasiddharth/EvoSynth-Bench) |
+| Results with charts and caveats | [handbook/08-results.md](handbook/08-results.md) |
+| Every command | [docs/guide/commands.md](docs/guide/commands.md) |
+| Paper, report and review slides (LaTeX) | [paper/](paper/README.md) |
+
 ---
 
 ## 🎯 Why This Title? (Workflow-to-Title Mapping)
@@ -25,7 +33,7 @@ When defending this project before an evaluation panel, every keyword in the tit
     │
     ├── 2. "Meta-Optimizer" ──────────────► Operates on a portfolio of 4 competing optimizers (GA, PSO, DE, CMA-ES)
     │
-    ├── 3. "Automated Model Selection" ───► Chooses optimal architecture (XGBoost, LightGBM, Random Forest, PyTorch CNN)
+    ├── 3. "Automated Model Selection" ───► Chooses the model family (XGBoost, LightGBM, RandomForest, ExtraTrees) or CNN architecture
     │
     └── 4. "Hyperparameter Tuning" ───────► Discovers optimal continuous/discrete parameters via Early Stopping & Latent Space
 ```
@@ -34,7 +42,7 @@ When defending this project before an evaluation panel, every keyword in the tit
 | :--- | :--- | :--- |
 | **Dynamic Multi-Armed Bandit** | The UCB1 bandit ranks the optimizer families for every promotion and SWAP: $UCB = \text{composite} + c \sqrt{\frac{\ln N}{n_i}}$ with $c = 0.1$, where the composite combines fitness, speed, efficiency, latent diversity and trend. | [`src/evosynth/engine/bandit.py`](src/evosynth/engine/bandit.py) |
 | **Meta-Optimizer** | Controls and coordinates multiple underlying optimization algorithms (Genetic Algorithm, Particle Swarm Optimization, Differential Evolution, CMA-ES) in a 2-Tier Island Model. | [`src/evosynth/engine/controller.py`](src/evosynth/engine/controller.py) |
-| **Automated Model Selection** | Decodes latent vectors to dynamically switch model families (`XGBoost`, `LightGBM`, `RandomForest`, or PyTorch `CNN`) within the same search loop. | [`src/evosynth/search_spaces/`](src/evosynth/search_spaces/) |
+| **Automated Model Selection** | Decodes latent vectors to switch model families (`XGBoost`, `LightGBM`, `RandomForest`, `ExtraTrees`) and the feature-engineering strategy within the same search loop; the NAS space does the same for PyTorch CNN architectures. | [`src/evosynth/search_spaces/`](src/evosynth/search_spaces/) |
 | **Hyperparameter Tuning** | Evaluates continuous & discrete parameters in parallel with early stopping to prevent wasted compute on suboptimal branches. | [`src/evosynth/evaluators/tabular.py`](src/evosynth/evaluators/tabular.py) |
 
 ---
@@ -114,15 +122,15 @@ flowchart TD
 ### 1. How EvoSynth Differs from Model Ensembling
 A frequent question in AutoML is: *"Why not just train multiple models and ensemble them (e.g., stacking, blending, or voting)?"*
 * **Inference Overhead:** Model ensembles combine multiple trained estimators at prediction time. Serving an ensemble in production multiplies latency, memory usage, and operational maintenance by the number of models in the ensemble.
-* **Single Optimal Deliverable:** EvoSynth uses dynamic algorithm selection strictly in the **offline search and optimization phase**. The competing evolutionary algorithms work together to discover a **single, lean, optimal model configuration** (or neural architecture) that whose serving cost is simply that of the chosen model (measured per run).
-* **Search Diversity vs. Predictive Aggregation:** Ensembles average model predictions to smooth variance. EvoSynth coordinates diverse search strategies to explore complex, multi-modal parameter spaces and locate global optima that individual optimizers fail to find.
+* **Single Optimal Deliverable:** EvoSynth uses dynamic algorithm selection strictly in the **offline search and optimization phase**. The competing evolutionary algorithms work together to discover a **single model configuration** (or neural architecture), whose serving cost is simply that of the chosen model (measured per run).
+* **Search Diversity vs. Predictive Aggregation:** Ensembles average model predictions to smooth variance. EvoSynth coordinates diverse search strategies so that the search does not depend on one optimizer suiting the landscape.
 
-### 2. Theoretical Superiority: The "No Free Lunch" Defense
+### 2. The "No Free Lunch" Argument
 According to the **No Free Lunch (NFL) Theorem for Optimization** (Wolpert & Macready, 1997), no single optimization algorithm can outperform all others across all problem landscapes:
 * Algorithms with strong global exploration (e.g., Genetic Algorithms with crossover/mutation) excel on rugged landscapes but converge slowly on unimodal basins.
-* Algorithms with aggressive exploitation and momentum (e.g., Particle Swarm Optimization, CMA-ES) converge rapidly on smooth convex topologies but become permanently trapped in local minima or noisy label regimes.
+* Algorithms with aggressive exploitation and momentum (e.g., Particle Swarm Optimization, CMA-ES) converge rapidly on smooth regions but can stall in local optima or on noisy scores.
 
-EvoSynth overcomes the NFL limitation by maintaining a **dynamic portfolio of complementary search algorithms**. By continuously evaluating fitness velocity, population diversity, and convergence trends, the UCB1 Bandit routes computational resources on the fly to the algorithm best suited for the current phase of the optimization landscape.
+EvoSynth does not claim to beat No Free Lunch; it **hedges** with a portfolio of complementary search algorithms. By continuously measuring improvement, population diversity and trend, the UCB1 bandit routes budget to whichever algorithm is making progress on the current problem. In the experiments the best single optimizer changed from run to run (PSO, CMA-ES, DE), and EvoSynth matched it each time without knowing it in advance.
 
 ### 3. Direct Comparison: EvoSynth vs. Optuna vs. FLAML vs. H2O.ai
 
@@ -142,7 +150,7 @@ EvoSynth overcomes the NFL limitation by maintaining a **dynamic portfolio of co
 
 ## 🌲 Results: Covertype and Adult (Phase 5 smoke run)
 
-Every method is scored once on held-out test rows that no search or selection ever sees. EvoSynth, Random Search and Optuna get 500 evaluations each and go through the same confirm-before-select and refit; FLAML gets the same wall time as EvoSynth. Searches use a fixed 10,000-row subset of each dataset's search rows; the exact splits are published in [EvoSynth-Bench v2.0.0](https://doi.org/10.5281/zenodo.23645119). **One seed (42)**, so differences of a few hundredths between tuned methods are ties.
+Every method is scored once on held-out test rows that no search or selection ever sees. EvoSynth, Random Search and Optuna get 500 evaluations each and go through the same confirm-before-select and refit; FLAML gets the same wall time as EvoSynth. Searches use a fixed 10,000-row subset of each dataset's search rows; the exact splits, and since v2.1.0 these results with every evaluation's trajectory, are published in EvoSynth-Bench ([Zenodo](https://doi.org/10.5281/zenodo.23645119), [GitHub](https://github.com/laddasiddharth/EvoSynth-Bench)). **One seed (42)**, so differences of a few hundredths between tuned methods are ties.
 
 | Method | Covertype test accuracy | Search time | Adult test ROC AUC | Search time |
 | :--- | :---: | :---: | :---: | :---: |
@@ -198,7 +206,7 @@ EvoSynth/
 │   ├── experiments.toml          # Presets for each command
 │   └── run.toml, telemetry.toml
 ├── src/evosynth/                 # The Python package
-│   ├── cli.py                    # `evosynth run | scale | ablation | baselines | nas | serve | settings | datasets`
+│   ├── cli.py                    # `evosynth run | scale | ablation | baselines | nas | speedup | summary | serve | settings | datasets`
 │   ├── config.py                 # Loads, merges and validates settings/
 │   ├── core/                     # Individual, latent-vector decoding
 │   ├── search_spaces/            # Tabular (8D), NAS and toy ConfigSpace spaces
@@ -211,14 +219,18 @@ EvoSynth/
 │   ├── telemetry/                # Event reporter, run logging, FastAPI SSE server
 │   └── experiments/              # search, scaling, ablation, baselines, nas, run folders
 ├── results/                      # One folder per run: <experiment>/<dataset>/<variant>/seed_<k>/
+│   ├── summary/                  # Tables and convergence curves built by `evosynth summary`
 │   └── archive/                  # Panel-review (v1) results, kept unchanged
-├── tools/run_experiments.py      # Experiment plans (smoke / lean / core) for the re-runs
+├── tools/
+│   ├── run_experiments.py        # Experiment plans (smoke / lean / core), restartable
+│   └── export_splits.py          # Writes the EvoSynth-Bench split files
 ├── dashboard/                    # React live telemetry dashboard (Vite + Tailwind CSS)
 ├── docs/                         # VitePress documentation site
 │   ├── research/                 # Comparative analysis, related papers
 │   └── public/                   # Logo and architecture figure
-├── handbook/                     # Internal project handbook, incl. panel defence (not on the site)
-└── paper/                        # Paper and slide sources (LaTeX), figures, links
+├── handbook/                     # Project handbook: prerequisites, internals, results, panel defence, quizzes,
+│                                 #   figures, an interactive run walkthrough and an HTML builder (htmlbuild/)
+└── paper/                        # paper.tex (IEEE), report.tex (review report), slides.tex (review deck), figures
 ```
 
 ---
@@ -245,7 +257,7 @@ pip install -e ".[all]"
 
 This installs the `evosynth` command (also available as `python -m evosynth`). Datasets are
 downloaded on first use into `.data/` (git-ignored), or all at once with `evosynth datasets download`
-(about 150 MB). `evosynth datasets list` shows every registered dataset, its metric and whether it is cached.
+(about 230 MB for all eight). `evosynth datasets list` shows every registered dataset, its metric and whether it is cached.
 
 ### 2. Run Real-World Benchmark (UCI Forest Covertype)
 Executes dynamic meta-optimization across 4 model families (XGBoost, LightGBM, RandomForest, ExtraTrees) with automated dataset-agnostic feature engineering and post-search generalization refit:
@@ -305,7 +317,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser to monitor a
 
 ## 📜 Documentation Site
 
-To browse the complete technical documentation site locally:
+The official documentation is published at **[evosynth-2027.github.io/evosynth-docs](https://evosynth-2027.github.io/evosynth-docs/)** (source: [EVOSYNTH-2027/evosynth-docs](https://github.com/EVOSYNTH-2027/evosynth-docs)). To browse this repository's copy locally:
 ```bash
 cd docs
 npm install
@@ -314,7 +326,16 @@ npm run docs:dev
 Open [http://localhost:5173](http://localhost:5173) (or the displayed VitePress port) to view full guides, algorithm math, API references, and developer tutorials.
 
 The complete project handbook (architecture, engine internals, experiments, results, setup) is in
-[`handbook/`](handbook/README.md); the paper and slides are in [`paper/`](paper/README.md).
+[`handbook/`](handbook/README.md), starting with three prerequisite chapters for readers new to ML or
+evolutionary algorithms; every chapter ends with a quiz. The paper, review report and slides are in
+[`paper/`](paper/README.md).
+
+## 🧪 Tests
+
+```bash
+pip install -e ".[all]"
+python -m pytest -q          # 88 tests, about 10 s
+```
 
 ---
 
