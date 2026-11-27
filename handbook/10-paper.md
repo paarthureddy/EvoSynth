@@ -75,14 +75,13 @@ Feurer & Hutter 2019; Bergstra & Bengio 2012; Auer et al. 2002; Kennedy & Eberha
 | Slide | Content |
 |---|---|
 | 1. Problem and motivation | single fixed optimizer; No Free Lunch; Optuna / FLAML / H2O; gap; objectives: UCB1 meta-engine, live SWAPs, accuracy level with strong baselines under an identical held-out protocol from one model |
-| 2. Workflow | `arch.png`; encode → stratified 40/60 split → UCB1 promotes top 2 → Tier 2 with pairwise elite sharing, SWAP and rollback → confirm top 5 → one refit → one test score |
+| 2. Workflow | The architecture figure `arch.png` only (the workflow-summary text block is kept in the source but commented out) |
 | 3. Components | composite and UCB formulas; stagnation guard; Covertype and Adult; the split protocol; metrics: test score, search time, inference cost, ablation |
 | 4. Implementation | module table including datasets, selection and refit, and the experiment harness |
 | 5. Core modules | control flow; default parameters: budget 500, population 40, T₁ 5, k 3 (auto), c 0.1, swap margin 0.10, grace 5, elite 20%, injection 50% / 20%, 8 dimensions, confirmation top 5 with 5-fold CV |
 | 6. Results | the two-dataset table (best untuned, FLAML, Random Search, Optuna, EvoSynth) and findings: tie with the strong baselines, right family per dataset, ablation, the Covertype SWAP and rollback |
-| 7. Comparison | Optuna / FLAML / H2O / EvoSynth matrix with measured Covertype scores; single-model cost (0.26–12.5 ms); live demo with `evosynth run`; Fashion-MNIST NAS 81.8% |
+| 7. Comparison | Optuna / FLAML / H2O / EvoSynth matrix with measured Covertype scores; single-model cost (0.26–12.5 ms); live demo with `evosynth run --full --dataset adult` |
 | 8. Justification | NFL and the two tiers; latent space; 6.1× from parallel evaluation; rollback, injection and confirm-before-select; limitations (ties rather than wins, one seed, the Covertype plateau, single machine) and future scope |
-| Enrichment | Individual certifications (as in the report): Kharat, Ladda, Narang — *Supervised Machine Learning in Python* (Udemy, 11 h); Loya, Reddy — *AI and Meta-Heuristics (Combinatorial Optimization) Python* (Udemy, 17.5 h) |
 | References | the ten review references (Scrivano 2025 … LeDell & Poirier 2020) |
 
 The deck ends with "Thank You — Questions & Viva Voce".
@@ -104,7 +103,7 @@ Two to three pages in the Amrita format (maroon headings, team and guide table):
 | 7. Conclusion | conclusion, limitations, future scope |
 | 8. Deliverables | repository, docs site, EvoSynth-Bench v2.0.0; individual certifications: Shivam Kharat, Siddharth Ladda and Priyansh Narang — *Supervised Machine Learning in Python* (Udemy, 11 h); Kaushal Loya and Paarthu Reddy — *AI and Meta-Heuristics (Combinatorial Optimization) Python* (Udemy, 17.5 h) |
 
-The deck's enrichment slide lists the same Udemy certifications as the report.
+The deck follows the review template: it has no technical-enrichment slide; the individual Udemy certifications are listed in the report (§8). Images are looked up in `figures/`, `../` and `./`, so the deck builds both inside `paper/` and in the template's original folder layout.
 
 ---
 
