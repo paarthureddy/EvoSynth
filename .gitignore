@@ -63,3 +63,4 @@ results/archive/**/csv/
 !handbook/htmlbuild/template.html
 handbook/evosynth-handbook.html
 handbook/htmlbuild/node_modules/
+!paper/figures/*.pdf

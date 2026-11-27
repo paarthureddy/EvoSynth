@@ -19,50 +19,36 @@ The Zenodo record (EvoSynth-Bench) is at **v2.0.0**: the eight real datasets' ex
 
 ## Part A — The paper (`paper/paper.tex`)
 
-**Title:** *EvoSynth: Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Hyperparameter Tuning and Model Selection*
-**Keywords:** HPO, AutoML, algorithm selection, multi-armed bandit, UCB1, GA, PSO, DE, CMA-ES, island model.
+**Title:** *EvoSynth: Dynamic Multi-Armed Bandit Meta-Optimizer for Automated Model Selection and Hyperparameter Tuning* (the registered project title)
+**Authors:** Shivam Kharat, Siddharth Ladda, Kaushal Loya, Paarthu Reddy, Priyansh Narang — Dept. of CSE, Amrita School of Computing, Amrita Vishwa Vidyapeetham, Coimbatore.
+**Index terms:** automated machine learning, hyperparameter optimization, algorithm selection, multi-armed bandit, evolutionary algorithms, island model.
 
-### Abstract (summary)
-- **Problem:** no single optimizer is best everywhere, yet most tuners commit the whole budget to one.
-- **Method:** a portfolio of GA, PSO, DE and CMA-ES in a two-tier island model, with budget reallocated online by a UCB1 bandit over a five-term composite score; model family, feature engineering and hyperparameters in one latent space; confirm before select, one refit, one score on held-out test rows.
-- **Results:** 93.89% on Covertype and 92.96 ROC AUC on Adult with 500 evaluations, level with Random Search and Optuna; FLAML 1.4 lower on Covertype and 0.17 higher on Adult; matches the best single optimizer in the ablation; 6.1× measured speed-up from parallel evaluation; 81.8% on Fashion-MNIST NAS.
+The paper follows the standard IEEE conference structure used in AutoML and evolutionary-computation venues: Introduction (with contributions) → Related Work → Method → Experimental Setup → Results → Discussion (with threats to validity) → Conclusion → Data Availability → References in order of first citation.
 
-### I. Introduction
-Hyperparameters and model choice (CASH); the drawbacks of grid/random search, single-strategy optimizers (No Free Lunch) and post-hoc ensembles. **Contributions:** (i) the two-tier bandit-controlled portfolio; (ii) one latent encoding of model, FE and hyperparameters; (iii) a protocol with fixed held-out test rows, confirm-before-select and an identical refit for every tuned method, published as EvoSynth-Bench v2.0.0; (iv) a measured comparison, ablation, speed-up benchmark and inference-cost measurement.
-
-### II. System workflow (Fig. 1 = `arch.png`)
-| Stage | Content |
+| Section | Content |
 |---|---|
-| 1. Latent space | 8 dimensions: model family, FE strategy, learning rate, n_estimators, max_depth, subsample, colsample, L1. Linear/log decoding; categorical bins `min(⌊zK⌋, K−1)`; inactive genes are carried |
-| 2. Population and split | N random vectors evaluated in parallel with 2-fold CV in the dataset's metric; stratified split: 4 Tier 1 islands of N/10 (40%), reserve in 2 groups (60%) |
-| 3. Tier 1 | ask/tell for T₁ iterations; stagnant islands get 50% random members through `inject` |
-| 4. Composite | `C = 0.30F + 0.25S + 0.15E + 0.15D + 0.15T`, each min–max normalised; D = mean latent distance / √d; T = slope over 3 scoring calls |
-| 5. UCB1 control | `U = C + 0.1·sqrt(ln N_total / n_i)`; top 2 promoted; SWAP if a T1 family's U exceeds the weaker T2 family's by > 0.10; rollback after a 5-iteration grace period; cooldowns |
-| 6. Tier 2 | pairwise elite sharing (each island's worst 20% replaced by the other's best 20%) |
-| 7. Injection | 20% into a Tier 2 island stagnant for 3 checkpoints |
-| 8. Confirm, refit, measure | top 5 distinct configurations re-scored with 5-fold CV; one refit on train rows; one test score; latency, throughput and size measured |
+| Abstract | Problem (one optimizer chosen in advance), method (bandit-controlled GA/PSO/DE/CMA-ES portfolio, latent CASH encoding, composite reward, confirm before select), results (93.89% / 92.96% AUC, level with random search and Optuna, FLAML ±; ablation tie), released data |
+| I. Introduction | HPO and CASH; optimizer families and No Free Lunch; algorithm selection as the framing; four contributions; paper outline |
+| II. Related Work | A. HPO and CASH (SMAC, TPE, Optuna, Auto-WEKA, auto-sklearn, Hyperband, FLAML, overtuning); B. algorithm selection and portfolios (Rice, Kerschke et al., population-based algorithm portfolios, AMALGAM, adaptive operator selection, NGOpt); C. population-based and island-model search (island models, PBT, regularized evolution, NAS); D. AutoML systems and ensembles (H2O, AutoGluon) — each subsection ends with how EvoSynth differs |
+| III. Method | Fig. 1; A. latent space; B. evaluation; C. population and tiers; D. composite reward; E. bandit control, swap, rollback; F. elite migration and injection; G. confirm, refit, measure; Algorithm 1 |
+| IV. Experimental Setup | A. datasets and protocol; B. methods compared; C. ablation; D. implementation and reproducibility |
+| V. Results | A. comparison with baselines (Table I); B. optimizer ablation (Table II, Fig. 2 convergence curves from `figures/make_paper_figures.py`); C. the Covertype plateau; D. meta-decisions in practice; E. speed-up (Table III) and inference cost; F. NAS on Fashion-MNIST |
+| VI. Discussion | A. when the portfolio helps; B. threats to validity (one seed, plateau, unequal parallelism, single objective) |
+| VII. Conclusion | summary and future work (multi-seed runs, HIGGS / Poker Hand, NGOpt and surrogate benchmarks, rank-normalised rewards, latency-aware objectives) |
+| Data Availability | code, docs site, EvoSynth-Bench v2.1.0 DOI |
 
-Algorithm 1 gives the lifecycle in pseudocode.
+### References (35)
+Every reference was checked against its publisher record (Crossref DOI metadata, JMLR, NeurIPS proceedings, arXiv, Semantic Scholar) on 2026-11-27; three issue numbers were corrected (Bergstra & Bengio 2012 is JMLR 13(10); Auer et al. 2002 is 47(2–3); Fialho et al. 2010 is 60(1–2)) and LightGBM's pages added.
 
-### III. Experimental evaluation
-| Subsection | Content |
+| Group | References |
 |---|---|
-| Setup | Covertype and Adult, fixed splits; 10,000 search rows; 500 evaluations for EvoSynth, Random Search, Optuna; FLAML with equal wall time; untuned floors; one 12-thread CPU; seed 42 |
-| Main comparison (Table I) | test score and search time of all eight methods on both datasets; the Covertype plateau explained |
-| Ablation (Table II) | GA, PSO, DE, CMA-ES alone vs EvoSynth at 125 and 500 evaluations |
-| Meta-decisions | promotion of DE + CMA-ES, GA SWAP and rollback on Covertype; two SWAPs on Adult; a different family wins each run |
-| Speed-up (Table III) | 1.00× / 1.17× / 5.85× / 6.10× |
-| Inference cost | 12.5 ms and 470 MB (Covertype ExtraTrees) vs 0.26 ms and 0.4 MB (Adult XGBoost) |
-| NAS | Fashion-MNIST, 160 evaluations, 81.8% validation |
-
-### IV. Dashboard
-FastAPI SSE events (metrics, composite and UCB scores, tier assignments, every meta-decision) shown live in a React dashboard.
-
-### V. Conclusion
-EvoSynth matches strong baselines and the best single optimizer, picks the right model family, and is fastest on Covertype; it does not beat strong baselines on these datasets, FLAML wins Adult, and the Covertype space has a plateau. **Future work:** multiple seeds and harder datasets, NGOpt and surrogate benchmarks, rank-normalised rewards, latency-aware objectives.
-
-### References (20)
-Feurer & Hutter 2019; Bergstra & Bengio 2012; Auer et al. 2002; Kennedy & Eberhart 1995; Storn & Price 1997; Hansen & Ostermeier 2001; Chen & Guestrin 2016; Ke et al. 2017; Fialho et al. 2010; Bergstra et al. 2011; Wang et al. 2021 (FLAML); LeDell & Poirier 2020 (H2O); Zoph & Le 2017; Real et al. 2019; Hutter et al. 2011 (SMAC); Wolpert & Macready 1997; Akiba et al. 2019 (Optuna); Blackard & Dean 1999 (Covertype); Kohavi 1996 (Adult); Xiao et al. 2017 (Fashion-MNIST).
+| HPO and CASH | Feurer & Hutter 2019; Bischl et al. 2023; Thornton et al. 2013 (Auto-WEKA); Bergstra & Bengio 2012; Bergstra et al. 2011 (TPE); Hutter et al. 2011 (SMAC); Akiba et al. 2019 (Optuna); Feurer et al. 2015 (auto-sklearn); Li et al. 2018 (Hyperband); Wang et al. 2021 (FLAML); Schneider et al. 2025 (overtuning) |
+| Optimizers and theory | Kennedy & Eberhart 1995 (PSO); Storn & Price 1997 (DE); Hansen & Ostermeier 2001 (CMA-ES); Wolpert & Macready 1997 (NFL); Auer et al. 2002 (UCB1) |
+| Algorithm selection and portfolios | Rice 1976; Kerschke et al. 2019; Fialho et al. 2010; Peng et al. 2010; Vrugt & Robinson 2007 (AMALGAM); Meunier et al. 2022 (NGOpt) |
+| Population-based search and NAS | Alba & Tomassini 2002; Jaderberg et al. 2017 (PBT); Real et al. 2019; Zoph & Le 2017 |
+| AutoML systems | LeDell & Poirier 2020 (H2O); Erickson et al. 2020 (AutoGluon) |
+| Models | Chen & Guestrin 2016 (XGBoost); Breiman 2001 (random forests); Ke et al. 2017 (LightGBM); Geurts et al. 2006 (extremely randomized trees) |
+| Datasets | Blackard & Dean 1999 (Covertype); Kohavi 1996 (Adult); Xiao et al. 2017 (Fashion-MNIST) |
 
 ---
 
