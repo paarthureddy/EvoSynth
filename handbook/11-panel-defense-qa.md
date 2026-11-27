@@ -217,7 +217,7 @@ The longer matrix, with AutoGluon and H2O, is in [09](09-comparative-analysis.md
 
 - [ ] `py -3.14 -m pytest -q` passes (88 tests).
 - [ ] `results/summary/` is current (`evosynth summary`); the numbers on your slides match `main_table.md`.
-- [ ] `paper/figures/approval.png` for this review is in place; the certification lists in `report.tex` and `slides.tex` match.
+- [ ] `paper/figures/approval.png` for this review is in place.
 - [ ] `.data/covertype/` and `.data/adult/` are cached (`evosynth datasets download covertype adult`), so a live demo does not wait on a download.
 - [ ] Demo command tested: `evosynth run --full --dataset adult --subsample 10000` (about 3 minutes) with the dashboard open.
 - [ ] You can explain the Covertype plateau, the rollback in the Covertype run, and why FLAML won Adult.

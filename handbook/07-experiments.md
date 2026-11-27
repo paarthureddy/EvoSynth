@@ -111,7 +111,7 @@ py -3.14 tools/run_experiments.py core --dry-run   # list its jobs and which are
 
 The main comparison per dataset and seed is: EvoSynth (`--full`, 500 evaluations), Random Search (500), Optuna TPE (500), untuned defaults, and FLAML with the same wall time as that EvoSynth search. Every search uses `--subsample 10000`. A job whose run folder is already `completed` is skipped, so the runner can be stopped and restarted; progress goes to `results/runner.log`, and `evosynth summary` runs at the end.
 
-**Cost.** One evaluation takes about 1–9 s with 8 threads at 20,000 rows (MiniBooNE slowest, Poker Hand fastest); `smoke` takes about 6 hours, `core` about 2–2.5 days. The full original plan (all datasets, 5 seeds, every budget and ablation) would take about 3 weeks on one laptop.
+**Cost.** One evaluation takes about 1–9 s with 8 threads at 20,000 rows (MiniBooNE slowest, Poker Hand fastest); `smoke` took 4 hours on a 12-thread laptop (measured 2026-11-26: the Covertype ablation 61 min, Optuna on Covertype 52 min, Random Search on Covertype 45 min, NAS 15 min, everything else under 15 min each); `core` takes about 2–2.5 days. The full original plan (all datasets, 5 seeds, every budget and ablation) would take about 3 weeks on one laptop.
 
 ---
 

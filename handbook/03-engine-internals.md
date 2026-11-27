@@ -205,7 +205,18 @@ For GA: fitness (86.2 − 84.6)/1.6 = 1 → 0.300; speed 0.4/1.1 = 0.364 → 0.0
 
 PSO is promoted ahead of GA despite a lower best score, because it is improving fastest and most cheaply. At a later checkpoint, CMAES could SWAP in only if its UCB exceeded the weaker Tier 2 family's by more than 0.10.
 
-Real scoring tables from the re-runs are in each run's `run.log`, and every value is stored in the controller's `scoring_history` (the ablation's `result.json` reports them).
+**A real table.** Step 4 of the Phase 5 Covertype run (`results/search/covertype/search_full/seed_42/run.log`, after 5 Tier 1 iterations, 120 of 500 evaluations):
+
+| Family | Best CV | Diversity | Composite | Bonus | UCB | Decision |
+|---|---|---|---|---|---|---|
+| DE | 81.82% | 0.284 | 0.961 | 0.049 | **1.010** | promoted |
+| CMA-ES | 82.08% | 0.224 | 0.417 | 0.049 | **0.466** | promoted |
+| PSO | 81.90% | 0.050 | 0.295 | 0.049 | 0.344 | stays in Tier 1 |
+| GA | 80.09% | 0.009 | 0.000 | 0.049 | 0.049 | stays in Tier 1 |
+
+The same effect as in the worked example: DE has a lower best than CMA-ES but was still improving and had the most diverse island, so it ranks first. The bonuses are equal because every family had used the same number of evaluations. PSO's island had collapsed (diversity 0.050). At the next checkpoint GA (UCB 0.592) displaced DE (0.369) by a SWAP and was rolled back five iterations later ([08](08-results.md) §5).
+
+Every run's tables are in its `run.log`, and every value is stored in the controller's `scoring_history` (the ablation's `result.json` reports them).
 
 ---
 

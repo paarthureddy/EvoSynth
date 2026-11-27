@@ -82,7 +82,7 @@ Feurer & Hutter 2019; Bergstra & Bengio 2012; Auer et al. 2002; Kennedy & Eberha
 | 6. Results | the two-dataset table (best untuned, FLAML, Random Search, Optuna, EvoSynth) and findings: tie with the strong baselines, right family per dataset, ablation, the Covertype SWAP and rollback |
 | 7. Comparison | Optuna / FLAML / H2O / EvoSynth matrix with measured Covertype scores; single-model cost (0.26–12.5 ms); live demo with `evosynth run`; Fashion-MNIST NAS 81.8% |
 | 8. Justification | NFL and the two tiers; latent space; 6.1× from parallel evaluation; rollback, injection and confirm-before-select; limitations (ties rather than wins, one seed, the Covertype plateau, single machine) and future scope |
-| Enrichment | MOOCs: Kharat, Ladda, Loya — *Evolutionary Computation and its Applications* (Coursera); Reddy — *Front-End Web Development with React* (Coursera); Narang — *Optimization for ML* (NPTEL) |
+| Enrichment | Individual certifications (as in the report): Kharat, Ladda, Narang — *Supervised Machine Learning in Python* (Udemy, 11 h); Loya, Reddy — *AI and Meta-Heuristics (Combinatorial Optimization) Python* (Udemy, 17.5 h) |
 | References | the ten review references (Scrivano 2025 … LeDell & Poirier 2020) |
 
 The deck ends with "Thank You — Questions & Viva Voce".
@@ -102,9 +102,9 @@ Two to three pages in the Amrita format (maroon headings, team and guide table):
 | 5. Results | the two-dataset table; findings; ablation; the Covertype SWAP, rollback and winner; Fashion-MNIST NAS |
 | 6. Justification | algorithmic rationale; complexity; single model with measured cost; edge cases (rollback, injection, confirm before select, failed folds) |
 | 7. Conclusion | conclusion, limitations, future scope |
-| 8. Deliverables | repository, docs site, EvoSynth-Bench v2.0.0, individual certifications |
+| 8. Deliverables | repository, docs site, EvoSynth-Bench v2.0.0; individual certifications: Shivam Kharat, Siddharth Ladda and Priyansh Narang — *Supervised Machine Learning in Python* (Udemy, 11 h); Kaushal Loya and Paarthu Reddy — *AI and Meta-Heuristics (Combinatorial Optimization) Python* (Udemy, 17.5 h) |
 
-> **Check before submitting:** the certification lists in `report.tex` (Udemy courses) and `slides.tex` (Coursera / NPTEL courses) differ. Make them match whatever each member actually completed.
+The deck's enrichment slide lists the same Udemy certifications as the report.
 
 ---
 
@@ -138,9 +138,9 @@ Table I, held-out test score and search time of every method on Covertype and Ad
 The new `arch.png`. It is generalised to any population size N (four Tier 1 islands of N/10, a 60% reserve in two groups), shows the stratified split and pairwise elite sharing, and ends with confirm before select, one refit and a held-out test score. The old diagram is kept as `arch_legacy.png`.
 </details>
 
-**5.** What must be checked in the report and slides before the next submission?
+**5.** What must be checked in the paper folder before the next submission?
 
 <details><summary>Answer</summary>
 
-That the individual certification lists match (the report lists Udemy courses and the slides list Coursera and NPTEL courses), and that `approval.png` for that review is in `paper/figures/`.
+That `approval.png` for that review is in `paper/figures/` (it changes for every review), that the numbers on the slides match `results/summary/main_table.md`, and that all three documents build.
 </details>

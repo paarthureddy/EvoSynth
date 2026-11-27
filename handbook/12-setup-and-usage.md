@@ -85,7 +85,7 @@ evosynth baselines --test defaults                   # untuned XGBoost / LightGB
 
 - `--test` accepts `all`, `defaults`, `random`, `optuna` or `flaml`.
 - **Outputs:** one folder per baseline, `results/baselines/<dataset>/{defaults,random_search,optuna_tpe,flaml}/seed_<k>/`, each with `report.txt`, `result.json`, `run.log` (plus `model.pkl`, `optuna.db` / `flaml.log`).
-- Random Search and Optuna evaluate one configuration at a time, so at the same budget they take longer than EvoSynth, which evaluates in parallel (about 45 min vs 15 min for 500 evaluations on Covertype with 10,000 search rows).
+- Random Search and Optuna evaluate one configuration at a time, so at the same budget they take longer than EvoSynth, which evaluates in parallel (measured for 500 evaluations on Covertype with 10,000 search rows: Random Search 42 min, Optuna 50 min, EvoSynth 12 min; on Adult, where XGBoost evaluations are about a second, Optuna 3.3 min and EvoSynth 3.0 min).
 
 ### 3.4 Ablations
 
